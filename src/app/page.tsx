@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 export default function Home() {
+  // Componente de la landing page principal con diseño premium y glassmorphism
   return (
     <div style={{
       display: "flex",
