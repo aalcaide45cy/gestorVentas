@@ -70,6 +70,86 @@ export default function AdminCatalogosForm({
     }
   };
 
+  // Estados para edición
+  const [editingType, setEditingType] = useState<TabType | "estado_vehiculo" | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingNombre, setEditingNombre] = useState("");
+  const [editingExtra, setEditingExtra] = useState(""); // para ciudad en tiendas
+
+  const iniciarEdicion = (tipo: TabType | "estado_vehiculo", id: number, nombre: string, extra = "") => {
+    setEditingType(tipo);
+    setEditingId(id);
+    setEditingNombre(nombre);
+    setEditingExtra(extra);
+  };
+
+  const cancelarEdicion = () => {
+    setEditingType(null);
+    setEditingId(null);
+    setEditingNombre("");
+    setEditingExtra("");
+  };
+
+  const handleGuardarEdicion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNombre.trim() || !editingId || !editingType) return;
+    setLoading(true);
+
+    try {
+      if (editingType === "tiendas") {
+        const res = await fetch("/api/admin/tiendas", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id_tienda: editingId, nombre: editingNombre, ciudad: editingExtra })
+        });
+        if (!res.ok) throw new Error("Error al actualizar la tienda");
+        const result = await res.json();
+        setTiendas(tiendas.map(t => t.id_tienda === editingId ? { ...t, nombre: result.data.nombre, ciudad: result.data.ciudad } : t));
+        showNotification("Tienda actualizada correctamente", "success");
+      } else {
+        let payloadType = editingType as string;
+        if (editingType === "ventas") {
+          const esTipoVenta = tiposVenta.some(tv => tv.id === editingId);
+          payloadType = esTipoVenta ? "tipo_venta" : "estado_vehiculo";
+        } else if (editingType === "marcas") {
+          payloadType = "marca";
+        } else if (editingType === "modelos") {
+          payloadType = "modelo";
+        }
+
+        const res = await fetch("/api/admin/catalogos", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tipo: payloadType, id: editingId, nombre: editingNombre, nombre_modelo: editingNombre, nombre_tipo_venta: editingNombre, nombre_estado_vehiculo: editingNombre })
+        });
+
+        if (!res.ok) throw new Error("Error al actualizar catálogo");
+        const result = await res.json();
+
+        if (payloadType === "marca") {
+          setMarcas(marcas.map(m => m.id_marca === editingId ? { ...m, nombre: result.data.nombre } : m));
+        } else if (payloadType === "modelo") {
+          setMarcas(marcas.map(m => ({
+            ...m,
+            modelos: m.modelos.map(mod => mod.id_modelo === editingId ? { ...mod, nombre_modelo: result.data.nombre_modelo } : mod)
+          })));
+        } else if (payloadType === "tipo_venta") {
+          setTiposVenta(tiposVenta.map(tv => tv.id === editingId ? { ...tv, nombre: result.data.nombre_tipo_venta } : tv));
+        } else if (payloadType === "estado_vehiculo") {
+          setEstadosVehiculo(estadosVehiculo.map(ev => ev.id === editingId ? { ...ev, nombre: result.data.nombre_estado_vehiculo } : ev));
+        }
+
+        showNotification("Elemento actualizado correctamente", "success");
+      }
+      cancelarEdicion();
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // --- ACCIONES DE CREACIÓN ---
 
   const handleCrearMarca = async (e: React.FormEvent) => {
@@ -430,44 +510,74 @@ export default function AdminCatalogosForm({
           </form>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
-            {marcas.map(m => (
-              <div key={m.id_marca} style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "12px 16px",
-                borderRadius: "var(--radius-sm)",
-                background: "rgba(255, 255, 255, 0.02)",
-                border: "1px solid var(--border-light)"
-              }}>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontWeight: 600, color: m.activo ? "var(--text-primary)" : "var(--text-muted)" }}>
-                    {m.nombre}
-                  </span>
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                    {m.modelos.length} modelo(s)
-                  </span>
+            {marcas.map(m => {
+              const isEditing = editingType === "marcas" && editingId === m.id_marca;
+              return (
+                <div key={m.id_marca} style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border-light)",
+                  gap: "10px"
+                }}>
+                  {isEditing ? (
+                    <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", width: "100%", alignItems: "center" }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={editingNombre}
+                        onChange={e => setEditingNombre(e.target.value)}
+                        style={{ padding: "6px 10px", fontSize: "0.85rem", flex: 1 }}
+                        required
+                        autoFocus
+                      />
+                      <button type="submit" className="btn btn-primary" style={{ padding: "6px 10px", fontSize: "0.8rem" }} disabled={loading}>✓</button>
+                      <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "6px 10px", fontSize: "0.8rem" }}>✗</button>
+                    </form>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 600, color: m.activo ? "var(--text-primary)" : "var(--text-muted)" }}>
+                          {m.nombre}
+                        </span>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                          {m.modelos.length} modelo(s)
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => iniciarEdicion("marcas", m.id_marca, m.nombre)}
+                          style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleToggleMarcaActiva(m.id_marca, !!m.activo)}
+                          style={{ padding: "6px 10px", fontSize: "0.8rem", color: m.activo ? "var(--success)" : "var(--warning)" }}
+                        >
+                          {m.activo ? "Activa" : "Inactiva"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleEliminarMarcaFisicamente(m.id_marca, m.nombre)}
+                          style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => handleToggleMarcaActiva(m.id_marca, !!m.activo)}
-                    style={{ padding: "6px 10px", fontSize: "0.8rem", color: m.activo ? "var(--success)" : "var(--warning)" }}
-                  >
-                    {m.activo ? "Activa" : "Inactiva"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => handleEliminarMarcaFisicamente(m.id_marca, m.nombre)}
-                    style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -512,26 +622,57 @@ export default function AdminCatalogosForm({
               <div key={m.id_marca} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <span style={{ fontSize: "0.8rem", color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase" }}>{m.nombre}</span>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px", paddingLeft: "10px", borderLeft: "2px solid rgba(124, 58, 237, 0.2)" }}>
-                  {m.modelos.map(mod => (
-                    <div key={mod.id_modelo} style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "8px 12px",
-                      borderRadius: "var(--radius-sm)",
-                      background: "rgba(255, 255, 255, 0.02)",
-                      border: "1px solid var(--border-light)"
-                    }}>
-                      <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>{mod.nombre_modelo}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleEliminarModelo(mod.id_modelo, m.id_marca)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)" }}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  ))}
+                  {m.modelos.map(mod => {
+                    const isEditing = editingType === "modelos" && editingId === mod.id_modelo;
+                    return (
+                      <div key={mod.id_modelo} style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "8px 12px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(255, 255, 255, 0.02)",
+                        border: "1px solid var(--border-light)",
+                        gap: "6px"
+                      }}>
+                        {isEditing ? (
+                          <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                            <input
+                              type="text"
+                              className="form-input"
+                              value={editingNombre}
+                              onChange={e => setEditingNombre(e.target.value)}
+                              style={{ padding: "4px 8px", fontSize: "0.85rem", flex: 1 }}
+                              required
+                              autoFocus
+                            />
+                            <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px", fontSize: "0.75rem" }} disabled={loading}>✓</button>
+                            <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px", fontSize: "0.75rem" }}>✗</button>
+                          </form>
+                        ) : (
+                          <>
+                            <span style={{ fontSize: "0.9rem", fontWeight: 500 }}>{mod.nombre_modelo}</span>
+                            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() => iniciarEdicion("modelos", mod.id_modelo, mod.nombre_modelo)}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 0 }}
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEliminarModelo(mod.id_modelo, m.id_marca)}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", padding: 0 }}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                   {m.modelos.length === 0 && (
                     <span style={{ fontSize: "0.85rem", color: "var(--text-muted)", fontStyle: "italic" }}>Sin modelos registrados</span>
                   )}
@@ -573,30 +714,73 @@ export default function AdminCatalogosForm({
           </form>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
-            {tiendas.map(t => (
-              <div key={t.id_tienda} style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "12px 16px",
-                borderRadius: "var(--radius-sm)",
-                background: "rgba(255, 255, 255, 0.02)",
-                border: "1px solid var(--border-light)"
-              }}>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span style={{ fontWeight: 600 }}>{t.nombre}</span>
-                  {t.ciudad && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>📍 {t.ciudad}</span>}
+            {tiendas.map(t => {
+              const isEditing = editingType === "tiendas" && editingId === t.id_tienda;
+              return (
+                <div key={t.id_tienda} style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "12px 16px",
+                  borderRadius: "var(--radius-sm)",
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border-light)",
+                  gap: "10px"
+                }}>
+                  {isEditing ? (
+                    <form onSubmit={handleGuardarEdicion} style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Nombre de la tienda"
+                        value={editingNombre}
+                        onChange={e => setEditingNombre(e.target.value)}
+                        style={{ padding: "6px 10px", fontSize: "0.85rem" }}
+                        required
+                        autoFocus
+                      />
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Ciudad"
+                        value={editingExtra}
+                        onChange={e => setEditingExtra(e.target.value)}
+                        style={{ padding: "6px 10px", fontSize: "0.85rem" }}
+                      />
+                      <div style={{ display: "flex", gap: "6px", alignSelf: "flex-end" }}>
+                        <button type="submit" className="btn btn-primary" style={{ padding: "6px 12px", fontSize: "0.8rem" }} disabled={loading}>✓ Guardar</button>
+                        <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>✗ Cancelar</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontWeight: 600 }}>{t.nombre}</span>
+                        {t.ciudad && <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>📍 {t.ciudad}</span>}
+                      </div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => iniciarEdicion("tiendas", t.id_tienda, t.nombre, t.ciudad || "")}
+                          style={{ padding: "8px" }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleEliminarTienda(t.id_tienda)}
+                          style={{ padding: "8px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => handleEliminarTienda(t.id_tienda)}
-                  style={{ padding: "8px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
-                >
-                  🗑️
-                </button>
-              </div>
-            ))}
+              );
+            })}
             {tiendas.length === 0 && (
               <div style={{ color: "var(--text-muted)", fontStyle: "italic", gridColumn: "1 / -1" }}>
                 No hay tiendas registradas en el sistema.
@@ -629,26 +813,57 @@ export default function AdminCatalogosForm({
             </form>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "350px", overflowY: "auto" }}>
-              {tiposVenta.map(t => (
-                <div key={t.id} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 16px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid var(--border-light)"
-                }}>
-                  <span style={{ fontWeight: 600 }}>{t.nombre}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarTipoVenta(t.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)" }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))}
+              {tiposVenta.map(t => {
+                const isEditing = editingType === "ventas" && editingId === t.id;
+                return (
+                  <div key={t.id} style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 16px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "rgba(255, 255, 255, 0.02)",
+                    border: "1px solid var(--border-light)",
+                    gap: "6px"
+                  }}>
+                    {isEditing ? (
+                      <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={editingNombre}
+                          onChange={e => setEditingNombre(e.target.value)}
+                          style={{ padding: "4px 8px", fontSize: "0.85rem", flex: 1 }}
+                          required
+                          autoFocus
+                        />
+                        <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px", fontSize: "0.75rem" }} disabled={loading}>✓</button>
+                        <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px", fontSize: "0.75rem" }}>✗</button>
+                      </form>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight: 600 }}>{t.nombre}</span>
+                        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicion("ventas", t.id, t.nombre)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 0 }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarTipoVenta(t.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", padding: 0 }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -672,26 +887,57 @@ export default function AdminCatalogosForm({
             </form>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "350px", overflowY: "auto" }}>
-              {estadosVehiculo.map(ev => (
-                <div key={ev.id} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "10px 16px",
-                  borderRadius: "var(--radius-sm)",
-                  background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid var(--border-light)"
-                }}>
-                  <span style={{ fontWeight: 600 }}>{ev.nombre}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleEliminarEstadoVehiculo(ev.id)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)" }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              ))}
+              {estadosVehiculo.map(ev => {
+                const isEditing = editingType === "ventas" && editingId === ev.id;
+                return (
+                  <div key={ev.id} style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "10px 16px",
+                    borderRadius: "var(--radius-sm)",
+                    background: "rgba(255, 255, 255, 0.02)",
+                    border: "1px solid var(--border-light)",
+                    gap: "6px"
+                  }}>
+                    {isEditing ? (
+                      <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={editingNombre}
+                          onChange={e => setEditingNombre(e.target.value)}
+                          style={{ padding: "4px 8px", fontSize: "0.85rem", flex: 1 }}
+                          required
+                          autoFocus
+                        />
+                        <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px", fontSize: "0.75rem" }} disabled={loading}>✓</button>
+                        <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px", fontSize: "0.75rem" }}>✗</button>
+                      </form>
+                    ) : (
+                      <>
+                        <span style={{ fontWeight: 600 }}>{ev.nombre}</span>
+                        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicion("ventas", ev.id, ev.nombre)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", padding: 0 }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEliminarEstadoVehiculo(ev.id)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", padding: 0 }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

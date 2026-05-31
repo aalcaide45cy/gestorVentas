@@ -1,5 +1,8 @@
 import { syncUser } from "@/lib/auth-utils";
 import Link from "next/link";
+import { db } from "@/db";
+import { expedientes, clientes } from "@/db/schema";
+import { desc } from "drizzle-orm";
 
 export default async function DashboardPage() {
   const user = await syncUser();
@@ -10,6 +13,31 @@ export default async function DashboardPage() {
 
   const userRole = user.rol || "invitado";
   const isInvitado = userRole === "invitado";
+
+  // Consultar datos reales de la BD
+  const dbExpedientesAll = await db.query.expedientes.findMany();
+  const dbClientesAll = await db.query.clientes.findMany();
+
+  const expedientesCount = dbExpedientesAll.length;
+  const clientesCount = dbClientesAll.length;
+  const ventasTotalesValue = expedientesCount * 28500; // promedio estimado de €28.500 por auto
+  const ventasTotalesFormatted = ventasTotalesValue.toLocaleString("es-ES") + " €";
+
+  // Obtener los 5 últimos expedientes para mostrar en el feed de actividad
+  const dbExpedientesRecientes = await db.query.expedientes.findMany({
+    orderBy: [desc(expedientes.id_expediente)],
+    limit: 5,
+    with: {
+      cliente: true,
+      modelo: {
+        with: {
+          marca: true
+        }
+      },
+      tipoDeVenta: true,
+      estadoVehiculo: true
+    }
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
@@ -69,7 +97,7 @@ export default async function DashboardPage() {
       ) : (
         /* VISTA PARA ROLES ACTIVOS */
         <>
-          {/* MÉTRIQUES CLAVE (GRIDS DE TARJETAS) */}
+          {/* MÉTRICAS CLAVE (GRIDS DE TARJETAS) */}
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -77,7 +105,7 @@ export default async function DashboardPage() {
           }}>
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>VENTAS TOTALES</span>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>VOLUMEN VENTAS (EST.)</span>
                 <span style={{ color: "var(--success)" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="12" y1="19" x2="12" y2="5" />
@@ -85,13 +113,13 @@ export default async function DashboardPage() {
                   </svg>
                 </span>
               </div>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>124.500 €</h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>+12% respecto al mes anterior</p>
+              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>{ventasTotalesFormatted}</h2>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Basado en el histórico total</p>
             </div>
 
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>EXPEDIENTES ACTIVOS</span>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>EXPEDIENTES TOTALES</span>
                 <span style={{ color: "var(--primary)" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -102,13 +130,13 @@ export default async function DashboardPage() {
                   </svg>
                 </span>
               </div>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>32</h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>4 pendientes de firma</p>
+              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>{expedientesCount}</h2>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Registrados en base de datos</p>
             </div>
 
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>NUEVOS CLIENTES</span>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>CLIENTES REGISTRADOS</span>
                 <span style={{ color: "var(--secondary)" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -118,13 +146,13 @@ export default async function DashboardPage() {
                   </svg>
                 </span>
               </div>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>18</h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Este mes de mayo</p>
+              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>{clientesCount}</h2>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Directorio activo</p>
             </div>
 
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>TASA DE CIERRE</span>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>TASA DE EFECTIVIDAD</span>
                 <span style={{ color: "var(--accent)" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" />
@@ -132,15 +160,15 @@ export default async function DashboardPage() {
                   </svg>
                 </span>
               </div>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>78.4%</h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Eficiencia del equipo</p>
+              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>100%</h2>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Ratio de procesamiento</p>
             </div>
           </div>
 
           {/* EXPEDIENTES RECIENTES */}
           <div className="glass-panel" style={{ padding: "28px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "1.2rem" }}>Últimos Expedientes</h3>
+              <h3 style={{ fontSize: "1.2rem" }}>Últimos Expedientes Activos</h3>
               <Link href="/dashboard/expedientes" style={{ fontSize: "0.9rem", fontWeight: 600 }}>
                 Ver todos
               </Link>
@@ -152,45 +180,50 @@ export default async function DashboardPage() {
                   <tr>
                     <th>Código</th>
                     <th>Cliente</th>
-                    <th>Modelo</th>
-                    <th>Venta</th>
+                    <th>Vehículo</th>
+                    <th>Método de Venta</th>
                     <th>Estado Vehículo</th>
                     <th>Fecha</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>#EXP-2026-001</td>
-                    <td>Juan Pérez Gómez</td>
-                    <td>Toyota RAV4 Hybrid</td>
-                    <td>Financiación Preference</td>
-                    <td><span className="badge badge-tienda">Nuevo</span></td>
-                    <td>31/05/2026</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>#EXP-2026-002</td>
-                    <td>María López Fernández</td>
-                    <td>Hyundai Tucson</td>
-                    <td>Contado</td>
-                    <td><span className="badge badge-vendedor">Seminuevo</span></td>
-                    <td>30/05/2026</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>#EXP-2026-003</td>
-                    <td>Carlos Sáez Ruiz</td>
-                    <td>Peugeot 3008</td>
-                    <td>Financiación Crédito</td>
-                    <td><span className="badge badge-admin">Buyback</span></td>
-                    <td>28/05/2026</td>
-                  </tr>
-                  <tr>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>#EXP-2026-004</td>
-                    <td>Ana Belén Santos</td>
-                    <td>Renault Captur</td>
-                    <td>Contado</td>
-                    <td><span className="badge badge-invitado">Usado</span></td>
-                    <td>25/05/2026</td>
-                  </tr>
+                  {dbExpedientesRecientes.map((exp) => (
+                    <tr key={exp.id_expediente}>
+                      <td style={{ fontWeight: "bold", color: "var(--primary)" }}>
+                        #EXP-{String(exp.id_expediente).padStart(4, "0")}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{exp.cliente?.nombre || "Sin Cliente"}</div>
+                        {exp.cliente?.dni && <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.cliente.dni}</div>}
+                      </td>
+                      <td>
+                        {exp.modelo ? (
+                          <>
+                            <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
+                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.modelo.marca?.nombre}</div>
+                          </>
+                        ) : "N/D"}
+                      </td>
+                      <td>
+                        <span className="badge badge-zona" style={{ fontSize: "0.7rem" }}>
+                          {exp.tipoDeVenta?.nombre_tipo_venta || "N/D"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`}>
+                          {exp.estadoVehiculo?.nombre_estado_vehiculo || "N/D"}
+                        </span>
+                      </td>
+                      <td>{exp.fecha_expediente || "N/D"}</td>
+                    </tr>
+                  ))}
+                  {dbExpedientesRecientes.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
+                        No hay expedientes de venta registrados en la base de datos.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

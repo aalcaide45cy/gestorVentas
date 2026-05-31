@@ -123,3 +123,60 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: error.message || "Error interno" }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const admin = await checkAdmin();
+    if (!admin) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { tipo, id, ...data } = body;
+
+    if (!tipo || !id) {
+      return NextResponse.json({ message: "Faltan datos requeridos (tipo, id)" }, { status: 400 });
+    }
+
+    if (tipo === "marca") {
+      if (!data.nombre) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
+      const [actualizada] = await db.update(marcas)
+        .set({ nombre: data.nombre })
+        .where(eq(marcas.id_marca, Number(id)))
+        .returning();
+      return NextResponse.json({ success: true, data: actualizada });
+    }
+
+    if (tipo === "modelo") {
+      if (!data.nombre_modelo) return NextResponse.json({ message: "El nombre_modelo es requerido" }, { status: 400 });
+      const [actualizada] = await db.update(modelos)
+        .set({ nombre_modelo: data.nombre_modelo })
+        .where(eq(modelos.id_modelo, Number(id)))
+        .returning();
+      return NextResponse.json({ success: true, data: actualizada });
+    }
+
+    if (tipo === "tipo_venta") {
+      if (!data.nombre_tipo_venta) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
+      const [actualizado] = await db.update(tipoDeVenta)
+        .set({ nombre_tipo_venta: data.nombre_tipo_venta })
+        .where(eq(tipoDeVenta.id_tipo_de_venta, Number(id)))
+        .returning();
+      return NextResponse.json({ success: true, data: actualizado });
+    }
+
+    if (tipo === "estado_vehiculo") {
+      if (!data.nombre_estado_vehiculo) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
+      const [actualizado] = await db.update(estadoVehiculo)
+        .set({ nombre_estado_vehiculo: data.nombre_estado_vehiculo })
+        .where(eq(estadoVehiculo.id_estado_vehiculo, Number(id)))
+        .returning();
+      return NextResponse.json({ success: true, data: actualizado });
+    }
+
+    return NextResponse.json({ message: "Tipo de catálogo no soportado" }, { status: 400 });
+  } catch (error: any) {
+    console.error("Error al actualizar catálogo:", error);
+    return NextResponse.json({ message: error.message || "Error interno" }, { status: 500 });
+  }
+}

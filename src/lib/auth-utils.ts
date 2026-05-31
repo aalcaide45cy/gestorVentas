@@ -9,6 +9,7 @@ export interface UserWithDetails {
   nombre: string | null;
   rol: string | null;
   fecha_de_registro: string | null;
+  bloqueado: boolean | null;
 }
 
 /**
@@ -30,13 +31,40 @@ export async function syncUser(): Promise<UserWithDetails | null> {
     return existingUser;
   }
 
+  const emailPrincipal = clerkUser.emailAddresses[0]?.emailAddress || "";
+  const telefonoPrincipal = clerkUser.phoneNumbers[0]?.phoneNumber || "";
+
+  // Buscar si hay un usuario preregistrado por email
+  let matchedUser = null;
+  if (emailPrincipal) {
+    const emailRecord = await db.query.emailsUsuarios.findFirst({
+      where: eq(emailsUsuarios.email, emailPrincipal),
+      with: {
+        usuario: true
+      }
+    });
+    if (emailRecord?.usuario) {
+      matchedUser = emailRecord.usuario;
+    }
+  }
+
+  if (matchedUser) {
+    try {
+      // Sincronizar el clerk_id del usuario preregistrado
+      const [updatedUser] = await db.update(usuarios)
+        .set({ clerk_id: clerkUser.id })
+        .where(eq(usuarios.id_usuario, matchedUser.id_usuario))
+        .returning();
+      return updatedUser;
+    } catch (err) {
+      console.error("Error al sincronizar clerk_id con usuario preregistrado:", err);
+    }
+  }
+
   // Si no existe, creamos el usuario en la base de datos
   const nombreCompleto = [clerkUser.firstName, clerkUser.lastName]
     .filter(Boolean)
     .join(" ") || clerkUser.username || "Usuario";
-
-  const emailPrincipal = clerkUser.emailAddresses[0]?.emailAddress || "";
-  const telefonoPrincipal = clerkUser.phoneNumbers[0]?.phoneNumber || "";
 
   try {
     // 1. Insertar el usuario
@@ -45,6 +73,7 @@ export async function syncUser(): Promise<UserWithDetails | null> {
       nombre: nombreCompleto,
       rol: "invitado", // Rol por defecto
       fecha_de_registro: new Date().toISOString().split("T")[0], // YYYY-MM-DD
+      bloqueado: false,
     }).returning();
 
     // 2. Insertar su email principal si tiene

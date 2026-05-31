@@ -44,6 +44,66 @@ export default function NuevoExpedienteForm({
   const [emails, setEmails] = useState([{ email: "", tipo: "Principal" }]);
   const [telefonos, setTelefonos] = useState([{ telefono: "", tipo: "Principal" }]);
 
+  // Estados para buscar y asignar cliente
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [resultadosClientes, setResultadosClientes] = useState<any[]>([]);
+  const [buscandoCliente, setBuscandoCliente] = useState(false);
+  const [clienteAsignado, setClienteAsignado] = useState<any | null>(null);
+
+  const handleBuscarCliente = async (val: string) => {
+    setBusquedaCliente(val);
+    if (val.trim().length < 2) {
+      setResultadosClientes([]);
+      return;
+    }
+    setBuscandoCliente(true);
+    try {
+      const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(val)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setResultadosClientes(data.data || []);
+      }
+    } catch (e) {
+      console.error("Error al buscar cliente:", e);
+    } finally {
+      setBuscandoCliente(false);
+    }
+  };
+
+  const handleSeleccionarCliente = (c: any) => {
+    setClienteAsignado(c);
+    setDni(c.dni || "");
+    setNombre(c.nombre || "");
+    setFechaNacimiento(c.fecha_de_nacimiento || "");
+    setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
+    
+    // Mapear emails y teléfonos
+    if (c.emails && c.emails.length > 0) {
+      setEmails(c.emails.map((e: any) => ({ email: e.email, tipo: e.tipo_email || "Principal" })));
+    } else {
+      setEmails([{ email: "", tipo: "Principal" }]);
+    }
+
+    if (c.telefonos && c.telefonos.length > 0) {
+      setTelefonos(c.telefonos.map((t: any) => ({ telefono: t.telefono, tipo: t.tipo_telefono || "Principal" })));
+    } else {
+      setTelefonos([{ telefono: "", tipo: "Principal" }]);
+    }
+
+    setBusquedaCliente("");
+    setResultadosClientes([]);
+  };
+
+  const handleDesasignarCliente = () => {
+    setClienteAsignado(null);
+    setDni("");
+    setNombre("");
+    setFechaNacimiento("");
+    setTiendaId(tiendas.length === 1 ? String(tiendas[0].id) : "");
+    setEmails([{ email: "", tipo: "Principal" }]);
+    setTelefonos([{ telefono: "", tipo: "Principal" }]);
+  };
+
   // Estado del Vehículo y Expediente
   const [marcaSeleccionada, setMarcaSeleccionada] = useState<number | "">("");
   const [modeloSeleccionado, setModeloSeleccionado] = useState<number | "">("");
@@ -176,18 +236,98 @@ export default function NuevoExpedienteForm({
             Datos del Cliente
           </h2>
 
+          {clienteAsignado ? (
+            <div className="glass-panel" style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "16px 20px",
+              marginBottom: "24px",
+              background: "rgba(6, 182, 212, 0.05)",
+              borderLeft: "4px solid var(--secondary)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "1.5rem" }}>👤</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>Cliente Asociado: {clienteAsignado.nombre}</div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>DNI / NIE: {clienteAsignado.dni}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleDesasignarCliente}
+                style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}
+              >
+                ❌ Desasignar Cliente
+              </button>
+            </div>
+          ) : (
+            <div className="form-group" style={{ position: "relative", marginBottom: "24px" }}>
+              <label className="form-label">🔍 Buscar Cliente Existente (DNI o Nombre)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Escribe DNI o Nombre... (Ej. Juan)"
+                value={busquedaCliente}
+                onChange={e => handleBuscarCliente(e.target.value)}
+              />
+              {buscandoCliente && (
+                <div style={{ position: "absolute", right: "16px", bottom: "12px", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  Buscando...
+                </div>
+              )}
+              {resultadosClientes.length > 0 && (
+                <div className="glass-panel" style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  background: "var(--bg-surface)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-sm)",
+                  boxShadow: "var(--shadow-lg)",
+                  zIndex: 99,
+                  maxHeight: "220px",
+                  overflowY: "auto",
+                  marginTop: "4px"
+                }}>
+                  {resultadosClientes.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => handleSeleccionarCliente(c)}
+                      className="glass-panel-interactive"
+                      style={{
+                        padding: "12px 16px",
+                        borderBottom: "1px solid var(--border-light)",
+                        borderRadius: 0,
+                        fontSize: "0.9rem",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{c.nombre}</span>
+                      <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontFamily: "monospace" }}>{c.dni}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
               <label className="form-label">DNI / NIE *</label>
-              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" required />
+              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" disabled={!!clienteAsignado} required />
             </div>
             <div className="form-group">
               <label className="form-label">Nombre Completo *</label>
-              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" required />
+              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" disabled={!!clienteAsignado} required />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de Nacimiento</label>
-              <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} />
+              <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} disabled={!!clienteAsignado} />
             </div>
             <div className="form-group">
               <label className="form-label">Tienda *</label>
@@ -212,21 +352,23 @@ export default function NuevoExpedienteForm({
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <span className="form-label" style={{ marginBottom: 0 }}>Correos Electrónicos</span>
-                <button type="button" className="btn btn-secondary" onClick={addEmail} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
-                  + Añadir
-                </button>
+                {!clienteAsignado && (
+                  <button type="button" className="btn btn-secondary" onClick={addEmail} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
+                    + Añadir
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {emails.map((item, idx) => (
                   <div key={idx} style={{ display: "flex", gap: "10px" }}>
-                    <input type="email" className="form-input" placeholder="correo@ejemplo.com" value={item.email} onChange={e => handleEmailChange(idx, e.target.value)} style={{ flex: 2 }} />
-                    <select className="form-select" value={item.tipo} onChange={e => handleEmailTipoChange(idx, e.target.value)} style={{ flex: 1 }}>
+                    <input type="email" className="form-input" placeholder="correo@ejemplo.com" value={item.email} onChange={e => handleEmailChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 2 }} />
+                    <select className="form-select" value={item.tipo} onChange={e => handleEmailTipoChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 1 }}>
                       <option value="Principal">Principal</option>
                       <option value="Trabajo">Trabajo</option>
                       <option value="Personal">Personal</option>
                       <option value="Otro">Otro</option>
                     </select>
-                    {emails.length > 1 && (
+                    {emails.length > 1 && !clienteAsignado && (
                       <button type="button" className="btn btn-secondary" onClick={() => removeEmail(idx)} style={{ padding: "10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}>
                         🗑️
                       </button>
@@ -240,21 +382,23 @@ export default function NuevoExpedienteForm({
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <span className="form-label" style={{ marginBottom: 0 }}>Teléfonos de Contacto</span>
-                <button type="button" className="btn btn-secondary" onClick={addTelefono} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
-                  + Añadir
-                </button>
+                {!clienteAsignado && (
+                  <button type="button" className="btn btn-secondary" onClick={addTelefono} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
+                    + Añadir
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {telefonos.map((item, idx) => (
                   <div key={idx} style={{ display: "flex", gap: "10px" }}>
-                    <input type="text" className="form-input" placeholder="Ej. 600123456" value={item.telefono} onChange={e => handleTelefonoChange(idx, e.target.value)} style={{ flex: 2 }} />
-                    <select className="form-select" value={item.tipo} onChange={e => handleTelefonoTipoChange(idx, e.target.value)} style={{ flex: 1 }}>
+                    <input type="text" className="form-input" placeholder="Ej. 600123456" value={item.telefono} onChange={e => handleTelefonoChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 2 }} />
+                    <select className="form-select" value={item.tipo} onChange={e => handleTelefonoTipoChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 1 }}>
                       <option value="Principal">Principal</option>
                       <option value="Móvil">Móvil</option>
                       <option value="Fijo">Fijo</option>
                       <option value="Trabajo">Trabajo</option>
                     </select>
-                    {telefonos.length > 1 && (
+                    {telefonos.length > 1 && !clienteAsignado && (
                       <button type="button" className="btn btn-secondary" onClick={() => removeTelefono(idx)} style={{ padding: "10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}>
                         🗑️
                       </button>

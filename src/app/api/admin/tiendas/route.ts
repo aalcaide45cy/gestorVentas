@@ -74,3 +74,29 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ message: error.message || "Error interno" }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const admin = await checkAdmin();
+    if (!admin) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { id_tienda, nombre, ciudad } = body;
+
+    if (!id_tienda || !nombre) {
+      return NextResponse.json({ message: "Faltan datos requeridos (id_tienda, nombre)" }, { status: 400 });
+    }
+
+    const [actualizada] = await db.update(tiendas)
+      .set({ nombre, ciudad: ciudad || null })
+      .where(eq(tiendas.id_tienda, Number(id_tienda)))
+      .returning();
+
+    return NextResponse.json({ success: true, data: actualizada });
+  } catch (error: any) {
+    console.error("Error al actualizar tienda:", error);
+    return NextResponse.json({ message: error.message || "Error interno" }, { status: 500 });
+  }
+}

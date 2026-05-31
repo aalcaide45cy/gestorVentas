@@ -15,6 +15,7 @@ export const usuarios = pgTable('usuarios', {
   nombre: varchar('nombre', { length: 255 }),
   rol: varchar('rol', { length: 50 }), // administrador, director, jefe_zona, jefe_tienda, vendedor, invitado
   fecha_de_registro: date('fecha_de_registro'),
+  bloqueado: boolean('bloqueado').default(false),
 });
 
 // TABLA: USUARIOS_TIENDAS (Relación Muchos a Muchos N-a-N)
