@@ -17,7 +17,18 @@ export default async function ClientesPage() {
     orderBy: [desc(clientes.id)],
     with: {
       emails: true,
-      telefonos: true
+      telefonos: true,
+      expedientes: {
+        with: {
+          modelo: {
+            with: {
+              marca: true
+            }
+          },
+          tipoDeVenta: true,
+          estadoVehiculo: true
+        }
+      }
     }
   });
 

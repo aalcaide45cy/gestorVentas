@@ -15,13 +15,40 @@ export default async function DashboardPage() {
   const isInvitado = userRole === "invitado";
 
   // Consultar datos reales de la BD
-  const dbExpedientesAll = await db.query.expedientes.findMany();
+  const dbExpedientesAll = await db.query.expedientes.findMany({
+    with: {
+      tipoDeVenta: true
+    }
+  });
   const dbClientesAll = await db.query.clientes.findMany();
+  const dbTiposVenta = await db.query.tipoDeVenta.findMany();
 
   const expedientesCount = dbExpedientesAll.length;
   const clientesCount = dbClientesAll.length;
-  const ventasTotalesValue = expedientesCount * 28500; // promedio estimado de €28.500 por auto
-  const ventasTotalesFormatted = ventasTotalesValue.toLocaleString("es-ES") + " €";
+
+  // Calcular expedientes creados en el mes actual
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+
+  const expedientesMesActual = dbExpedientesAll.filter(exp => {
+    if (!exp.fecha_expediente) return false;
+    const dateParts = exp.fecha_expediente.split("-");
+    const expYear = parseInt(dateParts[0], 10);
+    const expMonth = parseInt(dateParts[1], 10);
+    return expYear === currentYear && expMonth === currentMonth;
+  }).length;
+
+  // Calcular expedientes según método de pago
+  const conteoTiposPago: Record<string, number> = {};
+  dbTiposVenta.forEach(tv => {
+    conteoTiposPago[tv.nombre_tipo_venta] = 0;
+  });
+  dbExpedientesAll.forEach(exp => {
+    if (exp.tipoDeVenta) {
+      conteoTiposPago[exp.tipoDeVenta.nombre_tipo_venta] = (conteoTiposPago[exp.tipoDeVenta.nombre_tipo_venta] || 0) + 1;
+    }
+  });
 
   // Obtener los 5 últimos expedientes para mostrar en el feed de actividad
   const dbExpedientesRecientes = await db.query.expedientes.findMany({
@@ -105,16 +132,18 @@ export default async function DashboardPage() {
           }}>
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>VOLUMEN VENTAS (EST.)</span>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>MES ACTUAL</span>
                 <span style={{ color: "var(--success)" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="19" x2="12" y2="5" />
-                    <polyline points="5 12 12 5 19 12" />
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
                 </span>
               </div>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>{ventasTotalesFormatted}</h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Basado en el histórico total</p>
+              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>{expedientesMesActual}</h2>
+              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Expedientes creados este mes</p>
             </div>
 
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
@@ -152,16 +181,25 @@ export default async function DashboardPage() {
 
             <div className="glass-panel-interactive" style={{ padding: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>TASA DE EFECTIVIDAD</span>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 600 }}>TIPO DE PAGO</span>
                 <span style={{ color: "var(--accent)" }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <line x1="2" y1="10" x2="22" y2="10" />
                   </svg>
                 </span>
               </div>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "4px" }}>100%</h2>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Ratio de procesamiento</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", maxHeight: "80px", overflowY: "auto" }}>
+                {Object.entries(conteoTiposPago).map(([nombre, cantidad]) => (
+                  <div key={nombre} style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "flex", justifyContent: "space-between" }}>
+                    <span>Expedientes {nombre}:</span>
+                    <strong style={{ color: "var(--text-primary)" }}>{cantidad}</strong>
+                  </div>
+                ))}
+                {Object.keys(conteoTiposPago).length === 0 && (
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>Sin tipos de venta creados</p>
+                )}
+              </div>
             </div>
           </div>
 

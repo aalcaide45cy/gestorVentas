@@ -24,6 +24,7 @@ interface ClienteItem {
   tienda_id: number | null;
   emails: EmailContact[];
   telefonos: TelefonoContact[];
+  expedientes?: any[];
 }
 
 interface TiendaItem {
@@ -45,6 +46,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [expedientesModalCliente, setExpedientesModalCliente] = useState<ClienteItem | null>(null);
 
   // Campos de formulario
   const [dni, setDni] = useState("");
@@ -222,6 +224,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                   <th>Correos</th>
                   <th>Teléfonos</th>
                   <th>Tienda Asignada</th>
+                  <th>Ventas Realizadas</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -263,6 +266,29 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                         <span className={`badge ${tiendaAsociada ? "badge-tienda" : "badge-invitado"}`} style={{ fontSize: "0.75rem" }}>
                           {tiendaAsociada ? tiendaAsociada.nombre : "Global (Sin Tienda)"}
                         </span>
+                      </td>
+                      <td>
+                        {c.expedientes && c.expedientes.length > 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setExpedientesModalCliente(c)}
+                            style={{
+                              padding: "6px 12px",
+                              fontSize: "0.8rem",
+                              fontWeight: "bold",
+                              color: "var(--primary)",
+                              border: "1px solid var(--primary)",
+                              background: "rgba(6, 182, 212, 0.05)",
+                              borderRadius: "var(--radius-sm)",
+                              cursor: "pointer"
+                            }}
+                          >
+                            {c.expedientes.length} venta(s)
+                          </button>
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.9rem", paddingLeft: "12px" }}>0</span>
+                        )}
                       </td>
                       <td>
                         <button
@@ -395,6 +421,112 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {expedientesModalCliente && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "800px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
+            maxHeight: "90vh",
+            overflowY: "auto"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
+                Expedientes de {expedientesModalCliente.nombre}
+              </h3>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setExpedientesModalCliente(null)}
+                style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="table-container">
+              <table className="table-premium">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Vehículo</th>
+                    <th>Método de Venta</th>
+                    <th>Estado Vehículo</th>
+                    <th>Matrícula</th>
+                    <th>Fecha</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(expedientesModalCliente.expedientes || []).map((exp: any) => (
+                    <tr key={exp.id_expediente}>
+                      <td style={{ fontWeight: "bold", color: "var(--primary)" }}>
+                        #EXP-{String(exp.id_expediente).padStart(4, "0")}
+                      </td>
+                      <td>
+                        {exp.modelo ? (
+                          <>
+                            <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
+                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.modelo.marca?.nombre}</div>
+                          </>
+                        ) : "N/D"}
+                      </td>
+                      <td>
+                        <span className="badge badge-zona" style={{ fontSize: "0.7rem" }}>
+                          {exp.tipoDeVenta?.nombre_tipo_venta || "N/D"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`}>
+                          {exp.estadoVehiculo?.nombre_estado_vehiculo || "N/D"}
+                        </span>
+                      </td>
+                      <td>{exp.matricula || "N/D"}</td>
+                      <td>{exp.fecha_expediente || "N/D"}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            setExpedientesModalCliente(null);
+                            router.push(`/dashboard/expedientes/editar/${exp.id_expediente}`);
+                          }}
+                          style={{ padding: "6px 12px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}
+                        >
+                          ✏️ Editar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!expedientesModalCliente.expedientes || expedientesModalCliente.expedientes.length === 0) && (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
+                        No hay expedientes asociados a este cliente.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

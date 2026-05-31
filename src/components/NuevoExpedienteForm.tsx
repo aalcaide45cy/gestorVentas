@@ -104,6 +104,92 @@ export default function NuevoExpedienteForm({
     setTelefonos([{ telefono: "", tipo: "Principal" }]);
   };
 
+  const isClienteModificado = () => {
+    if (!clienteAsignado) return false;
+    
+    const oriDni = clienteAsignado.dni || "";
+    const oriNombre = clienteAsignado.nombre || "";
+    const oriFechaNac = clienteAsignado.fecha_de_nacimiento || "";
+    const oriTiendaId = clienteAsignado.tienda_id ? String(clienteAsignado.tienda_id) : "";
+    
+    if (dni !== oriDni) return true;
+    if (nombre !== oriNombre) return true;
+    if (fechaNacimiento !== oriFechaNac) return true;
+    if (tiendaId !== oriTiendaId) return true;
+    
+    const currentEmails = emails.filter(e => e.email.trim() !== "");
+    const originalEmails = clienteAsignado.emails || [];
+    if (currentEmails.length !== originalEmails.length) return true;
+    for (let i = 0; i < currentEmails.length; i++) {
+      const curr = currentEmails[i];
+      const orig = originalEmails[i];
+      if (!orig) return true;
+      if (curr.email !== orig.email) return true;
+      const currTipo = curr.tipo || "Principal";
+      const origTipo = orig.tipo_email || orig.tipo || "Principal";
+      if (currTipo !== origTipo) return true;
+    }
+
+    const currentTelefonos = telefonos.filter(t => t.telefono.trim() !== "");
+    const originalTelefonos = clienteAsignado.telefonos || [];
+    if (currentTelefonos.length !== originalTelefonos.length) return true;
+    for (let i = 0; i < currentTelefonos.length; i++) {
+      const curr = currentTelefonos[i];
+      const orig = originalTelefonos[i];
+      if (!orig) return true;
+      if (curr.telefono !== orig.telefono) return true;
+      const currTipo = curr.tipo || "Principal";
+      const origTipo = orig.tipo_telefono || orig.tipo || "Principal";
+      if (currTipo !== origTipo) return true;
+    }
+
+    return false;
+  };
+
+  const handleGuardarCambiosCliente = async () => {
+    if (!clienteAsignado) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const body = {
+        id: clienteAsignado.id,
+        dni,
+        nombre,
+        fecha_de_nacimiento: fechaNacimiento || null,
+        tienda_id: tiendaId ? Number(tiendaId) : null,
+        emails: emails.filter(e => e.email.trim() !== "").map(e => ({ email: e.email, tipo: e.tipo })),
+        telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo: t.tipo }))
+      };
+      
+      const res = await fetch("/api/clientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Error al actualizar los datos del cliente.");
+      }
+      
+      setClienteAsignado({
+        ...clienteAsignado,
+        dni,
+        nombre,
+        fecha_de_nacimiento: fechaNacimiento || null,
+        tienda_id: tiendaId ? Number(tiendaId) : null,
+        emails: emails.filter(e => e.email.trim() !== "").map(e => ({ email: e.email, tipo_email: e.tipo })),
+        telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo_telefono: t.tipo }))
+      });
+      
+      alert("✅ Datos del cliente actualizados correctamente.");
+    } catch (err: any) {
+      setError(err.message || "Ocurrió un error al guardar los cambios del cliente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Estado del Vehículo y Expediente
   const [marcaSeleccionada, setMarcaSeleccionada] = useState<number | "">("");
   const [modeloSeleccionado, setModeloSeleccionado] = useState<number | "">("");
@@ -253,14 +339,38 @@ export default function NuevoExpedienteForm({
                   <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>DNI / NIE: {clienteAsignado.dni}</div>
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleDesasignarCliente}
-                style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}
-              >
-                ❌ Desasignar Cliente
-              </button>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                {isClienteModificado() && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleGuardarCambiosCliente}
+                    disabled={loading}
+                    style={{
+                      padding: "8px 16px",
+                      fontSize: "0.85rem",
+                      backgroundColor: "var(--success)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px"
+                    }}
+                  >
+                    💾 Guardar Cambios de Cliente
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleDesasignarCliente}
+                  style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)" }}
+                >
+                  ❌ Desasignar Cliente
+                </button>
+              </div>
             </div>
           ) : (
             <div className="form-group" style={{ position: "relative", marginBottom: "24px" }}>
@@ -319,15 +429,15 @@ export default function NuevoExpedienteForm({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
               <label className="form-label">DNI / NIE *</label>
-              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" disabled={!!clienteAsignado} required />
+              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" required />
             </div>
             <div className="form-group">
               <label className="form-label">Nombre Completo *</label>
-              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" disabled={!!clienteAsignado} required />
+              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" required />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de Nacimiento</label>
-              <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} disabled={!!clienteAsignado} />
+              <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Tienda *</label>
@@ -352,23 +462,21 @@ export default function NuevoExpedienteForm({
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <span className="form-label" style={{ marginBottom: 0 }}>Correos Electrónicos</span>
-                {!clienteAsignado && (
-                  <button type="button" className="btn btn-secondary" onClick={addEmail} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
-                    + Añadir
-                  </button>
-                )}
+                <button type="button" className="btn btn-secondary" onClick={addEmail} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
+                  + Añadir
+                </button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {emails.map((item, idx) => (
                   <div key={idx} style={{ display: "flex", gap: "10px" }}>
-                    <input type="email" className="form-input" placeholder="correo@ejemplo.com" value={item.email} onChange={e => handleEmailChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 2 }} />
-                    <select className="form-select" value={item.tipo} onChange={e => handleEmailTipoChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 1 }}>
+                    <input type="email" className="form-input" placeholder="correo@ejemplo.com" value={item.email} onChange={e => handleEmailChange(idx, e.target.value)} style={{ flex: 2 }} />
+                    <select className="form-select" value={item.tipo} onChange={e => handleEmailTipoChange(idx, e.target.value)} style={{ flex: 1 }}>
                       <option value="Principal">Principal</option>
                       <option value="Trabajo">Trabajo</option>
                       <option value="Personal">Personal</option>
                       <option value="Otro">Otro</option>
                     </select>
-                    {emails.length > 1 && !clienteAsignado && (
+                    {emails.length > 1 && (
                       <button type="button" className="btn btn-secondary" onClick={() => removeEmail(idx)} style={{ padding: "10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}>
                         🗑️
                       </button>
@@ -382,23 +490,21 @@ export default function NuevoExpedienteForm({
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <span className="form-label" style={{ marginBottom: 0 }}>Teléfonos de Contacto</span>
-                {!clienteAsignado && (
-                  <button type="button" className="btn btn-secondary" onClick={addTelefono} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
-                    + Añadir
-                  </button>
-                )}
+                <button type="button" className="btn btn-secondary" onClick={addTelefono} style={{ padding: "6px 12px", fontSize: "0.8rem", borderRadius: "var(--radius-sm)" }}>
+                  + Añadir
+                </button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {telefonos.map((item, idx) => (
                   <div key={idx} style={{ display: "flex", gap: "10px" }}>
-                    <input type="text" className="form-input" placeholder="Ej. 600123456" value={item.telefono} onChange={e => handleTelefonoChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 2 }} />
-                    <select className="form-select" value={item.tipo} onChange={e => handleTelefonoTipoChange(idx, e.target.value)} disabled={!!clienteAsignado} style={{ flex: 1 }}>
+                    <input type="text" className="form-input" placeholder="Ej. 600123456" value={item.telefono} onChange={e => handleTelefonoChange(idx, e.target.value)} style={{ flex: 2 }} />
+                    <select className="form-select" value={item.tipo} onChange={e => handleTelefonoTipoChange(idx, e.target.value)} style={{ flex: 1 }}>
                       <option value="Principal">Principal</option>
                       <option value="Móvil">Móvil</option>
                       <option value="Fijo">Fijo</option>
                       <option value="Trabajo">Trabajo</option>
                     </select>
-                    {telefonos.length > 1 && !clienteAsignado && (
+                    {telefonos.length > 1 && (
                       <button type="button" className="btn btn-secondary" onClick={() => removeTelefono(idx)} style={{ padding: "10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}>
                         🗑️
                       </button>
