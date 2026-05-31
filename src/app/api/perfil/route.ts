@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, emailsUsuarios, telefonosUsuarios } from "@/db/schema";
+import { usuarios, emailsUsuarios, telefonosUsuarios, usuariosTiendas } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
@@ -15,7 +15,8 @@ export async function GET() {
       where: eq(usuarios.clerk_id, userId),
       with: {
         emails: true,
-        telefonos: true
+        telefonos: true,
+        tiendas: true
       }
     });
 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { nombre, emails, telefonos } = body;
+    const { nombre, emails, telefonos, tiendas: tiendasIds } = body;
 
     if (!nombre) {
       return NextResponse.json({ message: "El nombre es obligatorio" }, { status: 400 });
@@ -53,41 +54,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Usuario no encontrado en base de datos" }, { status: 404 });
     }
 
-    // Ejecutar transacciones de actualización de perfil
-    await db.transaction(async (tx) => {
-      // 1. Actualizar nombre de usuario
-      await tx.update(usuarios)
-        .set({ nombre })
-        .where(eq(usuarios.id_usuario, localUser.id_usuario));
+    // 3. Ejecutar secuencialmente para actualizar nombre, reinsertar emails/teléfonos y tiendas
+    // 1. Actualizar nombre de usuario
+    await db.update(usuarios)
+      .set({ nombre })
+      .where(eq(usuarios.id_usuario, localUser.id_usuario));
 
-      // 2. Limpiar emails antiguos y reinsertar
-      await tx.delete(emailsUsuarios)
-        .where(eq(emailsUsuarios.id_usuario, localUser.id_usuario));
+    // 2. Limpiar emails antiguos y reinsertar
+    await db.delete(emailsUsuarios)
+      .where(eq(emailsUsuarios.id_usuario, localUser.id_usuario));
 
-      if (emails && emails.length > 0) {
-        await tx.insert(emailsUsuarios).values(
-          emails.filter((e: any) => e.email).map((e: any) => ({
-            id_usuario: localUser.id_usuario,
-            email: e.email,
-            tipo_email: e.tipo_email || "Principal"
-          }))
-        );
-      }
+    if (emails && emails.length > 0) {
+      await db.insert(emailsUsuarios).values(
+        emails.filter((e: any) => e.email).map((e: any) => ({
+          id_usuario: localUser.id_usuario,
+          email: e.email,
+          tipo_email: e.tipo_email || "Principal"
+        }))
+      );
+    }
 
-      // 3. Limpiar teléfonos antiguos y reinsertar
-      await tx.delete(telefonosUsuarios)
-        .where(eq(telefonosUsuarios.id_usuario, localUser.id_usuario));
+    // 3. Limpiar teléfonos antiguos y reinsertar
+    await db.delete(telefonosUsuarios)
+      .where(eq(telefonosUsuarios.id_usuario, localUser.id_usuario));
 
-      if (telefonos && telefonos.length > 0) {
-        await tx.insert(telefonosUsuarios).values(
-          telefonos.filter((t: any) => t.telefono).map((t: any) => ({
-            id_usuario: localUser.id_usuario,
-            telefono: t.telefono,
-            tipo_telefono: t.tipo_telefono || "Principal"
-          }))
-        );
-      }
-    });
+    if (telefonos && telefonos.length > 0) {
+      await db.insert(telefonosUsuarios).values(
+        telefonos.filter((t: any) => t.telefono).map((t: any) => ({
+          id_usuario: localUser.id_usuario,
+          telefono: t.telefono,
+          tipo_telefono: t.tipo_telefono || "Principal"
+        }))
+      );
+    }
+
+    // 4. Limpiar tiendas del usuario y reinsertar
+    await db.delete(usuariosTiendas)
+      .where(eq(usuariosTiendas.id_usuario, localUser.id_usuario));
+
+    if (tiendasIds && tiendasIds.length > 0) {
+      await db.insert(usuariosTiendas).values(
+        tiendasIds.map((tiendaId: number) => ({
+          id_usuario: localUser.id_usuario,
+          id_tienda: tiendaId
+        }))
+      );
+    }
 
     return NextResponse.json({ success: true, message: "Perfil actualizado correctamente" });
   } catch (error: any) {

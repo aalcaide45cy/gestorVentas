@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { syncUser } from "@/lib/auth-utils";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -47,25 +48,28 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         zIndex: 10
       }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "40px" }}>
-          {/* LOGOTIPO */}
-          <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-primary)" }}>
-            <div style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "8px",
-              background: "linear-gradient(135deg, var(--primary), var(--secondary))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "var(--shadow-glow)"
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 3v18h18" />
-                <path d="m19 9-5 5-4-4-3 3" />
-              </svg>
-            </div>
-            <span style={{ fontFamily: "var(--font-title)", fontWeight: 800, fontSize: "1.3rem", letterSpacing: "-0.02em" }}>GestorVentas</span>
-          </Link>
+          {/* CABECERA SIDEBAR (LOGO Y TEMA) */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+            <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-primary)" }}>
+              <div style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "8px",
+                background: "linear-gradient(135deg, var(--primary), var(--secondary))",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "var(--shadow-glow)"
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 3v18h18" />
+                  <path d="m19 9-5 5-4-4-3 3" />
+                </svg>
+              </div>
+              <span style={{ fontFamily: "var(--font-title)", fontWeight: 800, fontSize: "1.3rem", letterSpacing: "-0.02em" }}>GestorVentas</span>
+            </Link>
+            <ThemeToggle />
+          </div>
 
           {/* PERFIL DE USUARIO EN SIDEBAR */}
           <div style={{

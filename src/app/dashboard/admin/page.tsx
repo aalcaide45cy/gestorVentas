@@ -62,6 +62,7 @@ export default async function AdminPage() {
   // 3. Obtener tipos de venta y estados de vehículos
   const dbTiposVenta = await db.query.tipoDeVenta.findMany();
   const dbEstadosVehiculo = await db.query.estadoVehiculo.findMany();
+  const dbTiendas = await db.query.tiendas.findMany();
 
   // Mapear marcas a estructura del componente
   const marcasMapeadas = dbMarcas.map(m => ({
@@ -128,6 +129,11 @@ export default async function AdminPage() {
             marcasIniciales={marcasMapeadas}
             tiposVentaIniciales={tiposVentaMapeados}
             estadosVehiculoIniciales={estadosVehiculoMapeados}
+            tiendasIniciales={dbTiendas.map(t => ({
+              id_tienda: t.id_tienda,
+              nombre: t.nombre,
+              ciudad: t.ciudad
+            }))}
           />
         </div>
       </div>

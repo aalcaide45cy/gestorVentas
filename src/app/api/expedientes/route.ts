@@ -34,67 +34,64 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Los invitados no tienen permiso para crear expedientes" }, { status: 403 });
     }
 
-    // 3. Ejecutar transacción para insertar cliente, emails, teléfonos y el expediente
-    const nuevoExpediente = await db.transaction(async (tx) => {
-      // Verificar si el cliente ya existe por DNI
-      let clienteId: number;
-      const clienteExistente = await tx.query.clientes.findFirst({
-        where: eq(clientes.dni, clienteData.dni),
-      });
+    // 3. Ejecutar secuencialmente para insertar cliente, emails, teléfonos y el expediente
+    // Verificar si el cliente ya existe por DNI
+    let clienteId: number;
+    const clienteExistente = await db.query.clientes.findFirst({
+      where: eq(clientes.dni, clienteData.dni),
+    });
 
-      if (clienteExistente) {
-        clienteId = clienteExistente.id;
-      } else {
-        // Crear nuevo cliente
-        const [nuevoCliente] = await tx.insert(clientes).values({
-          cliente_id: crypto.randomUUID(),
-          dni: clienteData.dni,
-          nombre: clienteData.nombre,
-          fecha_de_nacimiento: clienteData.fecha_de_nacimiento,
-          tienda_id: clienteData.tienda_id,
-        }).returning();
-
-        clienteId = nuevoCliente.id;
-
-        // Insertar emails del cliente
-        if (clienteData.emails && clienteData.emails.length > 0) {
-          await tx.insert(emailsClientes).values(
-            clienteData.emails.map((e: any) => ({
-              id_cliente: clienteId,
-              email: e.email,
-              tipo_email: e.tipo_email || "Principal",
-            }))
-          );
-        }
-
-        // Insertar teléfonos del cliente
-        if (clienteData.telefonos && clienteData.telefonos.length > 0) {
-          await tx.insert(telefonosClientes).values(
-            clienteData.telefonos.map((t: any) => ({
-              id_cliente: clienteId,
-              telefono: t.telefono,
-              tipo_telefono: t.tipo_telefono || "Principal",
-            }))
-          );
-        }
-      }
-
-      // Crear el expediente
-      const [expedienteCreado] = await tx.insert(expedientes).values({
-        id_usuario: localUser.id_usuario,
-        id_cliente: clienteId,
-        id_modelo: expedienteData.id_modelo,
-        fecha_expediente: expedienteData.fecha_expediente,
-        fecha_afectacion: expedienteData.fecha_afectacion,
-        fecha_matriculacion: expedienteData.fecha_matriculacion,
-        fecha_entrega: expedienteData.fecha_entrega,
-        matricula: expedienteData.matricula,
-        id_tipo_de_venta: expedienteData.id_tipo_de_venta,
-        id_estado_vehiculo: expedienteData.id_estado_vehiculo,
+    if (clienteExistente) {
+      clienteId = clienteExistente.id;
+    } else {
+      // Crear nuevo cliente
+      const [nuevoCliente] = await db.insert(clientes).values({
+        cliente_id: crypto.randomUUID(),
+        dni: clienteData.dni,
+        nombre: clienteData.nombre,
+        fecha_de_nacimiento: clienteData.fecha_de_nacimiento,
+        tienda_id: clienteData.tienda_id,
       }).returning();
 
-      return expedienteCreado;
-    });
+      clienteId = nuevoCliente.id;
+
+      // Insertar emails del cliente
+      if (clienteData.emails && clienteData.emails.length > 0) {
+        await db.insert(emailsClientes).values(
+          clienteData.emails.map((e: any) => ({
+            id_cliente: clienteId,
+            email: e.email,
+            tipo_email: e.tipo_email || "Principal",
+          }))
+        );
+      }
+
+      // Insertar teléfonos del cliente
+      if (clienteData.telefonos && clienteData.telefonos.length > 0) {
+        await db.insert(telefonosClientes).values(
+          clienteData.telefonos.map((t: any) => ({
+            id_cliente: clienteId,
+            telefono: t.telefono,
+            tipo_telefono: t.tipo_telefono || "Principal",
+          }))
+        );
+      }
+    }
+
+    // Crear el expediente
+    const [nuevoExpediente] = await db.insert(expedientes).values({
+      id_usuario: localUser.id_usuario,
+      id_cliente: clienteId,
+      id_modelo: expedienteData.id_modelo,
+      id_tienda: expedienteData.id_tienda,
+      fecha_expediente: expedienteData.fecha_expediente,
+      fecha_afectacion: expedienteData.fecha_afectacion,
+      fecha_matriculacion: expedienteData.fecha_matriculacion,
+      fecha_entrega: expedienteData.fecha_entrega,
+      matricula: expedienteData.matricula,
+      id_tipo_de_venta: expedienteData.id_tipo_de_venta,
+      id_estado_vehiculo: expedienteData.id_estado_vehiculo,
+    }).returning();
 
     return NextResponse.json({ success: true, data: nuevoExpediente }, { status: 201 });
   } catch (error: any) {

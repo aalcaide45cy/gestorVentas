@@ -1,6 +1,13 @@
 import { pgTable, serial, varchar, date, integer, boolean, text } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
+// TABLA: TIENDAS
+export const tiendas = pgTable('tiendas', {
+  id_tienda: serial('id_tienda').primaryKey(),
+  nombre: text('nombre').notNull(),
+  ciudad: varchar('ciudad', { length: 255 }),
+});
+
 // TABLA: USUARIOS
 export const usuarios = pgTable('usuarios', {
   id_usuario: serial('id_usuario').primaryKey(),
@@ -10,12 +17,19 @@ export const usuarios = pgTable('usuarios', {
   fecha_de_registro: date('fecha_de_registro'),
 });
 
+// TABLA: USUARIOS_TIENDAS (Relación Muchos a Muchos N-a-N)
+export const usuariosTiendas = pgTable('usuarios_tiendas', {
+  id_usuario_tienda: serial('id_usuario_tienda').primaryKey(),
+  id_usuario: integer('id_usuario').references(() => usuarios.id_usuario, { onDelete: 'cascade' }).notNull(),
+  id_tienda: integer('id_tienda').references(() => tiendas.id_tienda, { onDelete: 'cascade' }).notNull(),
+});
+
 // TABLA: EMAILS_USUARIOS
 export const emailsUsuarios = pgTable('emails_usuarios', {
   id_email_usuario: serial('id_email_usuario').primaryKey(),
   id_usuario: integer('id_usuario').references(() => usuarios.id_usuario, { onDelete: 'cascade' }),
   email: varchar('email', { length: 255 }).notNull(),
-  tipo_email: varchar('tipo_email', { length: 100 }), // Principal, Alternativo, etc.
+  tipo_email: varchar('tipo_email', { length: 100 }),
 });
 
 // TABLA: TELEFONOS_USUARIOS
@@ -23,7 +37,7 @@ export const telefonosUsuarios = pgTable('telefonos_usuarios', {
   id_telefono_usuario: serial('id_telefono_usuario').primaryKey(),
   id_usuario: integer('id_usuario').references(() => usuarios.id_usuario, { onDelete: 'cascade' }),
   telefono: varchar('telefono', { length: 50 }).notNull(),
-  tipo_telefono: varchar('tipo_telefono', { length: 100 }), // Principal, Alternativo, etc.
+  tipo_telefono: varchar('tipo_telefono', { length: 100 }),
 });
 
 // TABLA: CLIENTES
@@ -33,7 +47,7 @@ export const clientes = pgTable('clientes', {
   dni: varchar('dni', { length: 50 }),
   nombre: varchar('nombre', { length: 255 }),
   fecha_de_nacimiento: date('fecha_de_nacimiento'),
-  tienda_id: integer('tienda_id'),
+  tienda_id: integer('tienda_id').references(() => tiendas.id_tienda),
 });
 
 // TABLA: EMAILS_CLIENTES
@@ -41,7 +55,7 @@ export const emailsClientes = pgTable('emails_clientes', {
   id_email_cliente: serial('id_email_cliente').primaryKey(),
   id_cliente: integer('id_cliente').references(() => clientes.id, { onDelete: 'cascade' }),
   email: varchar('email', { length: 255 }).notNull(),
-  tipo_email: varchar('tipo_email', { length: 100 }), // Principal, Alternativo, etc.
+  tipo_email: varchar('tipo_email', { length: 100 }),
 });
 
 // TABLA: TELEFONOS_CLIENTES
@@ -49,7 +63,7 @@ export const telefonosClientes = pgTable('telefonos_clientes', {
   id_telefono_cliente: serial('id_telefono_cliente').primaryKey(),
   id_cliente: integer('id_cliente').references(() => clientes.id, { onDelete: 'cascade' }),
   telefono: varchar('telefono', { length: 50 }).notNull(),
-  tipo_telefono: varchar('tipo_telefono', { length: 100 }), // Principal, Alternativo, etc.
+  tipo_telefono: varchar('tipo_telefono', { length: 100 }),
 });
 
 // TABLA: MARCAS
@@ -84,6 +98,7 @@ export const expedientes = pgTable('expedientes', {
   id_usuario: integer('id_usuario').references(() => usuarios.id_usuario),
   id_cliente: integer('id_cliente').references(() => clientes.id),
   id_modelo: integer('id_modelo').references(() => modelos.id_modelo),
+  id_tienda: integer('id_tienda').references(() => tiendas.id_tienda),
   fecha_expediente: date('fecha_expediente'),
   fecha_afectacion: date('fecha_afectacion'),
   fecha_matriculacion: date('fecha_matriculacion'),
@@ -95,10 +110,28 @@ export const expedientes = pgTable('expedientes', {
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===
 
+export const tiendasRelations = relations(tiendas, ({ many }) => ({
+  usuariosTiendas: many(usuariosTiendas),
+  clientes: many(clientes),
+  expedientes: many(expedientes),
+}));
+
 export const usuariosRelations = relations(usuarios, ({ many }) => ({
   emails: many(emailsUsuarios),
   telefonos: many(telefonosUsuarios),
   expedientes: many(expedientes),
+  tiendas: many(usuariosTiendas),
+}));
+
+export const usuariosTiendasRelations = relations(usuariosTiendas, ({ one }) => ({
+  usuario: one(usuarios, {
+    fields: [usuariosTiendas.id_usuario],
+    references: [usuarios.id_usuario],
+  }),
+  tienda: one(tiendas, {
+    fields: [usuariosTiendas.id_tienda],
+    references: [tiendas.id_tienda],
+  }),
 }));
 
 export const emailsUsuariosRelations = relations(emailsUsuarios, ({ one }) => ({
@@ -115,10 +148,14 @@ export const telefonosUsuariosRelations = relations(telefonosUsuarios, ({ one })
   }),
 }));
 
-export const clientesRelations = relations(clientes, ({ many }) => ({
+export const clientesRelations = relations(clientes, ({ one, many }) => ({
   emails: many(emailsClientes),
   telefonos: many(telefonosClientes),
   expedientes: many(expedientes),
+  tienda: one(tiendas, {
+    fields: [clientes.tienda_id],
+    references: [tiendas.id_tienda],
+  }),
 }));
 
 export const emailsClientesRelations = relations(emailsClientes, ({ one }) => ({
@@ -159,6 +196,10 @@ export const expedientesRelations = relations(expedientes, ({ one }) => ({
   modelo: one(modelos, {
     fields: [expedientes.id_modelo],
     references: [modelos.id_modelo],
+  }),
+  tienda: one(tiendas, {
+    fields: [expedientes.id_tienda],
+    references: [tiendas.id_tienda],
   }),
   tipoDeVenta: one(tipoDeVenta, {
     fields: [expedientes.id_tipo_de_venta],

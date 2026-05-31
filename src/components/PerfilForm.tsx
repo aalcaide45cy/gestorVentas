@@ -13,12 +13,19 @@ interface TelefonoItem {
   tipo_telefono: string;
 }
 
+interface TiendaItem {
+  id: number;
+  nombre: string;
+}
+
 interface PerfilFormProps {
   nombreInicial: string;
   rol: string;
   fechaRegistro: string;
   emailsIniciales: EmailItem[];
   telefonosIniciales: TelefonoItem[];
+  todasLasTiendas: TiendaItem[];
+  tiendasAsignadasIniciales: number[];
 }
 
 export default function PerfilForm({
@@ -26,7 +33,9 @@ export default function PerfilForm({
   rol,
   fechaRegistro,
   emailsIniciales,
-  telefonosIniciales
+  telefonosIniciales,
+  todasLasTiendas,
+  tiendasAsignadasIniciales
 }: PerfilFormProps) {
   const router = useRouter();
   const [nombre, setNombre] = useState(nombreInicial);
@@ -36,6 +45,7 @@ export default function PerfilForm({
   const [telefonos, setTelefonos] = useState(
     telefonosIniciales.length > 0 ? telefonosIniciales : [{ telefono: "", tipo_telefono: "Principal" }]
   );
+  const [tiendasAsignadas, setTiendasAsignadas] = useState<number[]>(tiendasAsignadasIniciales);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +79,15 @@ export default function PerfilForm({
     setTelefonos(updated);
   };
 
+  // Tiendas N-a-N Checkboxes
+  const handleTiendaCheckboxChange = (tiendaId: number, checked: boolean) => {
+    if (checked) {
+      setTiendasAsignadas([...tiendasAsignadas, tiendaId]);
+    } else {
+      setTiendasAsignadas(tiendasAsignadas.filter(id => id !== tiendaId));
+    }
+  };
+
   // Enviar Formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +108,8 @@ export default function PerfilForm({
         body: JSON.stringify({
           nombre,
           emails: emails.filter(e => e.email.trim()),
-          telefonos: telefonos.filter(t => t.telefono.trim())
+          telefonos: telefonos.filter(t => t.telefono.trim()),
+          tiendas: tiendasAsignadas
         })
       });
 
@@ -109,6 +129,7 @@ export default function PerfilForm({
   };
 
   const rolCapitalizado = rol.charAt(0).toUpperCase() + rol.slice(1);
+  const esVendedorOrUp = ["administrador", "director", "jefe_zona", "jefe_tienda", "vendedor"].includes(rol);
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
@@ -226,6 +247,55 @@ export default function PerfilForm({
             </div>
           </div>
         </div>
+
+        {/* SECCIÓN 3: TIENDAS (Sólo para Vendedor o superior) */}
+        {esVendedorOrUp && (
+          <div className="glass-panel" style={{ padding: "28px" }}>
+            <h2 style={{ fontSize: "1.2rem", marginBottom: "20px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--info)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+              Tiendas Asociadas
+            </h2>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginBottom: "16px" }}>
+              Selecciona las tiendas físicas en las que trabajas actualmente para poder registrar expedientes de venta en ellas.
+            </p>
+
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: "16px"
+            }}>
+              {todasLasTiendas.map(tienda => (
+                <label key={tienda.id} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  background: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-sm)",
+                  cursor: "pointer",
+                  userSelect: "none"
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={tiendasAsignadas.includes(tienda.id)}
+                    onChange={(e) => handleTiendaCheckboxChange(tienda.id, e.target.checked)}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "0.95rem" }}>{tienda.nombre}</span>
+                </label>
+              ))}
+              {todasLasTiendas.length === 0 && (
+                <div style={{ color: "var(--text-muted)", fontStyle: "italic", gridColumn: "1 / -1" }}>
+                  No hay tiendas creadas en el sistema. Pide a un administrador que registre una tienda.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "16px" }}>

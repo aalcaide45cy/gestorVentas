@@ -8,18 +8,26 @@ interface DropdownItem {
   nombre: string;
 }
 
+interface TiendaDropdownItem {
+  id: number;
+  nombre: string;
+  ciudad: string | null;
+}
+
 interface NuevoExpedienteFormProps {
   marcas: DropdownItem[];
   modelosPorMarca: Record<number, DropdownItem[]>;
   tiposVenta: DropdownItem[];
   estadosVehiculo: DropdownItem[];
+  tiendas: TiendaDropdownItem[];
 }
 
 export default function NuevoExpedienteForm({
   marcas,
   modelosPorMarca,
   tiposVenta,
-  estadosVehiculo
+  estadosVehiculo,
+  tiendas
 }: NuevoExpedienteFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -30,7 +38,7 @@ export default function NuevoExpedienteForm({
   const [dni, setDni] = useState("");
   const [nombre, setNombre] = useState("");
   const [fechaNacimiento, setFechaNacimiento] = useState("");
-  const [tiendaId, setTiendaId] = useState("");
+  const [tiendaId, setTiendaId] = useState(tiendas.length === 1 ? String(tiendas[0].id) : "");
 
   // Subformularios Dinámicos de Emails y Teléfonos
   const [emails, setEmails] = useState([{ email: "", tipo: "Principal" }]);
@@ -109,6 +117,7 @@ export default function NuevoExpedienteForm({
             id_modelo: Number(modeloSeleccionado),
             id_tipo_de_venta: Number(tipoVentaSeleccionado),
             id_estado_vehiculo: Number(estadoVehiculoSeleccionado),
+            id_tienda: tiendaId ? Number(tiendaId) : null,
             fecha_expediente: fechaExpediente || null,
             fecha_afectacion: fechaAfectacion || null,
             fecha_matriculacion: fechaMatriculacion || null,
@@ -181,8 +190,20 @@ export default function NuevoExpedienteForm({
               <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">ID Tienda</label>
-              <input type="number" className="form-input" value={tiendaId} onChange={e => setTiendaId(e.target.value)} placeholder="Ej. 1" />
+              <label className="form-label">Tienda *</label>
+              <select
+                className="form-select"
+                value={tiendaId}
+                onChange={e => setTiendaId(e.target.value)}
+                required
+              >
+                <option value="">Selecciona Tienda</option>
+                {tiendas.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre} {t.ciudad ? `(${t.ciudad})` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -103,6 +103,35 @@ export default async function NuevoExpedientePage() {
     }
   });
 
+  // Obtener tiendas asociadas al usuario
+  const userFull = await db.query.usuarios.findFirst({
+    where: (u, { eq }) => eq(u.id_usuario, user.id_usuario),
+    with: {
+      tiendas: {
+        with: {
+          tienda: true
+        }
+      }
+    }
+  });
+
+  let userStores = userFull?.tiendas.map(ut => ({
+    id: ut.tienda.id_tienda,
+    nombre: ut.tienda.nombre,
+    ciudad: ut.tienda.ciudad
+  })) || [];
+
+  // Si no tiene tiendas asignadas y es administrador/director, o si la lista está vacía,
+  // traemos todas las tiendas como fallback.
+  if (userStores.length === 0 || user.rol === "administrador" || user.rol === "director") {
+    const allTiendas = await db.query.tiendas.findMany();
+    userStores = allTiendas.map(t => ({
+      id: t.id_tienda,
+      nombre: t.nombre,
+      ciudad: t.ciudad
+    }));
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <div>
@@ -117,6 +146,7 @@ export default async function NuevoExpedientePage() {
         modelosPorMarca={modelosPorMarca}
         tiposVenta={tiposVentaDropdown}
         estadosVehiculo={estadosVehiculoDropdown}
+        tiendas={userStores}
       />
     </div>
   );
