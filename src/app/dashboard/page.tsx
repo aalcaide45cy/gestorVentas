@@ -233,6 +233,7 @@ export default async function DashboardPage() {
                     <th>Método de Venta</th>
                     <th>Estado Vehículo</th>
                     <th>Fecha</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -264,11 +265,34 @@ export default async function DashboardPage() {
                         </span>
                       </td>
                       <td>{exp.fecha_expediente || "N/D"}</td>
+                      <td>
+                        <Link
+                          href={`/dashboard/expedientes/editar/${exp.id_expediente}`}
+                          style={{
+                            color: "var(--text-primary)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "6px 12px",
+                            borderRadius: "var(--radius-sm)",
+                            background: "rgba(255, 255, 255, 0.05)",
+                            border: "1px solid var(--border-light)",
+                            cursor: "pointer",
+                            fontSize: "0.8rem",
+                            textDecoration: "none",
+                            fontWeight: 600,
+                            transition: "all 0.2s ease"
+                          }}
+                          className="glass-panel-interactive"
+                        >
+                          ✏️ Editar
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                   {dbExpedientesRecientes.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
+                      <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
                         No hay expedientes de venta registrados en la base de datos.
                       </td>
                     </tr>

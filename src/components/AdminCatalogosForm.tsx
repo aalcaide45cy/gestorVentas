@@ -618,7 +618,7 @@ export default function AdminCatalogosForm({
       )}
 
       {/* PESTAÑAS (TABS) */}
-      <div style={{ display: "flex", gap: "10px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "10px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px", flexWrap: "wrap" }}>
         <button
           type="button"
           className={`btn ${activeTab === "marcas" ? "btn-primary" : "btn-secondary"}`}
@@ -698,9 +698,7 @@ export default function AdminCatalogosForm({
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th onClick={() => handleSort("id")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    ID{sortField === "id" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
+
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Marca{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
@@ -721,7 +719,6 @@ export default function AdminCatalogosForm({
                   const isEditing = editingType === "marcas" && editingId === m.id_marca;
                   return (
                     <tr key={m.id_marca}>
-                      <td style={{ fontFamily: "monospace" }}>#{m.id_marca}</td>
                       <td>
                         {isEditing ? (
                           <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -847,9 +844,6 @@ export default function AdminCatalogosForm({
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th onClick={() => handleSort("id")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    ID{sortField === "id" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
                   <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Marca{sortField === "marca" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
@@ -867,7 +861,6 @@ export default function AdminCatalogosForm({
                   const isEditing = editingType === "modelos" && editingId === mod.id_modelo;
                   return (
                     <tr key={mod.id_modelo}>
-                      <td style={{ fontFamily: "monospace" }}>#{mod.id_modelo}</td>
                       <td>
                         <span style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase" }}>
                           {mod.nombre_marca}
@@ -974,9 +967,6 @@ export default function AdminCatalogosForm({
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th onClick={() => handleSort("id")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    ID{sortField === "id" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Tienda{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
@@ -991,7 +981,6 @@ export default function AdminCatalogosForm({
                   const isEditing = editingType === "tiendas" && editingId === t.id_tienda;
                   return (
                     <tr key={t.id_tienda}>
-                      <td style={{ fontFamily: "monospace" }}>#{t.id_tienda}</td>
                       <td>
                         {isEditing ? (
                           <input
@@ -1086,9 +1075,6 @@ export default function AdminCatalogosForm({
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th onClick={() => handleSort("id")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    ID{sortField === "id" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Tipo Venta{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
@@ -1100,7 +1086,6 @@ export default function AdminCatalogosForm({
                   const isEditing = editingType === "pagos" && editingId === t.id;
                   return (
                     <tr key={t.id}>
-                      <td style={{ fontFamily: "monospace" }}>#{t.id}</td>
                       <td>
                         {isEditing ? (
                           <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -1173,9 +1158,6 @@ export default function AdminCatalogosForm({
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th onClick={() => handleSort("id")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    ID{sortField === "id" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Estado{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
@@ -1187,7 +1169,6 @@ export default function AdminCatalogosForm({
                   const isEditing = editingType === "estados" && editingId === ev.id;
                   return (
                     <tr key={ev.id}>
-                      <td style={{ fontFamily: "monospace" }}>#{ev.id}</td>
                       <td>
                         {isEditing ? (
                           <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", alignItems: "center" }}>

@@ -357,21 +357,23 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => handleToggleBloqueo(usr)}
-                      disabled={updatingId === usr.id_usuario || usr.rol === "administrador"}
-                      style={{
-                        padding: "6px 10px",
-                        fontSize: "0.8rem",
-                        color: usr.rol === "administrador" ? "var(--text-muted)" : (usr.bloqueado ? "var(--success)" : "var(--warning)"),
-                        cursor: usr.rol === "administrador" ? "not-allowed" : "pointer"
-                      }}
-                      title={usr.rol === "administrador" ? "No permitido para administradores" : (usr.bloqueado ? "Activar acceso" : "Suspender acceso")}
-                    >
-                      {usr.bloqueado ? "🔓 Activar" : "🔒 Suspender"}
-                    </button>
+                    {usr.rol !== "administrador" && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleToggleBloqueo(usr)}
+                        disabled={updatingId === usr.id_usuario}
+                        style={{
+                          padding: "6px 10px",
+                          fontSize: "0.8rem",
+                          color: usr.bloqueado ? "var(--success)" : "var(--warning)",
+                          cursor: "pointer"
+                        }}
+                        title={usr.bloqueado ? "Activar acceso" : "Suspender acceso"}
+                      >
+                        {usr.bloqueado ? "🔓 Activar" : "🔒 Suspender"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn btn-secondary"
@@ -475,18 +477,17 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 </select>
               </div>
 
-              {modalOpen === "edit" && (
+               {modalOpen === "edit" && rol !== "administrador" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px" }}>
                   <input
                     type="checkbox"
                     id="chkBloqueado"
                     checked={bloqueado}
                     onChange={e => setBloqueado(e.target.checked)}
-                    disabled={rol === "administrador"}
-                    style={{ width: "18px", height: "18px", cursor: rol === "administrador" ? "not-allowed" : "pointer" }}
+                    style={{ width: "18px", height: "18px", cursor: "pointer" }}
                   />
-                  <label htmlFor="chkBloqueado" style={{ cursor: rol === "administrador" ? "not-allowed" : "pointer", fontSize: "0.95rem", fontWeight: 500, color: rol === "administrador" ? "var(--text-muted)" : "inherit" }}>
-                    Suspender acceso (Bloquear cuenta) {rol === "administrador" && "(No permitido para administradores)"}
+                  <label htmlFor="chkBloqueado" style={{ cursor: "pointer", fontSize: "0.95rem", fontWeight: 500 }}>
+                    Suspender acceso (Bloquear cuenta)
                   </label>
                 </div>
               )}
