@@ -122,21 +122,41 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
           <div style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: "space-between",
             gap: "12px",
             padding: "12px",
             background: "rgba(255, 255, 255, 0.03)",
             borderRadius: "var(--radius-sm)",
             border: "1px solid var(--border-light)"
           }}>
-            <UserButton />
-            <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-              <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {user.nombre}
-              </span>
-              <span className={`badge badge-${userRole}`} style={{ alignSelf: "flex-start", marginTop: "4px", fontSize: "0.65rem" }}>
-                {userRoleCapitalized}
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", overflow: "hidden", flex: 1 }}>
+              <UserButton />
+              <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {user.nombre}
+                </span>
+                <span className={`badge badge-${userRole}`} style={{ alignSelf: "flex-start", marginTop: "4px", fontSize: "0.65rem" }}>
+                  {userRoleCapitalized}
+                </span>
+              </div>
             </div>
+            <Link href="/dashboard/perfil" style={{
+              color: "var(--text-secondary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "6px",
+              borderRadius: "4px",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid var(--border-light)",
+              cursor: "pointer",
+              transition: "all 0.2s ease"
+            }} title="Editar mis datos" className="glass-panel-interactive">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z" />
+              </svg>
+            </Link>
           </div>
 
           {/* MENÚ DE NAVEGACIÓN */}
@@ -160,25 +180,6 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
                 <rect x="3" y="16" width="7" height="5" />
               </svg>
               Dashboard
-            </Link>
-            
-            <Link href="/dashboard/perfil" className="glass-panel-interactive" style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              padding: "12px 16px",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "0.95rem",
-              fontWeight: 500,
-              color: "var(--text-secondary)",
-              background: "rgba(255, 255, 255, 0.01)",
-              border: "1px solid transparent"
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-              Mis Datos
             </Link>
 
             {isVendedorOrUp && (

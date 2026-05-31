@@ -69,9 +69,11 @@ export default async function AdminPage() {
     id_marca: m.id_marca,
     nombre: m.nombre,
     activo: m.activo,
+    acceso_rapido: m.acceso_rapido,
     modelos: m.modelos.map(mod => ({
       id_modelo: mod.id_modelo,
-      nombre_modelo: mod.nombre_modelo
+      nombre_modelo: mod.nombre_modelo,
+      acceso_rapido: mod.acceso_rapido
     }))
   }));
 

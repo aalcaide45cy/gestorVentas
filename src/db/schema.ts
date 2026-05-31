@@ -72,6 +72,7 @@ export const marcas = pgTable('marcas', {
   id_marca: serial('id_marca').primaryKey(),
   nombre: text('nombre').notNull(),
   activo: boolean('activo').default(true),
+  acceso_rapido: boolean('acceso_rapido').default(false),
 });
 
 // TABLA: MODELOS
@@ -79,6 +80,7 @@ export const modelos = pgTable('modelos', {
   id_modelo: serial('id_modelo').primaryKey(),
   marca_id: integer('marca_id').references(() => marcas.id_marca, { onDelete: 'cascade' }),
   nombre_modelo: text('nombre_modelo').notNull(),
+  acceso_rapido: boolean('acceso_rapido').default(false),
 });
 
 // TABLA: TIPO_DE_VENTA

@@ -40,6 +40,8 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   // Estados de modal
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+  const [deleteModalUser, setDeleteModalUser] = useState<UserItem | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   // Campos de formulario
   const [nombre, setNombre] = useState("");
@@ -137,6 +139,11 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         ]);
         showNotification("Usuario creado correctamente. Se sincronizará por email cuando inicie sesión.", "success");
       } else if (modalOpen === "edit" && selectedUser) {
+        if (rol === "administrador" && bloqueado) {
+          showNotification("No se puede suspender a un usuario con el rol de Administrador.", "error");
+          setLoading(false);
+          return;
+        }
         const res = await fetch("/api/admin/usuarios", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -180,6 +187,11 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
       showNotification("No puedes quitarte el rol de Administrador a ti mismo para evitar perder acceso.", "error");
       return;
     }
+    const usr = usuarios.find(u => u.id_usuario === idUsuario);
+    if (nuevoRol === "administrador" && usr?.bloqueado) {
+      showNotification("No se puede asignar el rol de Administrador a un usuario suspendido.", "error");
+      return;
+    }
     setUpdatingId(idUsuario);
 
     try {
@@ -208,6 +220,10 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
       showNotification("No puedes bloquear tu propia cuenta.", "error");
       return;
     }
+    if (usr.rol === "administrador") {
+      showNotification("No se puede suspender a un usuario con el rol de Administrador.", "error");
+      return;
+    }
 
     const nuevoEstado = !usr.bloqueado;
     setUpdatingId(usr.id_usuario);
@@ -233,8 +249,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   };
 
   // Eliminar usuario
-  const handleEliminarUsuario = async (idUsuario: number, nombreUsuario: string) => {
-    if (!confirm(`¿Seguro que deseas eliminar definitivamente a "${nombreUsuario}"?`)) return;
+  const handleEliminarUsuario = async (idUsuario: number) => {
     setUpdatingId(idUsuario);
 
     try {
@@ -249,6 +264,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
 
       setUsuarios(usuarios.filter(u => u.id_usuario !== idUsuario));
       showNotification("Usuario eliminado del sistema.", "success");
+      setDeleteModalUser(null);
       router.refresh();
     } catch (error: any) {
       showNotification(error.message, "error");
@@ -345,9 +361,14 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                       type="button"
                       className="btn btn-secondary"
                       onClick={() => handleToggleBloqueo(usr)}
-                      disabled={updatingId === usr.id_usuario}
-                      style={{ padding: "6px 10px", fontSize: "0.8rem", color: usr.bloqueado ? "var(--success)" : "var(--warning)" }}
-                      title={usr.bloqueado ? "Activar acceso" : "Suspender acceso"}
+                      disabled={updatingId === usr.id_usuario || usr.rol === "administrador"}
+                      style={{
+                        padding: "6px 10px",
+                        fontSize: "0.8rem",
+                        color: usr.rol === "administrador" ? "var(--text-muted)" : (usr.bloqueado ? "var(--success)" : "var(--warning)"),
+                        cursor: usr.rol === "administrador" ? "not-allowed" : "pointer"
+                      }}
+                      title={usr.rol === "administrador" ? "No permitido para administradores" : (usr.bloqueado ? "Activar acceso" : "Suspender acceso")}
                     >
                       {usr.bloqueado ? "🔓 Activar" : "🔒 Suspender"}
                     </button>
@@ -363,7 +384,10 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      onClick={() => handleEliminarUsuario(usr.id_usuario, usr.nombre || "")}
+                      onClick={() => {
+                        setDeleteModalUser(usr);
+                        setDeleteConfirmText("");
+                      }}
                       disabled={updatingId === usr.id_usuario}
                       style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
                     >
@@ -458,10 +482,11 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                     id="chkBloqueado"
                     checked={bloqueado}
                     onChange={e => setBloqueado(e.target.checked)}
-                    style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                    disabled={rol === "administrador"}
+                    style={{ width: "18px", height: "18px", cursor: rol === "administrador" ? "not-allowed" : "pointer" }}
                   />
-                  <label htmlFor="chkBloqueado" style={{ cursor: "pointer", fontSize: "0.95rem", fontWeight: 500 }}>
-                    Suspender acceso (Bloquear cuenta)
+                  <label htmlFor="chkBloqueado" style={{ cursor: rol === "administrador" ? "not-allowed" : "pointer", fontSize: "0.95rem", fontWeight: 500, color: rol === "administrador" ? "var(--text-muted)" : "inherit" }}>
+                    Suspender acceso (Bloquear cuenta) {rol === "administrador" && "(No permitido para administradores)"}
                   </label>
                 </div>
               )}
@@ -475,6 +500,77 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      {deleteModalUser && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "450px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <h3 style={{ fontSize: "1.25rem", color: "var(--danger)", margin: 0 }}>
+              ⚠️ Confirmar Eliminación de Usuario
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5" }}>
+              ¿Estás seguro de que deseas eliminar definitivamente al usuario <strong>{deleteModalUser.nombre}</strong>?
+              Esta acción no se puede deshacer.
+            </p>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Escribe <strong>ELIMINAR</strong> para confirmar:</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="ELIMINAR"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                style={{ textTransform: "uppercase" }}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "10px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDeleteModalUser(null)}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => handleEliminarUsuario(deleteModalUser.id_usuario)}
+                disabled={loading || deleteConfirmText !== "ELIMINAR"}
+                style={{
+                  backgroundColor: deleteConfirmText === "ELIMINAR" ? "var(--danger)" : "var(--border-light)",
+                  color: "white",
+                  cursor: deleteConfirmText === "ELIMINAR" ? "pointer" : "not-allowed",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "10px 20px"
+                }}
+              >
+                {loading ? "Eliminando..." : "Eliminar Usuario"}
+              </button>
+            </div>
           </div>
         </div>
       )}

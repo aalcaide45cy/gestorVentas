@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes } from "@/db/schema";
+import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { cliente: clienteData, expediente: expedienteData } = body;
 
-    if (!clienteData || !expedienteData) {
-      return NextResponse.json({ message: "Faltan datos del cliente o del expediente" }, { status: 400 });
+    if (!expedienteData) {
+      return NextResponse.json({ message: "Faltan datos del expediente" }, { status: 400 });
     }
 
     // 2. Obtener el id_usuario local a partir del clerk_id
@@ -34,63 +34,80 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Los invitados no tienen permiso para crear expedientes" }, { status: 403 });
     }
 
-    // 3. Ejecutar secuencialmente para insertar cliente, emails, teléfonos y el expediente
-    // Verificar si el cliente ya existe por DNI
-    let clienteId: number;
-    const clienteExistente = await db.query.clientes.findFirst({
-      where: eq(clientes.dni, clienteData.dni),
-    });
+    // 3. Ejecutar secuencialmente para insertar cliente, emails, teléfonos si se proporciona cliente
+    let clienteId: number | null = null;
 
-    if (clienteExistente) {
-      clienteId = clienteExistente.id;
-    } else {
-      // Crear nuevo cliente
-      const [nuevoCliente] = await db.insert(clientes).values({
-        cliente_id: crypto.randomUUID(),
-        dni: clienteData.dni,
-        nombre: clienteData.nombre,
-        fecha_de_nacimiento: clienteData.fecha_de_nacimiento,
-        tienda_id: clienteData.tienda_id,
-      }).returning();
+    if (clienteData && clienteData.dni) {
+      // Verificar si el cliente ya existe por DNI
+      const clienteExistente = await db.query.clientes.findFirst({
+        where: eq(clientes.dni, clienteData.dni),
+      });
 
-      clienteId = nuevoCliente.id;
+      if (clienteExistente) {
+        clienteId = clienteExistente.id;
+      } else {
+        // Crear nuevo cliente
+        const [nuevoCliente] = await db.insert(clientes).values({
+          cliente_id: crypto.randomUUID(),
+          dni: clienteData.dni,
+          nombre: clienteData.nombre,
+          fecha_de_nacimiento: clienteData.fecha_de_nacimiento,
+          tienda_id: clienteData.tienda_id,
+        }).returning();
 
-      // Insertar emails del cliente
-      if (clienteData.emails && clienteData.emails.length > 0) {
-        await db.insert(emailsClientes).values(
-          clienteData.emails.map((e: any) => ({
-            id_cliente: clienteId,
-            email: e.email,
-            tipo_email: e.tipo_email || "Principal",
-          }))
-        );
-      }
+        clienteId = nuevoCliente.id;
 
-      // Insertar teléfonos del cliente
-      if (clienteData.telefonos && clienteData.telefonos.length > 0) {
-        await db.insert(telefonosClientes).values(
-          clienteData.telefonos.map((t: any) => ({
-            id_cliente: clienteId,
-            telefono: t.telefono,
-            tipo_telefono: t.tipo_telefono || "Principal",
-          }))
-        );
+        // Insertar emails del cliente
+        if (clienteData.emails && clienteData.emails.length > 0) {
+          await db.insert(emailsClientes).values(
+            clienteData.emails.map((e: any) => ({
+              id_cliente: clienteId,
+              email: e.email,
+              tipo_email: e.tipo_email || "Principal",
+            }))
+          );
+        }
+
+        // Insertar teléfonos del cliente
+        if (clienteData.telefonos && clienteData.telefonos.length > 0) {
+          await db.insert(telefonosClientes).values(
+            clienteData.telefonos.map((t: any) => ({
+              id_cliente: clienteId,
+              telefono: t.telefono,
+              tipo_telefono: t.tipo_telefono || "Principal",
+            }))
+          );
+        }
       }
     }
+
+    // Determinar tienda
+    let tiendaId = expedienteData.id_tienda;
+    if (!tiendaId) {
+      const userShops = await db.query.usuariosTiendas.findMany({
+        where: eq(usuariosTiendas.id_usuario, localUser.id_usuario),
+      });
+      if (userShops.length === 1) {
+        tiendaId = userShops[0].id_tienda;
+      }
+    }
+
+    // Determinar fecha
+    const fechaExp = expedienteData.fecha_expediente || new Date().toISOString().split('T')[0];
 
     // Crear el expediente
     const [nuevoExpediente] = await db.insert(expedientes).values({
       id_usuario: localUser.id_usuario,
       id_cliente: clienteId,
       id_modelo: expedienteData.id_modelo,
-      id_tienda: expedienteData.id_tienda,
-      fecha_expediente: expedienteData.fecha_expediente,
-      fecha_afectacion: expedienteData.fecha_afectacion,
-      fecha_matriculacion: expedienteData.fecha_matriculacion,
-      fecha_entrega: expedienteData.fecha_entrega,
-      matricula: expedienteData.matricula,
+      id_tienda: tiendaId || null,
+      fecha_expediente: fechaExp,
+      fecha_afectacion: expedienteData.fecha_afectacion || null,
+      fecha_matriculacion: expedienteData.fecha_matriculacion || null,
+      fecha_entrega: expedienteData.fecha_entrega || null,
+      matricula: expedienteData.matricula || null,
       id_tipo_de_venta: expedienteData.id_tipo_de_venta,
-      id_estado_vehiculo: expedienteData.id_estado_vehiculo,
+      id_estado_vehiculo: expedienteData.id_estado_vehiculo || null,
     }).returning();
 
     return NextResponse.json({ success: true, data: nuevoExpediente }, { status: 201 });

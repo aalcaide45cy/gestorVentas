@@ -1,8 +1,9 @@
 import { syncUser } from "@/lib/auth-utils";
 import Link from "next/link";
 import { db } from "@/db";
-import { expedientes, clientes } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { expedientes, clientes, marcas, modelos } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
 
 export default async function DashboardPage() {
   const user = await syncUser();
@@ -63,6 +64,16 @@ export default async function DashboardPage() {
       },
       tipoDeVenta: true,
       estadoVehiculo: true
+    }
+  });
+
+  // Marcas y modelos con acceso rápido
+  const dbMarcasAccesoRapido = await db.query.marcas.findMany({
+    where: eq(marcas.acceso_rapido, true),
+    with: {
+      modelos: {
+        where: (m, { eq }) => eq(m.acceso_rapido, true)
+      }
     }
   });
 
@@ -266,6 +277,8 @@ export default async function DashboardPage() {
               </table>
             </div>
           </div>
+
+          <QuickExpedienteCreator marcas={dbMarcasAccesoRapido} tiposVenta={dbTiposVenta} />
         </>
       )}
     </div>

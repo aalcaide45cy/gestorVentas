@@ -1,0 +1,75 @@
+Los expedientes no se crean correctamente. Sale: Error:
+No transactions support in neon-http driver
+
+En el expediente, me sale Id Tienda. Quiero poder crear las tiendas, y luego aquí aparezca un desplegable para elegir.
+El usuario, si tiene un rol de vendedor para arriba, podrá seleccionar las tiendas en las que trabaja. Si solo tiene una tienda en la que trabaja, en expedientes, en el idTienda, quiero que aparezca esa tienda seleccionada por defecto cuando añade un expediente.
+
+Quiero que al ser administrador, poder crear, editar, eliminar:
+Marcas, modelos, clientes, expedientes, tipos de pago, etc.
+Si algún marca y modelo tienen un expediente creado, que no me deje eliminarlo para que no se pierda la conexión.
+
+El fondo se ve demasiado oscuro, haz que sea posible modo claro y modo oscuro.
+
+En los menus desplegables, se ve el fondo blanco y no se puede ver el texto del contenido que tiene el desplegable, por lo tanto, haz que las letras sean de color mas claro y el fondo del color oscuro, o aplica una coloración acorde al resto de la app.
+
+Quiero tener una sección de Marcas. Otra de Modelos. Los modelos irán asociados a las marcas como tiene que ser.
+
+Revisa si todo te parece bien o tienes alguna duda.
+
+
+
+Los expedientes no se crean correctamente. Sale: Error:
+No transactions support in neon-http driver
+
+En el expediente, me sale Id Tienda. Quiero poder crear las tiendas, y luego aquí aparezca un desplegable para elegir.
+El usuario, si tiene un rol de vendedor para arriba, podrá seleccionar las tiendas en las que trabaja. Si solo tiene una tienda en la que trabaja, en expedientes, en el idTienda, quiero que aparezca esa tienda seleccionada por defecto cuando añade un expediente.
+
+Quiero que al ser administrador, poder crear, editar, eliminar:
+Marcas, modelos, clientes, expedientes, tipos de pago, etc.
+Si algún marca y modelo tienen un expediente creado, que no me deje eliminarlo para que no se pierda la conexión.
+
+El fondo se ve demasiado oscuro, haz que sea posible modo claro y modo oscuro.
+
+En los menus desplegables, se ve el fondo blanco y no se puede ver el texto del contenido que tiene el desplegable, por lo tanto, haz que las letras sean de color mas claro y el fondo del color oscuro, o aplica una coloración acorde al resto de la app.
+
+Quiero tener una sección de Marcas. Otra de Modelos. Los modelos irán asociados a las marcas como tiene que ser.
+
+Revisa si todo te parece bien o tienes alguna duda.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Quita el botón de Nuevo expediente de los botones laterales, pues se crearán desde la sección de expedientes. No tiene sentido tener este también.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En el dashboard, no se de donde sale el indicador de volumen ventas ni tasa de efectividad. 
+Sustituyelo por:
+Expedientes Creados en Mes Actual.
+Expedientes según tipo de pago, con el numero. Algo asi:
+Expedientes Contado (Coge el nombre según esté creado) = 3
+Expedientes Financiación Credito (Coge el nombre según esté creado) = 6
+Expedientes Financiación Preference (Coge el nombre según esté creado) = 3
+
+Ahora el expediente tiene asignado el cliente, desde la base de datos de cliente. En el expediente, se muestran los datos del cliente pero no deja modificarlos. Quiero que me permita editar los datos y tenga su propio guardado, es decir, si cambio los datos del cliente desde el expediente, que aparezca un botón de guardado y guarde los cambios en la base de datos de clientes.
+También, un cliente puede tener varios expedientes, pues ha podido comprar varios vehículos. Quiero que en el listado de clientes, aparezca el numero de expedientes que tiene. Y al hacer click en el botón del numero de expedientes, salga un modal que muestre el numero de expedientes que tiene. Por supuesto, desde ese modal, podré ir a editar ese expediente.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Quita el botón lateral Mis Datos. Esto se gesrionará mediante un botón tipo lapiz, donde muestra el nombre de usuario.
+En los usuarios, si es administrador, no se podrá suspender a un administrador. Y para eliminar, debe de salir un modal y que verifique su eliminación.
+Las marcas y modelos, tendrán un nuevo dato, booleano, llamado Acceso Rapido.
+
+En el dashboard, la sección que muestra los últimos expedientes, solo mostrará los últimos 5.
+También, en el dashboard, habrá una sección debajo de los últimos expedientes, la cual mostrará por secciones, las marcas que tengan activado Acceso Rapido.
+Luego, en cada sección según su marca, mostrará los modelos que tengan activado el Acceso Rapido.
+Debajo de cada modelo, habrá unos botones, que serán los tipos de pagos que hay. Estos, crearán un expediente rápido, estableciendo el tipo de pago según se haya pulsado el botón. Si se pulsa el botón de preference que hay debajo de un Renault Clio, se creará un expediente con el tipo de pago Preference. Tomará la fecha de creación la actual.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En la pestaña de configuración, 

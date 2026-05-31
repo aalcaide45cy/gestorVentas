@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
       if (!data.nombre) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
       const [nueva] = await db.insert(marcas).values({
         nombre: data.nombre,
-        activo: true
+        activo: true,
+        acceso_rapido: !!data.acceso_rapido
       }).returning();
       return NextResponse.json({ success: true, data: nueva }, { status: 201 });
     }
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
       }
       const [nuevo] = await db.insert(modelos).values({
         marca_id: Number(data.marca_id),
-        nombre_modelo: data.nombre_modelo
+        nombre_modelo: data.nombre_modelo,
+        acceso_rapido: !!data.acceso_rapido
       }).returning();
       return NextResponse.json({ success: true, data: nuevo }, { status: 201 });
     }
@@ -141,7 +143,10 @@ export async function PUT(req: NextRequest) {
     if (tipo === "marca") {
       if (!data.nombre) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
       const [actualizada] = await db.update(marcas)
-        .set({ nombre: data.nombre })
+        .set({ 
+          nombre: data.nombre,
+          acceso_rapido: data.acceso_rapido !== undefined ? !!data.acceso_rapido : undefined
+        })
         .where(eq(marcas.id_marca, Number(id)))
         .returning();
       return NextResponse.json({ success: true, data: actualizada });
@@ -150,7 +155,10 @@ export async function PUT(req: NextRequest) {
     if (tipo === "modelo") {
       if (!data.nombre_modelo) return NextResponse.json({ message: "El nombre_modelo es requerido" }, { status: 400 });
       const [actualizada] = await db.update(modelos)
-        .set({ nombre_modelo: data.nombre_modelo })
+        .set({ 
+          nombre_modelo: data.nombre_modelo,
+          acceso_rapido: data.acceso_rapido !== undefined ? !!data.acceso_rapido : undefined
+        })
         .where(eq(modelos.id_modelo, Number(id)))
         .returning();
       return NextResponse.json({ success: true, data: actualizada });

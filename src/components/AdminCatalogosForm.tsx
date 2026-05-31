@@ -7,9 +7,11 @@ interface MarcaItem {
   id_marca: number;
   nombre: string;
   activo: boolean | null;
+  acceso_rapido?: boolean | null;
   modelos: {
     id_modelo: number;
     nombre_modelo: string;
+    acceso_rapido?: boolean | null;
   }[];
 }
 
@@ -80,6 +82,9 @@ export default function AdminCatalogosForm({
     } else if (sortField === "activo") {
       aVal = a.activo ? 1 : 0;
       bVal = b.activo ? 1 : 0;
+    } else if (sortField === "acceso_rapido") {
+      aVal = a.acceso_rapido ? 1 : 0;
+      bVal = b.acceso_rapido ? 1 : 0;
     } else if (sortField === "modelos") {
       aVal = a.modelos.length;
       bVal = b.modelos.length;
@@ -94,6 +99,7 @@ export default function AdminCatalogosForm({
     m.modelos.map(mod => ({
       id_modelo: mod.id_modelo,
       nombre_modelo: mod.nombre_modelo,
+      acceso_rapido: mod.acceso_rapido,
       id_marca: m.id_marca,
       nombre_marca: m.nombre
     }))
@@ -108,6 +114,9 @@ export default function AdminCatalogosForm({
     } else if (sortField === "marca") {
       aVal = a.nombre_marca;
       bVal = b.nombre_marca;
+    } else if (sortField === "acceso_rapido") {
+      aVal = a.acceso_rapido ? 1 : 0;
+      bVal = b.acceso_rapido ? 1 : 0;
     }
     
     if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
@@ -159,8 +168,10 @@ export default function AdminCatalogosForm({
 
   // Estados de formularios
   const [nuevaMarcaNombre, setNuevaMarcaNombre] = useState("");
+  const [nuevaMarcaAccesoRapido, setNuevaMarcaAccesoRapido] = useState(false);
   const [nuevoModeloMarcaId, setNuevoModeloMarcaId] = useState<number | "">("");
   const [nuevoModeloNombre, setNuevoModeloNombre] = useState("");
+  const [nuevoModeloAccesoRapido, setNuevoModeloAccesoRapido] = useState(false);
   const [nuevoTipoVentaNombre, setNuevoTipoVentaNombre] = useState("");
   const [nuevoEstadoVehiculoNombre, setNuevoEstadoVehiculoNombre] = useState("");
   const [nuevaTiendaNombre, setNuevaTiendaNombre] = useState("");
@@ -255,6 +266,50 @@ export default function AdminCatalogosForm({
     } finally {
       setLoading(false);
     }
+  }
+
+  const handleToggleMarcaAccesoRapido = async (idMarca: number, estadoActual: boolean) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/catalogos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "marca", id: idMarca, acceso_rapido: !estadoActual, nombre: marcas.find(m => m.id_marca === idMarca)?.nombre })
+      });
+      if (!res.ok) throw new Error("Error al cambiar acceso rápido de la marca");
+      const result = await res.json();
+      setMarcas(marcas.map(m => m.id_marca === idMarca ? { ...m, acceso_rapido: result.data.acceso_rapido } : m));
+      showNotification("Acceso rápido de la marca actualizado", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleModeloAccesoRapido = async (idModelo: number, estadoActual: boolean) => {
+    setLoading(true);
+    try {
+      const modelItem = flatModelos.find(m => m.id_modelo === idModelo);
+      const res = await fetch("/api/admin/catalogos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "modelo", id: idModelo, acceso_rapido: !estadoActual, nombre_modelo: modelItem?.nombre_modelo })
+      });
+      if (!res.ok) throw new Error("Error al cambiar acceso rápido del modelo");
+      const result = await res.json();
+      setMarcas(marcas.map(m => ({
+        ...m,
+        modelos: m.modelos.map(mod => mod.id_modelo === idModelo ? { ...mod, acceso_rapido: result.data.acceso_rapido } : mod)
+      })));
+      showNotification("Acceso rápido del modelo actualizado", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // --- ACCIONES DE CREACIÓN ---
@@ -268,7 +323,7 @@ export default function AdminCatalogosForm({
       const res = await fetch("/api/admin/catalogos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "marca", nombre: nuevaMarcaNombre })
+        body: JSON.stringify({ tipo: "marca", nombre: nuevaMarcaNombre, acceso_rapido: nuevaMarcaAccesoRapido })
       });
 
       if (!res.ok) throw new Error("Error al crear la marca");
@@ -276,6 +331,7 @@ export default function AdminCatalogosForm({
       
       setMarcas([...marcas, { ...result.data, modelos: [] }]);
       setNuevaMarcaNombre("");
+      setNuevaMarcaAccesoRapido(false);
       showNotification("Marca creada correctamente", "success");
       router.refresh();
     } catch (err: any) {
@@ -297,7 +353,8 @@ export default function AdminCatalogosForm({
         body: JSON.stringify({
           tipo: "modelo",
           marca_id: nuevoModeloMarcaId,
-          nombre_modelo: nuevoModeloNombre
+          nombre_modelo: nuevoModeloNombre,
+          acceso_rapido: nuevoModeloAccesoRapido
         })
       });
 
@@ -308,13 +365,13 @@ export default function AdminCatalogosForm({
         if (m.id_marca === Number(nuevoModeloMarcaId)) {
           return {
             ...m,
-            modelos: [...m.modelos, { id_modelo: result.data.id_modelo, nombre_modelo: result.data.nombre_modelo }]
+            modelos: [...m.modelos, { id_modelo: result.data.id_modelo, nombre_modelo: result.data.nombre_modelo, acceso_rapido: result.data.acceso_rapido }]
           };
         }
         return m;
       }));
-
       setNuevoModeloNombre("");
+      setNuevoModeloAccesoRapido(false);
       showNotification("Modelo creado correctamente", "success");
       router.refresh();
     } catch (err: any) {
@@ -609,7 +666,7 @@ export default function AdminCatalogosForm({
         <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "24px" }}>
           <h3 style={{ fontSize: "1.15rem" }}>Gestión de Marcas</h3>
           
-          <form onSubmit={handleCrearMarca} style={{ display: "flex", gap: "10px" }}>
+          <form onSubmit={handleCrearMarca} style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="text"
               className="form-input"
@@ -618,7 +675,20 @@ export default function AdminCatalogosForm({
               onChange={e => setNuevaMarcaNombre(e.target.value)}
               disabled={loading}
               required
+              style={{ flex: 1 }}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="checkbox"
+                id="chkMarcaAccesoRapido"
+                checked={nuevaMarcaAccesoRapido}
+                onChange={e => setNuevaMarcaAccesoRapido(e.target.checked)}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <label htmlFor="chkMarcaAccesoRapido" style={{ cursor: "pointer", fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                Acceso Rápido
+              </label>
+            </div>
             <button type="submit" className="btn btn-primary" style={{ padding: "12px 20px" }} disabled={loading}>
               + Crear Marca
             </button>
@@ -636,6 +706,9 @@ export default function AdminCatalogosForm({
                   </th>
                   <th onClick={() => handleSort("activo")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Estado{sortField === "activo" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                  </th>
+                  <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
+                    Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
                   <th onClick={() => handleSort("modelos")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Modelos Asoc.{sortField === "modelos" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
@@ -674,6 +747,18 @@ export default function AdminCatalogosForm({
                         <span className={`badge ${m.activo ? "badge-tienda" : "badge-admin"}`} style={{ fontSize: "0.75rem" }}>
                           {m.activo ? "Activa" : "Inactiva"}
                         </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`badge ${m.acceso_rapido ? "badge-tienda" : "badge-admin"}`}
+                          onClick={() => handleToggleMarcaAccesoRapido(m.id_marca, !!m.acceso_rapido)}
+                          disabled={loading}
+                          style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
+                          title="Alternar Acceso Rápido"
+                        >
+                          {m.acceso_rapido ? "⭐ Sí" : "✖ No"}
+                        </button>
                       </td>
                       <td>{m.modelos.length} modelo(s)</td>
                       <td>
@@ -718,7 +803,7 @@ export default function AdminCatalogosForm({
         <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "24px" }}>
           <h3 style={{ fontSize: "1.15rem" }}>Gestión de Modelos</h3>
 
-          <form onSubmit={handleCrearModelo} style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <form onSubmit={handleCrearModelo} style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
             <select
               className="form-select"
               value={nuevoModeloMarcaId}
@@ -741,6 +826,18 @@ export default function AdminCatalogosForm({
               required
               style={{ flex: 2, minWidth: "200px" }}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="checkbox"
+                id="chkModeloAccesoRapido"
+                checked={nuevoModeloAccesoRapido}
+                onChange={e => setNuevoModeloAccesoRapido(e.target.checked)}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <label htmlFor="chkModeloAccesoRapido" style={{ cursor: "pointer", fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                Acceso Rápido
+              </label>
+            </div>
             <button type="submit" className="btn btn-primary" disabled={loading || !nuevoModeloMarcaId}>
               + Crear Modelo
             </button>
@@ -758,6 +855,9 @@ export default function AdminCatalogosForm({
                   </th>
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Modelo{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                  </th>
+                  <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
+                    Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
                   <th>Acciones</th>
                 </tr>
@@ -793,6 +893,18 @@ export default function AdminCatalogosForm({
                         )}
                       </td>
                       <td>
+                        <button
+                          type="button"
+                          className={`badge ${mod.acceso_rapido ? "badge-tienda" : "badge-admin"}`}
+                          onClick={() => handleToggleModeloAccesoRapido(mod.id_modelo, !!mod.acceso_rapido)}
+                          disabled={loading}
+                          style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
+                          title="Alternar Acceso Rápido"
+                        >
+                          {mod.acceso_rapido ? "⭐ Sí" : "✖ No"}
+                        </button>
+                      </td>
+                      <td>
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button
                             type="button"
@@ -817,7 +929,7 @@ export default function AdminCatalogosForm({
                 })}
                 {sortedModelos.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
+                    <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
                       No hay modelos registrados.
                     </td>
                   </tr>
