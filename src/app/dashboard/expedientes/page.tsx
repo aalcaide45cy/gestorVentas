@@ -136,9 +136,16 @@ export default async function ExpedientesPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="badge badge-zona" style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
-                        {exp.tipoDeVenta?.nombre_tipo_venta}
-                      </span>
+                      {exp.tipoDeVenta && (
+                        <span className="badge" style={{
+                          fontSize: "0.7rem",
+                          padding: "3px 8px",
+                          backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
+                          color: "#fff"
+                        }}>
+                          {exp.tipoDeVenta.nombre_tipo_venta}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>

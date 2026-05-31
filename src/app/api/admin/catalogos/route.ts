@@ -55,15 +55,20 @@ export async function POST(req: NextRequest) {
     if (tipo === "tipo_venta") {
       if (!data.nombre_tipo_venta) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
       const [nuevo] = await db.insert(tipoDeVenta).values({
-        nombre_tipo_venta: data.nombre_tipo_venta
+        nombre_tipo_venta: data.nombre_tipo_venta,
+        color: data.color || '#3b82f6'
       }).returning();
       return NextResponse.json({ success: true, data: nuevo }, { status: 201 });
     }
 
     if (tipo === "estado_vehiculo") {
       if (!data.nombre_estado_vehiculo) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
+      if (data.predeterminado) {
+        await db.update(estadoVehiculo).set({ predeterminado: false });
+      }
       const [nuevo] = await db.insert(estadoVehiculo).values({
-        nombre_estado_vehiculo: data.nombre_estado_vehiculo
+        nombre_estado_vehiculo: data.nombre_estado_vehiculo,
+        predeterminado: !!data.predeterminado
       }).returning();
       return NextResponse.json({ success: true, data: nuevo }, { status: 201 });
     }
@@ -167,7 +172,10 @@ export async function PUT(req: NextRequest) {
     if (tipo === "tipo_venta") {
       if (!data.nombre_tipo_venta) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
       const [actualizado] = await db.update(tipoDeVenta)
-        .set({ nombre_tipo_venta: data.nombre_tipo_venta })
+        .set({ 
+          nombre_tipo_venta: data.nombre_tipo_venta,
+          color: data.color !== undefined ? data.color : undefined
+        })
         .where(eq(tipoDeVenta.id_tipo_de_venta, Number(id)))
         .returning();
       return NextResponse.json({ success: true, data: actualizado });
@@ -175,8 +183,14 @@ export async function PUT(req: NextRequest) {
 
     if (tipo === "estado_vehiculo") {
       if (!data.nombre_estado_vehiculo) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
+      if (data.predeterminado) {
+        await db.update(estadoVehiculo).set({ predeterminado: false });
+      }
       const [actualizado] = await db.update(estadoVehiculo)
-        .set({ nombre_estado_vehiculo: data.nombre_estado_vehiculo })
+        .set({ 
+          nombre_estado_vehiculo: data.nombre_estado_vehiculo,
+          predeterminado: data.predeterminado !== undefined ? !!data.predeterminado : undefined
+        })
         .where(eq(estadoVehiculo.id_estado_vehiculo, Number(id)))
         .returning();
       return NextResponse.json({ success: true, data: actualizado });

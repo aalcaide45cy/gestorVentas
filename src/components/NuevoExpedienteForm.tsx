@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface DropdownItem {
@@ -201,6 +201,7 @@ export default function NuevoExpedienteForm({
   const [fechaMatriculacion, setFechaMatriculacion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [matricula, setMatricula] = useState("");
+  const [vin, setVin] = useState("");
 
   // Gestión de Emails Dinámicos
   const addEmail = () => setEmails([...emails, { email: "", tipo: "Alternativo" }]);
@@ -233,15 +234,76 @@ export default function NuevoExpedienteForm({
   // Obtener modelos de la marca seleccionada
   const modelosDisponibles = marcaSeleccionada !== "" ? modelosPorMarca[Number(marcaSeleccionada)] || [] : [];
 
+  // Control de cambios sin guardar
+  const checkIsDirty = () => {
+    if (success) return false;
+
+    if (dni !== "") return true;
+    if (nombre !== "") return true;
+    if (fechaNacimiento !== "") return true;
+    const defaultTiendaId = tiendas.length === 1 ? String(tiendas[0].id) : "";
+    if (tiendaId !== defaultTiendaId) return true;
+    if (emails.some(e => e.email !== "")) return true;
+    if (telefonos.some(t => t.telefono !== "")) return true;
+    if (marcaSeleccionada !== "") return true;
+    if (modeloSeleccionado !== "") return true;
+    if (tipoVentaSeleccionado !== "") return true;
+    if (estadoVehiculoSeleccionado !== "") return true;
+    if (matricula !== "") return true;
+    if (vin !== "") return true;
+    const today = new Date().toISOString().split("T")[0];
+    if (fechaExpediente !== today) return true;
+    if (fechaAfectacion !== "") return true;
+    if (fechaMatriculacion !== "") return true;
+    if (fechaEntrega !== "") return true;
+
+    return false;
+  };
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (checkIsDirty()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (anchor && anchor.href && anchor.host === window.location.host) {
+        if (checkIsDirty()) {
+          const confirmLeave = window.confirm("Tienes cambios sin guardar en el expediente. ¿Estás seguro de que deseas salir sin guardar?");
+          if (!confirmLeave) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }
+    };
+    document.addEventListener("click", handleAnchorClick, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleAnchorClick, true);
+    };
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaMatriculacion, fechaEntrega, success]);
+
   // Envío del Formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // Validaciones básicas
-    if (!dni || !nombre || !modeloSeleccionado || !tipoVentaSeleccionado || !estadoVehiculoSeleccionado) {
-      setError("Por favor, completa los campos obligatorios del cliente y el vehículo.");
+    // Validar: el nombre del cliente solo es obligatorio si se especifica algún dato de cliente
+    const tieneDatosCliente = dni.trim() !== "" ||
+                              fechaNacimiento.trim() !== "" ||
+                              emails.some(em => em.email.trim() !== "") ||
+                              telefonos.some(t => t.telefono.trim() !== "");
+
+    if (tieneDatosCliente && !nombre.trim()) {
+      setError("El Nombre Completo del cliente es obligatorio si deseas registrar o asociar un cliente.");
       setLoading(false);
       return;
     }
@@ -251,24 +313,25 @@ export default function NuevoExpedienteForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cliente: {
-            dni,
-            nombre,
+          cliente: nombre.trim() ? {
+            dni: dni.trim() || null,
+            nombre: nombre.trim(),
             fecha_de_nacimiento: fechaNacimiento || null,
             tienda_id: tiendaId ? Number(tiendaId) : null,
-            emails: emails.filter(e => e.email),
+            emails: emails.filter(em => em.email),
             telefonos: telefonos.filter(t => t.telefono)
-          },
+          } : null,
           expediente: {
-            id_modelo: Number(modeloSeleccionado),
-            id_tipo_de_venta: Number(tipoVentaSeleccionado),
-            id_estado_vehiculo: Number(estadoVehiculoSeleccionado),
+            id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
+            id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
+            id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
             id_tienda: tiendaId ? Number(tiendaId) : null,
             fecha_expediente: fechaExpediente || null,
             fecha_afectacion: fechaAfectacion || null,
             fecha_matriculacion: fechaMatriculacion || null,
             fecha_entrega: fechaEntrega || null,
-            matricula: matricula || null
+            matricula: matricula || null,
+            vin: vin || null
           }
         })
       });
@@ -428,24 +491,23 @@ export default function NuevoExpedienteForm({
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
-              <label className="form-label">DNI / NIE *</label>
-              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" required />
+              <label className="form-label">DNI / NIE</label>
+              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" />
             </div>
             <div className="form-group">
               <label className="form-label">Nombre Completo *</label>
-              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" required />
+              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de Nacimiento</label>
               <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Tienda *</label>
+              <label className="form-label">Tienda</label>
               <select
                 className="form-select"
                 value={tiendaId}
                 onChange={e => setTiendaId(e.target.value)}
-                required
               >
                 <option value="">Selecciona Tienda</option>
                 {tiendas.map(t => (
@@ -528,8 +590,8 @@ export default function NuevoExpedienteForm({
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
-              <label className="form-label">Marca *</label>
-              <select className="form-select" value={marcaSeleccionada} onChange={e => { setMarcaSeleccionada(e.target.value ? Number(e.target.value) : ""); setModeloSeleccionado(""); }} required>
+              <label className="form-label">Marca</label>
+              <select className="form-select" value={marcaSeleccionada} onChange={e => { setMarcaSeleccionada(e.target.value ? Number(e.target.value) : ""); setModeloSeleccionado(""); }}>
                 <option value="">Selecciona Marca</option>
                 {marcas.map(m => (
                   <option key={m.id} value={m.id}>{m.nombre}</option>
@@ -538,8 +600,8 @@ export default function NuevoExpedienteForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Modelo *</label>
-              <select className="form-select" value={modeloSeleccionado} onChange={e => setModeloSeleccionado(e.target.value ? Number(e.target.value) : "")} disabled={!marcaSeleccionada} required>
+              <label className="form-label">Modelo</label>
+              <select className="form-select" value={modeloSeleccionado} onChange={e => setModeloSeleccionado(e.target.value ? Number(e.target.value) : "")} disabled={!marcaSeleccionada}>
                 <option value="">Selecciona Modelo</option>
                 {modelosDisponibles.map(m => (
                   <option key={m.id} value={m.id}>{m.nombre}</option>
@@ -548,8 +610,8 @@ export default function NuevoExpedienteForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Tipo de Venta *</label>
-              <select className="form-select" value={tipoVentaSeleccionado} onChange={e => setTipoVentaSeleccionado(e.target.value ? Number(e.target.value) : "")} required>
+              <label className="form-label">Tipo de Venta</label>
+              <select className="form-select" value={tipoVentaSeleccionado} onChange={e => setTipoVentaSeleccionado(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">Selecciona Tipo</option>
                 {tiposVenta.map(t => (
                   <option key={t.id} value={t.id}>{t.nombre}</option>
@@ -558,8 +620,8 @@ export default function NuevoExpedienteForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Estado de Vehículo *</label>
-              <select className="form-select" value={estadoVehiculoSeleccionado} onChange={e => setEstadoVehiculoSeleccionado(e.target.value ? Number(e.target.value) : "")} required>
+              <label className="form-label">Estado de Vehículo</label>
+              <select className="form-select" value={estadoVehiculoSeleccionado} onChange={e => setEstadoVehiculoSeleccionado(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">Selecciona Estado</option>
                 {estadosVehiculo.map(ev => (
                   <option key={ev.id} value={ev.id}>{ev.nombre}</option>
@@ -572,6 +634,10 @@ export default function NuevoExpedienteForm({
             <div className="form-group">
               <label className="form-label">Matrícula</label>
               <input type="text" className="form-input" value={matricula} onChange={e => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Número de Bastidor (VIN)</label>
+              <input type="text" className="form-input" value={vin} onChange={e => setVin(e.target.value)} placeholder="Ej. WBA..." />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Expediente</label>

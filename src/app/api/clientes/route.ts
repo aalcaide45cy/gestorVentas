@@ -23,14 +23,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { dni, nombre, fecha_de_nacimiento, tienda_id, emails, telefonos } = body;
 
-    if (!dni || !nombre) {
-      return NextResponse.json({ message: "DNI y Nombre son campos obligatorios" }, { status: 400 });
+    if (!nombre) {
+      return NextResponse.json({ message: "Nombre es un campo obligatorio" }, { status: 400 });
     }
 
-    // Verificar si el cliente ya existe por DNI
-    const clienteExistente = await db.query.clientes.findFirst({
-      where: eq(clientes.dni, dni),
-    });
+    // Verificar si el cliente ya existe por DNI (si se proporciona)
+    let clienteExistente = null;
+    if (dni) {
+      clienteExistente = await db.query.clientes.findFirst({
+        where: eq(clientes.dni, dni),
+      });
+    }
 
     if (clienteExistente) {
       return NextResponse.json({ message: "Ya existe un cliente registrado con este DNI/NIE." }, { status: 409 });
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
     // 1. Insertar el cliente
     const [nuevoCliente] = await db.insert(clientes).values({
       cliente_id: crypto.randomUUID(),
-      dni,
+      dni: dni || null,
       nombre,
       fecha_de_nacimiento: fecha_de_nacimiento || null,
       tienda_id: tienda_id ? Number(tienda_id) : null
@@ -95,8 +98,8 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { id, dni, nombre, fecha_de_nacimiento, tienda_id, emails, telefonos } = body;
 
-    if (!id || !dni || !nombre) {
-      return NextResponse.json({ message: "ID, DNI y Nombre son campos obligatorios" }, { status: 400 });
+    if (!id || !nombre) {
+      return NextResponse.json({ message: "ID y Nombre son campos obligatorios" }, { status: 400 });
     }
 
     // Verificar si el cliente existe
@@ -108,10 +111,13 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ message: "Cliente no encontrado" }, { status: 404 });
     }
 
-    // Verificar DNI duplicado para otro cliente
-    const dniExistente = await db.query.clientes.findFirst({
-      where: eq(clientes.dni, dni),
-    });
+    // Verificar DNI duplicado para otro cliente (si se proporciona)
+    let dniExistente = null;
+    if (dni) {
+      dniExistente = await db.query.clientes.findFirst({
+        where: eq(clientes.dni, dni),
+      });
+    }
 
     if (dniExistente && dniExistente.id !== id) {
       return NextResponse.json({ message: "Ya existe otro cliente registrado con este DNI/NIE." }, { status: 409 });
@@ -119,7 +125,7 @@ export async function PUT(req: NextRequest) {
 
     // 1. Actualizar el cliente
     await db.update(clientes).set({
-      dni,
+      dni: dni || null,
       nombre,
       fecha_de_nacimiento: fecha_de_nacimiento || null,
       tienda_id: tienda_id ? Number(tienda_id) : null

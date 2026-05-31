@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo } from "@/db/schema";
+import { eq, ilike } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,11 +37,14 @@ export async function POST(req: NextRequest) {
     // 3. Ejecutar secuencialmente para insertar cliente, emails, teléfonos si se proporciona cliente
     let clienteId: number | null = null;
 
-    if (clienteData && clienteData.dni) {
-      // Verificar si el cliente ya existe por DNI
-      const clienteExistente = await db.query.clientes.findFirst({
-        where: eq(clientes.dni, clienteData.dni),
-      });
+    if (clienteData && clienteData.nombre) {
+      // Verificar si el cliente ya existe por DNI (si se proporciona)
+      let clienteExistente = null;
+      if (clienteData.dni) {
+        clienteExistente = await db.query.clientes.findFirst({
+          where: eq(clientes.dni, clienteData.dni),
+        });
+      }
 
       if (clienteExistente) {
         clienteId = clienteExistente.id;
@@ -49,10 +52,10 @@ export async function POST(req: NextRequest) {
         // Crear nuevo cliente
         const [nuevoCliente] = await db.insert(clientes).values({
           cliente_id: crypto.randomUUID(),
-          dni: clienteData.dni,
+          dni: clienteData.dni || null,
           nombre: clienteData.nombre,
-          fecha_de_nacimiento: clienteData.fecha_de_nacimiento,
-          tienda_id: clienteData.tienda_id,
+          fecha_de_nacimiento: clienteData.fecha_de_nacimiento || null,
+          tienda_id: clienteData.tienda_id || null,
         }).returning();
 
         clienteId = nuevoCliente.id;
@@ -95,19 +98,40 @@ export async function POST(req: NextRequest) {
     // Determinar fecha
     const fechaExp = expedienteData.fecha_expediente || new Date().toISOString().split('T')[0];
 
+    // Determinar Estado del Vehículo
+    let estadoVehiculoId = expedienteData.id_estado_vehiculo || null;
+    if (!estadoVehiculoId) {
+      if (expedienteData.estado_nombre === "usado") {
+        const dbEstadoUsado = await db.query.estadoVehiculo.findFirst({
+          where: ilike(estadoVehiculo.nombre_estado_vehiculo, "usado")
+        });
+        if (dbEstadoUsado) {
+          estadoVehiculoId = dbEstadoUsado.id_estado_vehiculo;
+        }
+      } else {
+        const defaultState = await db.query.estadoVehiculo.findFirst({
+          where: eq(estadoVehiculo.predeterminado, true)
+        });
+        if (defaultState) {
+          estadoVehiculoId = defaultState.id_estado_vehiculo;
+        }
+      }
+    }
+
     // Crear el expediente
     const [nuevoExpediente] = await db.insert(expedientes).values({
       id_usuario: localUser.id_usuario,
       id_cliente: clienteId,
-      id_modelo: expedienteData.id_modelo,
+      id_modelo: expedienteData.id_modelo || null,
       id_tienda: tiendaId || null,
       fecha_expediente: fechaExp,
       fecha_afectacion: expedienteData.fecha_afectacion || null,
       fecha_matriculacion: expedienteData.fecha_matriculacion || null,
       fecha_entrega: expedienteData.fecha_entrega || null,
       matricula: expedienteData.matricula || null,
-      id_tipo_de_venta: expedienteData.id_tipo_de_venta,
-      id_estado_vehiculo: expedienteData.id_estado_vehiculo || null,
+      vin: expedienteData.vin || null,
+      id_tipo_de_venta: expedienteData.id_tipo_de_venta || null,
+      id_estado_vehiculo: estadoVehiculoId,
     }).returning();
 
     return NextResponse.json({ success: true, data: nuevoExpediente }, { status: 201 });
@@ -142,15 +166,16 @@ export async function PUT(req: NextRequest) {
 
     // Actualizar expediente
     await db.update(expedientes).set({
-      id_modelo: expedienteData.id_modelo,
-      id_tipo_de_venta: expedienteData.id_tipo_de_venta,
-      id_estado_vehiculo: expedienteData.id_estado_vehiculo,
-      id_tienda: expedienteData.id_tienda,
-      fecha_expediente: expedienteData.fecha_expediente,
-      fecha_afectacion: expedienteData.fecha_afectacion,
-      fecha_matriculacion: expedienteData.fecha_matriculacion,
-      fecha_entrega: expedienteData.fecha_entrega,
-      matricula: expedienteData.matricula,
+      id_modelo: expedienteData.id_modelo || null,
+      id_tipo_de_venta: expedienteData.id_tipo_de_venta || null,
+      id_estado_vehiculo: expedienteData.id_estado_vehiculo || null,
+      id_tienda: expedienteData.id_tienda || null,
+      fecha_expediente: expedienteData.fecha_expediente || null,
+      fecha_afectacion: expedienteData.fecha_afectacion || null,
+      fecha_matriculacion: expedienteData.fecha_matriculacion || null,
+      fecha_entrega: expedienteData.fecha_entrega || null,
+      matricula: expedienteData.matricula || null,
+      vin: expedienteData.vin || null,
       id_cliente: id_cliente !== undefined ? id_cliente : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 

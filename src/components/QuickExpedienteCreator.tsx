@@ -30,12 +30,12 @@ interface QuickExpedienteCreatorProps {
 
 export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpedienteCreatorProps) {
   const router = useRouter();
-  const [loadingModelId, setLoadingModelId] = useState<number | null>(null);
+  const [loadingModelId, setLoadingModelId] = useState<number | "VO" | null>(null);
   const [loadingTipoVentaId, setLoadingTipoVentaId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  const handleQuickCreate = async (modeloId: number, modeloNombre: string, tipoVentaId: number, tipoVentaNombre: string) => {
-    setLoadingModelId(modeloId);
+  const handleQuickCreate = async (modeloId: number | null, modeloNombre: string, tipoVentaId: number, tipoVentaNombre: string, estadoNombre?: string) => {
+    setLoadingModelId(modeloId ?? "VO");
     setLoadingTipoVentaId(tipoVentaId);
     setFeedback(null);
 
@@ -49,6 +49,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
           expediente: {
             id_modelo: modeloId,
             id_tipo_de_venta: tipoVentaId,
+            estado_nombre: estadoNombre,
           },
         }),
       });
@@ -83,17 +84,6 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
 
   // Filtrar marcas que tengan modelos con acceso rápido
   const marcasConModelos = marcas.filter(m => m.modelos && m.modelos.length > 0);
-
-  if (marcasConModelos.length === 0) {
-    return (
-      <div className="glass-panel" style={{ padding: "28px", textAlign: "center" }}>
-        <h3 style={{ fontSize: "1.2rem", marginBottom: "8px" }}>Acceso Rápido a Modelos</h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
-          No hay marcas o modelos configurados para Acceso Rápido en este momento. Puedes configurarlos en la sección de Administración.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -134,12 +124,17 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
       )}
 
       <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-        gap: "24px"
+        display: "flex",
+        flexWrap: "wrap",
+        gap: "24px",
+        justifyContent: "center",
+        width: "100%"
       }}>
         {marcasConModelos.map((marca) => (
           <div key={marca.id_marca} style={{
+            width: "320px",
+            flexGrow: 1,
+            maxWidth: "360px",
             padding: "20px",
             background: "rgba(255, 255, 255, 0.01)",
             border: "1px solid var(--border-light)",
@@ -232,6 +227,91 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
             </div>
           </div>
         ))}
+
+        {/* Tarjeta VO */}
+        <div style={{
+          width: "320px",
+          flexGrow: 1,
+          maxWidth: "360px",
+          padding: "20px",
+          background: "rgba(255, 255, 255, 0.01)",
+          border: "1px solid var(--border-light)",
+          borderRadius: "var(--radius-md)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px"
+        }}>
+          <h4 style={{
+            fontSize: "1.1rem",
+            fontWeight: 700,
+            color: "var(--primary)",
+            borderBottom: "1px solid var(--border-light)",
+            paddingBottom: "10px",
+            margin: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            VO
+          </h4>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px", height: "100%", justifyContent: "space-between" }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>
+              Crea un expediente rápido para un vehículo usado (sin marca/modelo preasignados).
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+              {tiposVenta.map((tv) => {
+                const isThisLoading = loadingModelId === "VO" && loadingTipoVentaId === tv.id_tipo_de_venta;
+                return (
+                  <button
+                    key={tv.id_tipo_de_venta}
+                    onClick={() => handleQuickCreate(null, "Vehículo Usado (VO)", tv.id_tipo_de_venta, tv.nombre_tipo_venta, "usado")}
+                    disabled={loadingModelId !== null}
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "8px 4px",
+                      flex: "1 1 0px",
+                      minWidth: "0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "4px",
+                      background: isThisLoading ? "rgba(255, 255, 255, 0.1)" : "rgba(var(--primary-rgb, 99, 102, 241), 0.05)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-light)",
+                      borderRadius: "4px",
+                      cursor: loadingModelId !== null ? "not-allowed" : "pointer",
+                      transition: "all 0.2s ease",
+                      opacity: loadingModelId !== null && !isThisLoading ? 0.5 : 1,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis"
+                    }}
+                    title={`Crear rápido VO - ${tv.nombre_tipo_venta}`}
+                    className="glass-panel-interactive"
+                  >
+                    {isThisLoading ? (
+                      <span className="spinner-mini" style={{
+                        width: "10px",
+                        height: "10px",
+                        border: "2px solid rgba(255,255,255,0.3)",
+                        borderTop: "2px solid var(--text-primary)",
+                        borderRadius: "50%",
+                        display: "inline-block",
+                        animation: "spin 0.8s linear infinite"
+                      }}></span>
+                    ) : null}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{tv.nombre_tipo_venta}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
       <style jsx global>{`
         @keyframes spin {

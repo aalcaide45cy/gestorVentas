@@ -87,12 +87,14 @@ export const modelos = pgTable('modelos', {
 export const tipoDeVenta = pgTable('tipo_de_venta', {
   id_tipo_de_venta: serial('id_tipo_de_venta').primaryKey(),
   nombre_tipo_venta: text('nombre_tipo_venta').notNull(),
+  color: varchar('color', { length: 50 }).default('#3b82f6'),
 });
 
 // TABLA: ESTADO_VEHICULO
 export const estadoVehiculo = pgTable('estado_vehiculo', {
   id_estado_vehiculo: serial('id_estado_vehiculo').primaryKey(),
   nombre_estado_vehiculo: text('nombre_estado_vehiculo').notNull(),
+  predeterminado: boolean('predeterminado').default(false),
 });
 
 // TABLA: EXPEDIENTES
@@ -109,6 +111,7 @@ export const expedientes = pgTable('expedientes', {
   matricula: varchar('matricula', { length: 50 }),
   id_tipo_de_venta: integer('id_tipo_de_venta').references(() => tipoDeVenta.id_tipo_de_venta),
   id_estado_vehiculo: integer('id_estado_vehiculo').references(() => estadoVehiculo.id_estado_vehiculo),
+  vin: varchar('vin', { length: 100 }),
 });
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===

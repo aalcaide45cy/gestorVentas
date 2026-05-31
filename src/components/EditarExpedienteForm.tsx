@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface DropdownItem {
@@ -210,6 +210,7 @@ export default function EditarExpedienteForm({
   const [fechaMatriculacion, setFechaMatriculacion] = useState(expediente.fecha_matriculacion || "");
   const [fechaEntrega, setFechaEntrega] = useState(expediente.fecha_entrega || "");
   const [matricula, setMatricula] = useState(expediente.matricula || "");
+  const [vin, setVin] = useState(expediente.vin || "");
 
   // Gestión de Emails Dinámicos (solo si creamos/modificamos un cliente no asignado o suelto)
   const addEmail = () => setEmails([...emails, { email: "", tipo: "Alternativo" }]);
@@ -242,17 +243,86 @@ export default function EditarExpedienteForm({
   // Obtener modelos de la marca seleccionada
   const modelosDisponibles = marcaSeleccionada !== "" ? modelosPorMarca[Number(marcaSeleccionada)] || [] : [];
 
+  // Control de cambios sin guardar
+  const checkIsDirty = () => {
+    if (success) return false;
+
+    if (dni !== (expediente.cliente?.dni || "")) return true;
+    if (nombre !== (expediente.cliente?.nombre || "")) return true;
+    if (fechaNacimiento !== (expediente.cliente?.fecha_de_nacimiento || "")) return true;
+    if (tiendaId !== (expediente.id_tienda ? String(expediente.id_tienda) : "")) return true;
+
+    // Emails check
+    const currentEmails = emails.filter(e => e.email.trim() !== "");
+    const originalEmails = expediente.cliente?.emails || [];
+    if (currentEmails.length !== originalEmails.length) return true;
+    for (let i = 0; i < currentEmails.length; i++) {
+      if (currentEmails[i].email !== originalEmails[i].email) return true;
+      const currTipo = currentEmails[i].tipo || "Principal";
+      const origTipo = originalEmails[i].tipo_email || "Principal";
+      if (currTipo !== origTipo) return true;
+    }
+
+    // Telefonos check
+    const currentTelefonos = telefonos.filter(t => t.telefono.trim() !== "");
+    const originalTelefonos = expediente.cliente?.telefonos || [];
+    if (currentTelefonos.length !== originalTelefonos.length) return true;
+    for (let i = 0; i < currentTelefonos.length; i++) {
+      if (currentTelefonos[i].telefono !== originalTelefonos[i].telefono) return true;
+      const currTipo = currentTelefonos[i].tipo || "Principal";
+      const origTipo = originalTelefonos[i].tipo_telefono || "Principal";
+      if (currTipo !== origTipo) return true;
+    }
+
+    if (marcaSeleccionada !== (expediente.modelo?.marca_id || "")) return true;
+    if (modeloSeleccionado !== (expediente.id_modelo || "")) return true;
+    if (tipoVentaSeleccionado !== (expediente.id_tipo_de_venta || "")) return true;
+    if (estadoVehiculoSeleccionado !== (expediente.id_estado_vehiculo || "")) return true;
+    if (fechaExpediente !== (expediente.fecha_expediente || "")) return true;
+    if (fechaAfectacion !== (expediente.fecha_afectacion || "")) return true;
+    if (fechaMatriculacion !== (expediente.fecha_matriculacion || "")) return true;
+    if (fechaEntrega !== (expediente.fecha_entrega || "")) return true;
+    if (matricula !== (expediente.matricula || "")) return true;
+    if (vin !== (expediente.vin || "")) return true;
+
+    return false;
+  };
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (checkIsDirty()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (anchor && anchor.href && anchor.host === window.location.host) {
+        if (checkIsDirty()) {
+          const confirmLeave = window.confirm("Tienes cambios sin guardar en el expediente. ¿Estás seguro de que deseas salir sin guardar?");
+          if (!confirmLeave) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }
+    };
+    document.addEventListener("click", handleAnchorClick, true);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("click", handleAnchorClick, true);
+    };
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaMatriculacion, fechaEntrega, success]);
+
   // Envío del Formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
-    if (!modeloSeleccionado || !tipoVentaSeleccionado || !estadoVehiculoSeleccionado || !clienteAsignado) {
-      setError("Por favor, asegúrate de asignar un cliente y rellenar los datos de vehículo.");
-      setLoading(false);
-      return;
-    }
 
     try {
       const response = await fetch("/api/expedientes", {
@@ -260,17 +330,18 @@ export default function EditarExpedienteForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id_expediente: expediente.id_expediente,
-          id_cliente: clienteAsignado.id,
+          id_cliente: clienteAsignado ? clienteAsignado.id : null,
           expediente: {
-            id_modelo: Number(modeloSeleccionado),
-            id_tipo_de_venta: Number(tipoVentaSeleccionado),
-            id_estado_vehiculo: Number(estadoVehiculoSeleccionado),
+            id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
+            id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
+            id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
             id_tienda: tiendaId ? Number(tiendaId) : null,
             fecha_expediente: fechaExpediente || null,
             fecha_afectacion: fechaAfectacion || null,
             fecha_matriculacion: fechaMatriculacion || null,
             fecha_entrega: fechaEntrega || null,
-            matricula: matricula || null
+            matricula: matricula || null,
+            vin: vin || null
           }
         })
       });
@@ -430,24 +501,23 @@ export default function EditarExpedienteForm({
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
-              <label className="form-label">DNI / NIE *</label>
-              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" required />
+              <label className="form-label">DNI / NIE</label>
+              <input type="text" className="form-input" value={dni} onChange={e => setDni(e.target.value)} placeholder="Ej. 12345678Z" />
             </div>
             <div className="form-group">
               <label className="form-label">Nombre Completo *</label>
-              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" required />
+              <input type="text" className="form-input" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Ej. Juan Pérez Gómez" />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de Nacimiento</label>
               <input type="date" className="form-input" value={fechaNacimiento} onChange={e => setFechaNacimiento(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Tienda *</label>
+              <label className="form-label">Tienda</label>
               <select
                 className="form-select"
                 value={tiendaId}
                 onChange={e => setTiendaId(e.target.value)}
-                required
               >
                 <option value="">Selecciona Tienda</option>
                 {tiendas.map(t => (
@@ -530,8 +600,8 @@ export default function EditarExpedienteForm({
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
-              <label className="form-label">Marca *</label>
-              <select className="form-select" value={marcaSeleccionada} onChange={e => { setMarcaSeleccionada(e.target.value ? Number(e.target.value) : ""); setModeloSeleccionado(""); }} required>
+              <label className="form-label">Marca</label>
+              <select className="form-select" value={marcaSeleccionada} onChange={e => { setMarcaSeleccionada(e.target.value ? Number(e.target.value) : ""); setModeloSeleccionado(""); }}>
                 <option value="">Selecciona Marca</option>
                 {marcas.map(m => (
                   <option key={m.id} value={m.id}>{m.nombre}</option>
@@ -540,8 +610,8 @@ export default function EditarExpedienteForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Modelo *</label>
-              <select className="form-select" value={modeloSeleccionado} onChange={e => setModeloSeleccionado(e.target.value ? Number(e.target.value) : "")} disabled={!marcaSeleccionada} required>
+              <label className="form-label">Modelo</label>
+              <select className="form-select" value={modeloSeleccionado} onChange={e => setModeloSeleccionado(e.target.value ? Number(e.target.value) : "")} disabled={!marcaSeleccionada}>
                 <option value="">Selecciona Modelo</option>
                 {modelosDisponibles.map(m => (
                   <option key={m.id} value={m.id}>{m.nombre}</option>
@@ -550,8 +620,8 @@ export default function EditarExpedienteForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Tipo de Venta *</label>
-              <select className="form-select" value={tipoVentaSeleccionado} onChange={e => setTipoVentaSeleccionado(e.target.value ? Number(e.target.value) : "")} required>
+              <label className="form-label">Tipo de Venta</label>
+              <select className="form-select" value={tipoVentaSeleccionado} onChange={e => setTipoVentaSeleccionado(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">Selecciona Tipo</option>
                 {tiposVenta.map(t => (
                   <option key={t.id} value={t.id}>{t.nombre}</option>
@@ -560,8 +630,8 @@ export default function EditarExpedienteForm({
             </div>
 
             <div className="form-group">
-              <label className="form-label">Estado de Vehículo *</label>
-              <select className="form-select" value={estadoVehiculoSeleccionado} onChange={e => setEstadoVehiculoSeleccionado(e.target.value ? Number(e.target.value) : "")} required>
+              <label className="form-label">Estado de Vehículo</label>
+              <select className="form-select" value={estadoVehiculoSeleccionado} onChange={e => setEstadoVehiculoSeleccionado(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">Selecciona Estado</option>
                 {estadosVehiculo.map(ev => (
                   <option key={ev.id} value={ev.id}>{ev.nombre}</option>
@@ -574,6 +644,10 @@ export default function EditarExpedienteForm({
             <div className="form-group">
               <label className="form-label">Matrícula</label>
               <input type="text" className="form-input" value={matricula} onChange={e => setMatricula(e.target.value)} placeholder="Ej. 1234BBB" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Número de Bastidor (VIN)</label>
+              <input type="text" className="form-input" value={vin} onChange={e => setVin(e.target.value)} placeholder="Ej. WBA..." />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Expediente</label>

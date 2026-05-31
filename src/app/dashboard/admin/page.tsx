@@ -80,12 +80,14 @@ export default async function AdminPage() {
   // Mapear tipos de venta y estados de vehículos
   const tiposVentaMapeados = dbTiposVenta.map(t => ({
     id: t.id_tipo_de_venta,
-    nombre: t.nombre_tipo_venta
+    nombre: t.nombre_tipo_venta,
+    color: t.color
   }));
 
   const estadosVehiculoMapeados = dbEstadosVehiculo.map(ev => ({
     id: ev.id_estado_vehiculo,
-    nombre: ev.nombre_estado_vehiculo
+    nombre: ev.nombre_estado_vehiculo,
+    predeterminado: ev.predeterminado
   }));
 
   return (

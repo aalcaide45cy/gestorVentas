@@ -227,7 +227,6 @@ export default async function DashboardPage() {
               <table className="table-premium">
                 <thead>
                   <tr>
-                    <th>Código</th>
                     <th>Cliente</th>
                     <th>Vehículo</th>
                     <th>Método de Venta</th>
@@ -239,9 +238,6 @@ export default async function DashboardPage() {
                 <tbody>
                   {dbExpedientesRecientes.map((exp) => (
                     <tr key={exp.id_expediente}>
-                      <td style={{ fontWeight: "bold", color: "var(--primary)" }}>
-                        #EXP-{String(exp.id_expediente).padStart(4, "0")}
-                      </td>
                       <td>
                         <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{exp.cliente?.nombre || "Sin Cliente"}</div>
                         {exp.cliente?.dni && <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.cliente.dni}</div>}
@@ -255,9 +251,16 @@ export default async function DashboardPage() {
                         ) : "N/D"}
                       </td>
                       <td>
-                        <span className="badge badge-zona" style={{ fontSize: "0.7rem" }}>
-                          {exp.tipoDeVenta?.nombre_tipo_venta || "N/D"}
-                        </span>
+                        {exp.tipoDeVenta ? (
+                          <span className="badge" style={{
+                            fontSize: "0.7rem",
+                            backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
+                            color: "#fff",
+                            padding: "4px 8px"
+                          }}>
+                            {exp.tipoDeVenta.nombre_tipo_venta}
+                          </span>
+                        ) : "N/D"}
                       </td>
                       <td>
                         <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`}>
@@ -292,7 +295,7 @@ export default async function DashboardPage() {
                   ))}
                   {dbExpedientesRecientes.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
+                      <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
                         No hay expedientes de venta registrados en la base de datos.
                       </td>
                     </tr>

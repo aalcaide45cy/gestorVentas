@@ -125,7 +125,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
 
   const handleSaveCliente = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dni.trim() || !nombre.trim()) return;
+    if (!nombre.trim()) return;
     setLoading(true);
 
     try {
@@ -135,7 +135,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: isEdit ? selectedCliente?.id : undefined,
-          dni,
+          dni: dni.trim() || null,
           nombre,
           fecha_de_nacimiento: fechaNacimiento || null,
           tienda_id: tiendaId ? Number(tiendaId) : null,
@@ -190,12 +190,42 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* NOTIFICACIONES */}
       {error && (
-        <div className="glass-panel" style={{ padding: "12px 16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
+        <div className="glass-panel" style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10000,
+          boxShadow: "var(--shadow-lg)",
+          padding: "12px 24px",
+          color: "var(--danger)",
+          borderLeft: "4px solid var(--danger)",
+          background: "rgba(239, 68, 68, 0.95)",
+          backdropFilter: "blur(8px)",
+          minWidth: "300px",
+          textAlign: "center",
+          animation: "fadeIn 0.3s ease"
+        }}>
           ⚠️ {error}
         </div>
       )}
       {success && (
-        <div className="glass-panel" style={{ padding: "12px 16px", color: "var(--success)", borderLeft: "4px solid var(--success)", background: "rgba(16, 185, 129, 0.05)" }}>
+        <div className="glass-panel" style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10000,
+          boxShadow: "var(--shadow-lg)",
+          padding: "12px 24px",
+          color: "var(--success)",
+          borderLeft: "4px solid var(--success)",
+          background: "rgba(16, 185, 129, 0.95)",
+          backdropFilter: "blur(8px)",
+          minWidth: "300px",
+          textAlign: "center",
+          animation: "fadeIn 0.3s ease"
+        }}>
           ✓ {success}
         </div>
       )}
@@ -341,8 +371,8 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
             <form onSubmit={handleSaveCliente} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">DNI / NIE *</label>
-                  <input type="text" className="form-input" placeholder="Ej. 12345678Z" value={dni} onChange={e => setDni(e.target.value)} required />
+                  <label className="form-label">DNI / NIE</label>
+                  <input type="text" className="form-input" placeholder="Ej. 12345678Z" value={dni} onChange={e => setDni(e.target.value)} />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Nombre Completo *</label>
@@ -491,9 +521,15 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                         ) : "N/D"}
                       </td>
                       <td>
-                        <span className="badge badge-zona" style={{ fontSize: "0.7rem" }}>
-                          {exp.tipoDeVenta?.nombre_tipo_venta || "N/D"}
-                        </span>
+                        {exp.tipoDeVenta && (
+                          <span className="badge" style={{
+                            fontSize: "0.7rem",
+                            backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
+                            color: "#fff"
+                          }}>
+                            {exp.tipoDeVenta.nombre_tipo_venta}
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`}>

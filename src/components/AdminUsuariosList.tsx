@@ -275,17 +275,34 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* NOTIFICACIÓN */}
+      {/* NOTIFICACIÓN FLOTANTE */}
       {notification && (
-        <div className="glass-panel" style={{
-          padding: "12px 16px",
-          color: notification.type === "success" ? "var(--success)" : "var(--danger)",
-          borderLeft: `4px solid var(--${notification.type === "success" ? "success" : "danger"})`,
-          background: `rgba(${notification.type === "success" ? "16, 185, 129" : "239, 68, 68"}, 0.05)`,
-          fontSize: "0.9rem",
-          fontWeight: 500
+        <div style={{
+          position: "fixed",
+          top: "24px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 9999,
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          width: "90%",
+          maxWidth: "450px",
+          animation: "fadeIn 0.3s ease"
         }}>
-          {notification.text}
+          <div className="glass-panel" style={{
+            padding: "16px 20px",
+            color: notification.type === "success" ? "var(--success)" : "var(--danger)",
+            borderLeft: `4px solid var(--${notification.type === "success" ? "success" : "danger"})`,
+            background: notification.type === "success" ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+            fontWeight: 500,
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+          }}>
+            <span>{notification.type === "success" ? "✓" : "⚠️"} {notification.text}</span>
+          </div>
         </div>
       )}
 

@@ -72,4 +72,49 @@ Debajo de cada modelo, habrá unos botones, que serán los tipos de pagos que ha
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-En la pestaña de configuración, 
+En la pestaña de configuración, quita Administración de Catálogos Maestros.
+También quiero que los botones aparezcan centrados en la pantalla.
+Los listados que se muestren, quiero que ocultes la columna de ID, no tiene sentido para el usuario.
+
+En el dashboard, los accesos rápidos que te dije me gustan, pero quiero que los organices como bloques en vertical.
+Sería por ejemplo una sección de la Marca Renault (si Renault tiene el Acceso Rapido activo)
+Debajo, en vertical, nombres de los modelos, y los botones de acceso rápido según su forma de pago, debajo del modelo.
+
+Otra sección a la derecha por ejemplo de la Marca Dacia (si Dacia tiene el Acceso Rapido activo)
+Debajo, en vertical, nombres de los modelos, y los botones de acceso rápido según su forma de pago, debajo del modelo.
+
+Los botones de acceso rápido según su forma de pago, que este uno al lado del otro en la misma linea, es decir, que si hay 3 formas de pago, que debajo del modelo, aparezcan los 3 botones correspondientes, uno al lado del otro.
+
+En el dashboard, como aparecen los últimos 5 expedientes, quiero poder editar, es decir, dar como un botón de lapiz, y que me lleve a ese expediente.
+
+En el menú de configuración, aparece la gestión de usuarios. Al ser un administrador, aparece el botón de suspender inhabilitado, quiero mejor que se oculte ese botón si es el administrador.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En la configuración, en Estados, quiero que cada estado tenga un booleano que pueda activar, como predeterminado.
+Al usar los botones de acceso rápido del dashboard, el estado del vehiculo siempre será el estado que tenga el predeterminado.
+En la configuración de Pagos, quiero poder asignar un color al tipo de pago. Este color, será el que tenga en la tabla que se muestran los expedientes. Ahora sale de color azul clarito. Luego, será según el color que yo haya establecido.
+
+En el dashboard, aparece un listado de los últimos 5 expedientes, en la lista, oculta la columna código pues no tiene sentido relevante.
+
+En el dashboard, los accesos directos a crear rápido el expediente, quiero que lo centres. Y quiero que añadas uno nuevo, a la derecha de los que estén activos, que ponga VO. El cual tendrá un botón por cada tipo de pago que haya. Estos, crearán un expediente rápido, según el tipo de venta que haya pulsado el botón y en estado de vehiculo, será usado.
+
+En los expedientes, no quiero que marca, modelo, tipo de venta ni estado de vehiculo, sean obligatorios. Es mas, no quiero que ningún campo sea obligatorio en los expedientes.
+En los clientes, solo quiero que sea obligatorio el nombre.
+
+Cuando se haga algún guardado, sale un mensaje verde, que lo que hace es desplazar las cosas hacia abajo a veces, y luego cuando desaparece, vuelve a desplazar las cosas de nuevo. Quiero que esos mensajes salgan en la parte superior de la pantalla y sean flotantes, ósea, que no afecten al contenido, pero siempre esté encima. Que salga unos segundos y ya.
+
+También quiero, que si estoy en la sección de expedientes, y quiero salir de ahí, pulsando algún otro botón o algo, verifique si he cambiado algo o no, para que me salga un mensaje de si quiero guardar cambios.
+
+También en expedientes quiero un campo para guardar el VIN (numero de bastidor del vehiculo)
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En expedientes, quiero tener un botón para eliminar el expediente. Quiero que al eliminar, antes, me salga un modal de confirmación.
+
+A veces, sale este error en la consola del navegador, cuando pulso en el botón lateral de Clientes:
+Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+
+
+

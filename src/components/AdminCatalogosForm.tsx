@@ -18,6 +18,8 @@ interface MarcaItem {
 interface DropdownItem {
   id: number;
   nombre: string;
+  color?: string | null;
+  predeterminado?: boolean | null;
 }
 
 interface TiendaItem {
@@ -173,7 +175,9 @@ export default function AdminCatalogosForm({
   const [nuevoModeloNombre, setNuevoModeloNombre] = useState("");
   const [nuevoModeloAccesoRapido, setNuevoModeloAccesoRapido] = useState(false);
   const [nuevoTipoVentaNombre, setNuevoTipoVentaNombre] = useState("");
+  const [nuevoTipoVentaColor, setNuevoTipoVentaColor] = useState("#3b82f6");
   const [nuevoEstadoVehiculoNombre, setNuevoEstadoVehiculoNombre] = useState("");
+  const [nuevoEstadoVehiculoPredeterminado, setNuevoEstadoVehiculoPredeterminado] = useState(false);
   const [nuevaTiendaNombre, setNuevaTiendaNombre] = useState("");
   const [nuevaTiendaCiudad, setNuevaTiendaCiudad] = useState("");
 
@@ -192,12 +196,16 @@ export default function AdminCatalogosForm({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingNombre, setEditingNombre] = useState("");
   const [editingExtra, setEditingExtra] = useState(""); // para ciudad en tiendas
+  const [editingColor, setEditingColor] = useState(""); // para color en tipos de pago
+  const [editingPredeterminado, setEditingPredeterminado] = useState(false); // para predeterminado en estados
 
-  const iniciarEdicion = (tipo: TabType, id: number, nombre: string, extra = "") => {
+  const iniciarEdicion = (tipo: TabType, id: number, nombre: string, extra = "", color = "", predeterminado = false) => {
     setEditingType(tipo);
     setEditingId(id);
     setEditingNombre(nombre);
     setEditingExtra(extra);
+    setEditingColor(color);
+    setEditingPredeterminado(predeterminado);
   };
 
   const cancelarEdicion = () => {
@@ -205,6 +213,8 @@ export default function AdminCatalogosForm({
     setEditingId(null);
     setEditingNombre("");
     setEditingExtra("");
+    setEditingColor("");
+    setEditingPredeterminado(false);
   };
 
   const handleGuardarEdicion = async (e: React.FormEvent) => {
@@ -238,7 +248,16 @@ export default function AdminCatalogosForm({
         const res = await fetch("/api/admin/catalogos", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tipo: payloadType, id: editingId, nombre: editingNombre, nombre_modelo: editingNombre, nombre_tipo_venta: editingNombre, nombre_estado_vehiculo: editingNombre })
+          body: JSON.stringify({
+            tipo: payloadType,
+            id: editingId,
+            nombre: editingNombre,
+            nombre_modelo: editingNombre,
+            nombre_tipo_venta: editingNombre,
+            nombre_estado_vehiculo: editingNombre,
+            color: editingColor,
+            predeterminado: editingPredeterminado
+          })
         });
 
         if (!res.ok) throw new Error("Error al actualizar catálogo");
@@ -252,9 +271,13 @@ export default function AdminCatalogosForm({
             modelos: m.modelos.map(mod => mod.id_modelo === editingId ? { ...mod, nombre_modelo: result.data.nombre_modelo } : mod)
           })));
         } else if (payloadType === "tipo_venta") {
-          setTiposVenta(tiposVenta.map(tv => tv.id === editingId ? { ...tv, nombre: result.data.nombre_tipo_venta } : tv));
+          setTiposVenta(tiposVenta.map(tv => tv.id === editingId ? { ...tv, nombre: result.data.nombre_tipo_venta, color: result.data.color } : tv));
         } else if (payloadType === "estado_vehiculo") {
-          setEstadosVehiculo(estadosVehiculo.map(ev => ev.id === editingId ? { ...ev, nombre: result.data.nombre_estado_vehiculo } : ev));
+          if (result.data.predeterminado) {
+            setEstadosVehiculo(estadosVehiculo.map(ev => ev.id === editingId ? { ...ev, nombre: result.data.nombre_estado_vehiculo, predeterminado: true } : { ...ev, predeterminado: false }));
+          } else {
+            setEstadosVehiculo(estadosVehiculo.map(ev => ev.id === editingId ? { ...ev, nombre: result.data.nombre_estado_vehiculo, predeterminado: false } : ev));
+          }
         }
 
         showNotification("Elemento actualizado correctamente", "success");
@@ -304,6 +327,32 @@ export default function AdminCatalogosForm({
         modelos: m.modelos.map(mod => mod.id_modelo === idModelo ? { ...mod, acceso_rapido: result.data.acceso_rapido } : mod)
       })));
       showNotification("Acceso rápido del modelo actualizado", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleEstadoPredeterminado = async (idEstado: number, estadoActual: boolean) => {
+    if (estadoActual) return; // Ya es predeterminado
+    setLoading(true);
+    try {
+      const stateItem = estadosVehiculo.find(ev => ev.id === idEstado);
+      const res = await fetch("/api/admin/catalogos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          tipo: "estado_vehiculo", 
+          id: idEstado, 
+          predeterminado: true, 
+          nombre_estado_vehiculo: stateItem?.nombre 
+        })
+      });
+      if (!res.ok) throw new Error("Error al cambiar el estado predeterminado");
+      setEstadosVehiculo(estadosVehiculo.map(ev => ev.id === idEstado ? { ...ev, predeterminado: true } : { ...ev, predeterminado: false }));
+      showNotification("Estado predeterminado actualizado", "success");
       router.refresh();
     } catch (err: any) {
       showNotification(err.message, "error");
@@ -421,14 +470,23 @@ export default function AdminCatalogosForm({
       const res = await fetch("/api/admin/catalogos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "tipo_venta", nombre_tipo_venta: nuevoTipoVentaNombre })
+        body: JSON.stringify({ 
+          tipo: "tipo_venta", 
+          nombre_tipo_venta: nuevoTipoVentaNombre,
+          color: nuevoTipoVentaColor
+        })
       });
 
       if (!res.ok) throw new Error("Error al crear tipo de venta");
       const result = await res.json();
 
-      setTiposVenta([...tiposVenta, { id: result.data.id_tipo_de_venta, nombre: result.data.nombre_tipo_venta }]);
+      setTiposVenta([...tiposVenta, { 
+        id: result.data.id_tipo_de_venta, 
+        nombre: result.data.nombre_tipo_venta,
+        color: result.data.color
+      }]);
       setNuevoTipoVentaNombre("");
+      setNuevoTipoVentaColor("#3b82f6");
       showNotification("Tipo de venta creado", "success");
       router.refresh();
     } catch (err: any) {
@@ -447,14 +505,30 @@ export default function AdminCatalogosForm({
       const res = await fetch("/api/admin/catalogos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "estado_vehiculo", nombre_estado_vehiculo: nuevoEstadoVehiculoNombre })
+        body: JSON.stringify({ 
+          tipo: "estado_vehiculo", 
+          nombre_estado_vehiculo: nuevoEstadoVehiculoNombre,
+          predeterminado: nuevoEstadoVehiculoPredeterminado
+        })
       });
 
       if (!res.ok) throw new Error("Error al crear estado");
       const result = await res.json();
 
-      setEstadosVehiculo([...estadosVehiculo, { id: result.data.id_estado_vehiculo, nombre: result.data.nombre_estado_vehiculo }]);
+      const nuevoEstadoItem = { 
+        id: result.data.id_estado_vehiculo, 
+        nombre: result.data.nombre_estado_vehiculo,
+        predeterminado: result.data.predeterminado
+      };
+
+      if (result.data.predeterminado) {
+        setEstadosVehiculo([...estadosVehiculo.map(ev => ({ ...ev, predeterminado: false })), nuevoEstadoItem]);
+      } else {
+        setEstadosVehiculo([...estadosVehiculo, nuevoEstadoItem]);
+      }
+
       setNuevoEstadoVehiculoNombre("");
+      setNuevoEstadoVehiculoPredeterminado(false);
       showNotification("Estado de vehículo creado", "success");
       router.refresh();
     } catch (err: any) {
@@ -605,15 +679,51 @@ export default function AdminCatalogosForm({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-      {/* NOTIFICACIONES */}
-      {error && (
-        <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)", fontWeight: 500 }}>
-          ⚠️ {error}
-        </div>
-      )}
-      {success && (
-        <div className="glass-panel" style={{ padding: "16px", color: "var(--success)", borderLeft: "4px solid var(--success)", background: "rgba(16, 185, 129, 0.05)", fontWeight: 500 }}>
-          ✓ {success}
+      {/* NOTIFICACIONES FLOTANTES */}
+      {(error || success) && (
+        <div style={{
+          position: "fixed",
+          top: "24px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 9999,
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          width: "90%",
+          maxWidth: "450px",
+          animation: "fadeIn 0.3s ease"
+        }}>
+          {error && (
+            <div className="glass-panel" style={{
+              padding: "16px 20px",
+              color: "var(--danger)",
+              borderLeft: "4px solid var(--danger)",
+              background: "rgba(239, 68, 68, 0.1)",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+            }}>
+              <span>⚠️ {error}</span>
+            </div>
+          )}
+          {success && (
+            <div className="glass-panel" style={{
+              padding: "16px 20px",
+              color: "var(--success)",
+              borderLeft: "4px solid var(--success)",
+              background: "rgba(16, 185, 129, 0.1)",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.2)"
+            }}>
+              <span>✓ {success}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -1056,7 +1166,7 @@ export default function AdminCatalogosForm({
         <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "24px" }}>
           <h3 style={{ fontSize: "1.15rem" }}>Tipos de Venta (Pagos)</h3>
 
-          <form onSubmit={handleCrearTipoVenta} style={{ display: "flex", gap: "10px" }}>
+          <form onSubmit={handleCrearTipoVenta} style={{ display: "flex", gap: "15px", alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="text"
               className="form-input"
@@ -1065,7 +1175,18 @@ export default function AdminCatalogosForm({
               onChange={e => setNuevoTipoVentaNombre(e.target.value)}
               disabled={loading}
               required
+              style={{ flex: 1, minWidth: "200px" }}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>Color:</label>
+              <input
+                type="color"
+                value={nuevoTipoVentaColor}
+                onChange={e => setNuevoTipoVentaColor(e.target.value)}
+                style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer" }}
+                title="Elige el color para este tipo de pago"
+              />
+            </div>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               + Crear Tipo Pago
             </button>
@@ -1078,6 +1199,7 @@ export default function AdminCatalogosForm({
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Tipo Venta{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
+                  <th>Color Asignado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -1098,6 +1220,12 @@ export default function AdminCatalogosForm({
                               required
                               autoFocus
                             />
+                            <input
+                              type="color"
+                              value={editingColor}
+                              onChange={e => setEditingColor(e.target.value)}
+                              style={{ width: "30px", height: "30px", padding: 0, border: "1px solid var(--border-light)", borderRadius: "4px", cursor: "pointer" }}
+                            />
                             <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px" }} disabled={loading}>✓</button>
                             <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px" }}>✗</button>
                           </form>
@@ -1106,11 +1234,24 @@ export default function AdminCatalogosForm({
                         )}
                       </td>
                       <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{
+                            backgroundColor: t.color || "#3b82f6",
+                            display: "inline-block",
+                            width: "16px",
+                            height: "16px",
+                            borderRadius: "50%",
+                            border: "1px solid var(--border-light)"
+                          }}></span>
+                          <span style={{ fontSize: "0.85rem", fontFamily: "monospace" }}>{t.color || "#3b82f6"}</span>
+                        </div>
+                      </td>
+                      <td>
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            onClick={() => iniciarEdicion("pagos", t.id, t.nombre)}
+                            onClick={() => iniciarEdicion("pagos", t.id, t.nombre, "", t.color || "#3b82f6")}
                             style={{ padding: "6px 12px", fontSize: "0.8rem" }}
                           >
                             ✏️ Editar
@@ -1139,7 +1280,7 @@ export default function AdminCatalogosForm({
         <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "24px" }}>
           <h3 style={{ fontSize: "1.15rem" }}>Estados del Vehículo</h3>
 
-          <form onSubmit={handleCrearEstadoVehiculo} style={{ display: "flex", gap: "10px" }}>
+          <form onSubmit={handleCrearEstadoVehiculo} style={{ display: "flex", gap: "15px", alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="text"
               className="form-input"
@@ -1148,7 +1289,20 @@ export default function AdminCatalogosForm({
               onChange={e => setNuevoEstadoVehiculoNombre(e.target.value)}
               disabled={loading}
               required
+              style={{ flex: 1, minWidth: "200px" }}
             />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="checkbox"
+                id="chkNuevoEstadoPredeterminado"
+                checked={nuevoEstadoVehiculoPredeterminado}
+                onChange={e => setNuevoEstadoVehiculoPredeterminado(e.target.checked)}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <label htmlFor="chkNuevoEstadoPredeterminado" style={{ fontSize: "0.85rem", fontWeight: 600, cursor: "pointer" }}>
+                Predeterminado
+              </label>
+            </div>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               + Crear Estado
             </button>
@@ -1161,6 +1315,7 @@ export default function AdminCatalogosForm({
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Nombre Estado{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
+                  <th>Predeterminado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -1181,6 +1336,16 @@ export default function AdminCatalogosForm({
                               required
                               autoFocus
                             />
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              <input
+                                type="checkbox"
+                                id="chkEditEstadoPredeterminado"
+                                checked={editingPredeterminado}
+                                onChange={e => setEditingPredeterminado(e.target.checked)}
+                                style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                              />
+                              <label htmlFor="chkEditEstadoPredeterminado" style={{ fontSize: "0.8rem", cursor: "pointer" }}>Predet.</label>
+                            </div>
                             <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px" }} disabled={loading}>✓</button>
                             <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px" }}>✗</button>
                           </form>
@@ -1189,11 +1354,24 @@ export default function AdminCatalogosForm({
                         )}
                       </td>
                       <td>
+                        <div onClick={() => handleToggleEstadoPredeterminado(ev.id, !!ev.predeterminado)} style={{ cursor: "pointer", display: "inline-block" }}>
+                          {ev.predeterminado ? (
+                            <span className="badge badge-success" style={{ background: "rgba(16, 185, 129, 0.2)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)", padding: "4px 8px", borderRadius: "4px", fontSize: "0.75rem", fontWeight: "bold" }}>
+                              ★ Predeterminado
+                            </span>
+                          ) : (
+                            <span className="badge badge-secondary" style={{ background: "rgba(255, 255, 255, 0.05)", color: "var(--text-muted)", border: "1px solid var(--border-light)", padding: "4px 8px", borderRadius: "4px", fontSize: "0.75rem" }}>
+                              Hacer Predeterminado
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
                         <div style={{ display: "flex", gap: "10px" }}>
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            onClick={() => iniciarEdicion("estados", ev.id, ev.nombre)}
+                            onClick={() => iniciarEdicion("estados", ev.id, ev.nombre, "", "", !!ev.predeterminado)}
                             style={{ padding: "6px 12px", fontSize: "0.8rem" }}
                           >
                             ✏️ Editar
