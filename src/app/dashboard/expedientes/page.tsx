@@ -113,6 +113,7 @@ export default async function ExpedientesPage() {
                   <th>Estado Vehículo</th>
                   <th>Vendedor</th>
                   <th>Fechas</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,6 +154,11 @@ export default async function ExpedientesPage() {
                         {exp.fecha_matriculacion && <span>🚗 Matr: {exp.fecha_matriculacion}</span>}
                         {exp.fecha_entrega && <span>📦 Entr: {exp.fecha_entrega}</span>}
                       </div>
+                    </td>
+                    <td>
+                      <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
+                        ✏️ Editar
+                      </Link>
                     </td>
                   </tr>
                 ))}

@@ -33,6 +33,10 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [notification, setNotification] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  // Sorting state
+  const [sortField, setSortField] = useState<"nombre" | "fecha_de_registro" | "rol" | "bloqueado" | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
   // Estados de modal
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
@@ -44,6 +48,30 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [rol, setRol] = useState("invitado");
   const [bloqueado, setBloqueado] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleSort = (field: "nombre" | "fecha_de_registro" | "rol" | "bloqueado") => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const sortedUsuarios = [...usuarios].sort((a, b) => {
+    if (!sortField) return 0;
+    let aVal: any = a[sortField];
+    let bVal: any = b[sortField];
+    if (aVal === null || aVal === undefined) aVal = "";
+    if (bVal === null || bVal === undefined) bVal = "";
+    if (typeof aVal === "boolean") {
+      aVal = aVal ? 1 : 0;
+      bVal = bVal ? 1 : 0;
+    }
+    if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
 
   const showNotification = (text: string, type: "success" | "error") => {
     setNotification({ text, type });
@@ -257,16 +285,24 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         <table className="table-premium">
           <thead>
             <tr>
-              <th>Usuario</th>
+              <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
+                Usuario{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+              </th>
               <th>Contacto</th>
-              <th>Fecha Ingreso</th>
-              <th>Estado</th>
-              <th>Rol</th>
+              <th onClick={() => handleSort("fecha_de_registro")} style={{ cursor: "pointer", userSelect: "none" }}>
+                Fecha Ingreso{sortField === "fecha_de_registro" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+              </th>
+              <th onClick={() => handleSort("bloqueado")} style={{ cursor: "pointer", userSelect: "none" }}>
+                Estado{sortField === "bloqueado" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+              </th>
+              <th onClick={() => handleSort("rol")} style={{ cursor: "pointer", userSelect: "none" }}>
+                Rol{sortField === "rol" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+              </th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {usuarios.map((usr) => (
+            {sortedUsuarios.map((usr) => (
               <tr key={usr.id_usuario}>
                 <td>
                   <div style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{usr.nombre}</div>

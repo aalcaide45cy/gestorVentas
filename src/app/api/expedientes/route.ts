@@ -99,3 +99,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 401 });
+    }
+
+    const localUser = await db.query.usuarios.findFirst({
+      where: eq(usuarios.clerk_id, userId),
+    });
+
+    if (!localUser || localUser.rol === "invitado") {
+      return NextResponse.json({ message: "No autorizado" }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { id_expediente, expediente: expedienteData, id_cliente } = body;
+
+    if (!id_expediente || !expedienteData) {
+      return NextResponse.json({ message: "Faltan datos obligatorios para actualizar" }, { status: 400 });
+    }
+
+    // Actualizar expediente
+    await db.update(expedientes).set({
+      id_modelo: expedienteData.id_modelo,
+      id_tipo_de_venta: expedienteData.id_tipo_de_venta,
+      id_estado_vehiculo: expedienteData.id_estado_vehiculo,
+      id_tienda: expedienteData.id_tienda,
+      fecha_expediente: expedienteData.fecha_expediente,
+      fecha_afectacion: expedienteData.fecha_afectacion,
+      fecha_matriculacion: expedienteData.fecha_matriculacion,
+      fecha_entrega: expedienteData.fecha_entrega,
+      matricula: expedienteData.matricula,
+      id_cliente: id_cliente !== undefined ? id_cliente : undefined,
+    }).where(eq(expedientes.id_expediente, id_expediente));
+
+    return NextResponse.json({ success: true, message: "Expediente actualizado correctamente" }, { status: 200 });
+  } catch (error: any) {
+    console.error("Error al actualizar expediente:", error);
+    return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
+  }
+}

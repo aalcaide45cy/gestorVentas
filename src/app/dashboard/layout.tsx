@@ -202,26 +202,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
                   Expedientes
                 </Link>
 
-                {canCreateExpediente && (
-                  <Link href="/dashboard/expedientes/nuevo" className="glass-panel-interactive" style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "12px 16px",
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "0.95rem",
-                    fontWeight: 500,
-                    color: "var(--text-secondary)",
-                    background: "rgba(255, 255, 255, 0.01)",
-                    border: "1px solid transparent"
-                  }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    Nuevo Expediente
-                  </Link>
-                )}
+
 
                 <Link href="/dashboard/clientes" className="glass-panel-interactive" style={{
                   display: "flex",

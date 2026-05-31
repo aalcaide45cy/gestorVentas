@@ -40,7 +40,8 @@ interface ClientesListProps {
 export default function ClientesList({ clientesIniciales, tiendas }: ClientesListProps) {
   const router = useRouter();
   const [clientes, setClientes] = useState<ClienteItem[]>(clientesIniciales);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState<"create" | "edit" | false>(false);
+  const [selectedCliente, setSelectedCliente] = useState<ClienteItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -98,7 +99,26 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
     setTiendaId("");
     setEmails([{ email: "", tipo: "Principal" }]);
     setTelefonos([{ telefono: "", tipo: "Principal" }]);
-    setModalOpen(true);
+    setModalOpen("create");
+  };
+
+  const handleOpenEditModal = (c: ClienteItem) => {
+    setSelectedCliente(c);
+    setDni(c.dni || "");
+    setNombre(c.nombre || "");
+    setFechaNacimiento(c.fecha_de_nacimiento || "");
+    setTiendaId(c.tienda_id ? String(c.tienda_id) : "");
+    if (c.emails && c.emails.length > 0) {
+      setEmails(c.emails.map(e => ({ email: e.email, tipo: e.tipo_email || "Principal" })));
+    } else {
+      setEmails([{ email: "", tipo: "Principal" }]);
+    }
+    if (c.telefonos && c.telefonos.length > 0) {
+      setTelefonos(c.telefonos.map(t => ({ telefono: t.telefono, tipo: t.tipo_telefono || "Principal" })));
+    } else {
+      setTelefonos([{ telefono: "", tipo: "Principal" }]);
+    }
+    setModalOpen("edit");
   };
 
   const handleSaveCliente = async (e: React.FormEvent) => {
@@ -107,10 +127,12 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
     setLoading(true);
 
     try {
+      const isEdit = modalOpen === "edit";
       const res = await fetch("/api/clientes", {
-        method: "POST",
+        method: isEdit ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: isEdit ? selectedCliente?.id : undefined,
           dni,
           nombre,
           fecha_de_nacimiento: fechaNacimiento || null,
@@ -121,23 +143,39 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Error al crear cliente.");
+      if (!res.ok) throw new Error(data.message || "Error al guardar cliente.");
 
-      // Añadir al estado
-      const nuevoCliente: ClienteItem = {
-        id: data.data.id,
-        cliente_id: data.data.cliente_id,
-        dni: data.data.dni,
-        nombre: data.data.nombre,
-        fecha_de_nacimiento: data.data.fecha_de_nacimiento,
-        tienda_id: data.data.tienda_id,
-        emails: emails.filter(e => e.email).map(e => ({ email: e.email, tipo_email: e.tipo })),
-        telefonos: telefonos.filter(t => t.telefono).map(t => ({ telefono: t.telefono, tipo_telefono: t.tipo }))
-      };
+      const mappedEmails = emails.filter(e => e.email).map(e => ({ email: e.email, tipo_email: e.tipo }));
+      const mappedTelefonos = telefonos.filter(t => t.telefono).map(t => ({ telefono: t.telefono, tipo_telefono: t.tipo }));
 
-      setClientes([nuevoCliente, ...clientes]);
-      showNotification("Cliente registrado correctamente.", "success");
+      if (isEdit && selectedCliente) {
+        setClientes(clientes.map(c => c.id === selectedCliente.id ? {
+          ...c,
+          dni,
+          nombre,
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: mappedEmails,
+          telefonos: mappedTelefonos
+        } : c));
+        showNotification("Cliente actualizado correctamente.", "success");
+      } else {
+        const nuevoCliente: ClienteItem = {
+          id: data.data.id,
+          cliente_id: data.data.cliente_id,
+          dni: data.data.dni,
+          nombre: data.data.nombre,
+          fecha_de_nacimiento: data.data.fecha_de_nacimiento,
+          tienda_id: data.data.tienda_id,
+          emails: mappedEmails,
+          telefonos: mappedTelefonos
+        };
+        setClientes([nuevoCliente, ...clientes]);
+        showNotification("Cliente registrado correctamente.", "success");
+      }
+
       setModalOpen(false);
+      setSelectedCliente(null);
       router.refresh();
     } catch (err: any) {
       showNotification(err.message, "error");
@@ -184,6 +222,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                   <th>Correos</th>
                   <th>Teléfonos</th>
                   <th>Tienda Asignada</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -225,6 +264,16 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                           {tiendaAsociada ? tiendaAsociada.nombre : "Global (Sin Tienda)"}
                         </span>
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleOpenEditModal(c)}
+                          style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                        >
+                          ✏️ Editar
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -259,7 +308,9 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
             maxHeight: "90vh",
             overflowY: "auto"
           }}>
-            <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)" }}>Registrar Nuevo Cliente</h3>
+            <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)" }}>
+              {modalOpen === "edit" ? "Editar Cliente" : "Registrar Nuevo Cliente"}
+            </h3>
 
             <form onSubmit={handleSaveCliente} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -340,7 +391,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? "Registrando..." : "Registrar Cliente"}
+                  {loading ? "Guardando..." : (modalOpen === "edit" ? "Guardar Cambios" : "Registrar Cliente")}
                 </button>
               </div>
             </form>
