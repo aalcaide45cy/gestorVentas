@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { expedientes, clientes, marcas, modelos } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
+import { formatDate } from "@/lib/date-utils";
 
 export default async function DashboardPage() {
   const user = await syncUser();
@@ -94,7 +95,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
-          Fecha de registro: {user.fecha_de_registro}
+          Fecha de registro: {user.fecha_de_registro ? formatDate(user.fecha_de_registro) : ""}
         </div>
       </div>
 
@@ -267,7 +268,7 @@ export default async function DashboardPage() {
                           {exp.estadoVehiculo?.nombre_estado_vehiculo || "N/D"}
                         </span>
                       </td>
-                      <td>{exp.fecha_expediente || "N/D"}</td>
+                      <td>{exp.fecha_expediente ? formatDate(exp.fecha_expediente) : "N/D"}</td>
                       <td>
                         <Link
                           href={`/dashboard/expedientes/editar/${exp.id_expediente}`}

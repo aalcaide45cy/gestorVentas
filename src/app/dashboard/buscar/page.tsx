@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { clientes, expedientes } from "@/db/schema";
 import { desc, or, ilike } from "drizzle-orm";
 import Link from "next/link";
+import { formatDate } from "@/lib/date-utils";
 
 interface SearchPageProps {
   searchParams: Promise<{ q?: string }>;
@@ -151,8 +152,8 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
                           </span>
                         </td>
                         <td style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                          {exp.fecha_expediente && <div>📄 Exp: {exp.fecha_expediente}</div>}
-                          {exp.fecha_entrega && <div>📦 Entr: {exp.fecha_entrega}</div>}
+                          {exp.fecha_expediente && <div>📄 Exp: {formatDate(exp.fecha_expediente)}</div>}
+                          {exp.fecha_entrega && <div>📦 Entr: {formatDate(exp.fecha_entrega)}</div>}
                         </td>
                       </tr>
                     ))}

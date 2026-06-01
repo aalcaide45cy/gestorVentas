@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/date-utils";
 
 interface EmailContact {
   email: string;
@@ -350,7 +351,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                     {!usr.emails?.[0] && !usr.telefonos?.[0] && <span style={{ color: "var(--text-muted)" }}>Sin contacto</span>}
                   </div>
                 </td>
-                <td>{usr.fecha_de_registro || "No registrada"}</td>
+                <td>{usr.fecha_de_registro ? formatDate(usr.fecha_de_registro) : "No registrada"}</td>
                 <td>
                   <span className={`badge ${usr.bloqueado ? "badge-admin" : "badge-tienda"}`} style={{ fontSize: "0.7rem" }}>
                     {usr.bloqueado ? "🔒 Suspendido" : "🔓 Activo"}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/date-utils";
 
 interface EmailContact {
   id_email_cliente?: number;
@@ -265,7 +266,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                     <tr key={c.id}>
                       <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{c.nombre}</td>
                       <td>{c.dni}</td>
-                      <td>{c.fecha_de_nacimiento || "No indicada"}</td>
+                      <td>{c.fecha_de_nacimiento ? formatDate(c.fecha_de_nacimiento) : "No indicada"}</td>
                       <td>
                         <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           {c.emails.map((e, idx) => (
@@ -537,7 +538,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                         </span>
                       </td>
                       <td>{exp.matricula || "N/D"}</td>
-                      <td>{exp.fecha_expediente || "N/D"}</td>
+                      <td>{exp.fecha_expediente ? formatDate(exp.fecha_expediente) : "N/D"}</td>
                       <td>
                         <button
                           type="button"

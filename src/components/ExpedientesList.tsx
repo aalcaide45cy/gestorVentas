@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/date-utils";
 
 interface Cliente {
   id: number;
@@ -219,14 +220,15 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
   const renderDateField = (
     exp: Expediente,
     field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega",
-    displayName: string
+    displayName: string,
+    backgroundColor?: string
   ) => {
     const val = exp[field];
     return (
-      <td>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+      <td style={{ textAlign: "center", backgroundColor }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
           <span style={{ fontSize: "0.85rem", color: val ? "var(--text-primary)" : "var(--text-muted)", fontWeight: val ? 500 : 400 }}>
-            {val || "-"}
+            {formatDate(val)}
           </span>
           <div style={{ display: "flex", gap: "4px" }}>
             <button
@@ -330,10 +332,10 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                 <th>Tipo Venta</th>
                 <th>Estado Vehículo</th>
                 <th>Vendedor</th>
-                <th>F. Exp.</th>
-                <th>F. Afect</th>
-                <th>F. Mat</th>
-                <th>F. Entrega</th>
+                 <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Mat</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Entrega</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -385,12 +387,12 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                   <td>
                     <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
                   </td>
-                  <td>
-                    <span style={{ fontSize: "0.85rem" }}>{exp.fecha_expediente || "-"}</span>
+                   <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                    <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
                   </td>
-                  {renderDateField(exp, "fecha_afectacion", "Afectación")}
-                  {renderDateField(exp, "fecha_matriculacion", "Matriculación")}
-                  {renderDateField(exp, "fecha_entrega", "Entrega")}
+                  {renderDateField(exp, "fecha_afectacion", "Afectación", "rgba(128, 128, 128, 0.09)")}
+                  {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.03)")}
+                  {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.09)")}
                   <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>

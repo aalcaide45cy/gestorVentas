@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/date-utils";
 
 interface EmailItem {
   email: string;
@@ -174,7 +175,7 @@ export default function PerfilForm({
             <div className="form-group">
               <label className="form-label">Fecha de Registro</label>
               <div style={{ padding: "12px 16px", color: "var(--text-secondary)", fontSize: "0.95rem" }}>
-                {fechaRegistro}
+                {formatDate(fechaRegistro)}
               </div>
             </div>
           </div>
