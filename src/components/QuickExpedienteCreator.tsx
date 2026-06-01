@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 interface TipoVenta {
   id_tipo_de_venta: number;
   nombre_tipo_venta: string;
+  color?: string | null;
 }
 
 interface Modelo {
@@ -192,9 +193,9 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
                             alignItems: "center",
                             justifyContent: "center",
                             gap: "4px",
-                            background: isThisLoading ? "rgba(255, 255, 255, 0.1)" : "rgba(var(--primary-rgb, 99, 102, 241), 0.05)",
-                            color: "var(--text-primary)",
-                            border: "1px solid var(--border-light)",
+                            background: isThisLoading ? "rgba(255, 255, 255, 0.2)" : (tv.color || "#3b82f6"),
+                            color: "#ffffff",
+                            border: "1px solid rgba(255, 255, 255, 0.15)",
                             borderRadius: "4px",
                             cursor: loadingModelId !== null ? "not-allowed" : "pointer",
                             transition: "all 0.2s ease",
@@ -280,9 +281,9 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
                       alignItems: "center",
                       justifyContent: "center",
                       gap: "4px",
-                      background: isThisLoading ? "rgba(255, 255, 255, 0.1)" : "rgba(var(--primary-rgb, 99, 102, 241), 0.05)",
-                      color: "var(--text-primary)",
-                      border: "1px solid var(--border-light)",
+                      background: isThisLoading ? "rgba(255, 255, 255, 0.2)" : (tv.color || "#3b82f6"),
+                      color: "#ffffff",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
                       borderRadius: "4px",
                       cursor: loadingModelId !== null ? "not-allowed" : "pointer",
                       transition: "all 0.2s ease",

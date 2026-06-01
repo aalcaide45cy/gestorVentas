@@ -185,3 +185,35 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 401 });
+    }
+
+    const localUser = await db.query.usuarios.findFirst({
+      where: eq(usuarios.clerk_id, userId),
+    });
+
+    if (!localUser || localUser.rol === "invitado") {
+      return NextResponse.json({ message: "No autorizado" }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ message: "Falta el ID del expediente a eliminar" }, { status: 400 });
+    }
+
+    await db.delete(expedientes).where(eq(expedientes.id_expediente, Number(id)));
+
+    return NextResponse.json({ success: true, message: "Expediente eliminado correctamente" }, { status: 200 });
+  } catch (error: any) {
+    console.error("Error al eliminar expediente:", error);
+    return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
+  }
+}

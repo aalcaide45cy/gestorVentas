@@ -4,6 +4,7 @@ import { db } from "@/db";
 import Link from "next/link";
 import { desc } from "drizzle-orm";
 import { expedientes } from "@/db/schema";
+import ExpedientesList from "@/components/ExpedientesList";
 
 export default async function ExpedientesPage() {
   const user = await syncUser();
@@ -100,79 +101,7 @@ export default async function ExpedientesPage() {
           )}
         </div>
       ) : (
-        /* TABLA DE EXPEDIENTES */
-        <div className="glass-panel" style={{ padding: "8px" }}>
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th>Expediente</th>
-                  <th>Cliente (DNI)</th>
-                  <th>Vehículo</th>
-                  <th>Tipo Venta</th>
-                  <th>Estado Vehículo</th>
-                  <th>Vendedor</th>
-                  <th>Fechas</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dbExpedientes.map((exp) => (
-                  <tr key={exp.id_expediente}>
-                    <td style={{ fontWeight: "bold", color: "var(--primary)" }}>
-                      #EXP-{String(exp.id_expediente).padStart(4, "0")}
-                      {exp.matricula && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>Matrícula: {exp.matricula}</div>}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{exp.cliente?.nombre}</div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.cliente?.dni}</div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                        {exp.modelo?.nombre_modelo}
-                      </div>
-                      <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                        {exp.modelo?.marca?.nombre}
-                      </div>
-                    </td>
-                    <td>
-                      {exp.tipoDeVenta && (
-                        <span className="badge" style={{
-                          fontSize: "0.7rem",
-                          padding: "3px 8px",
-                          backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
-                          color: "#fff"
-                        }}>
-                          {exp.tipoDeVenta.nombre_tipo_venta}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
-                        {exp.estadoVehiculo?.nombre_estado_vehiculo}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre}</div>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column", gap: "2px" }}>
-                        {exp.fecha_expediente && <span>📄 Exp: {exp.fecha_expediente}</span>}
-                        {exp.fecha_matriculacion && <span>🚗 Matr: {exp.fecha_matriculacion}</span>}
-                        {exp.fecha_entrega && <span>📦 Entr: {exp.fecha_entrega}</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                        ✏️ Editar
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ExpedientesList expedientesIniciales={dbExpedientes} />
       )}
     </div>
   );
