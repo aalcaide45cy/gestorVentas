@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -68,6 +68,23 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
   const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciales);
   const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Modales y estados para fechas inline
+  const [editDateModal, setEditDateModal] = useState<{
+    expediente: Expediente;
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega";
+    displayName: string;
+  } | null>(null);
+
+  const [deleteDateModal, setDeleteDateModal] = useState<{
+    expediente: Expediente;
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega";
+    displayName: string;
+  } | null>(null);
+
+  const [inputDate, setInputDate] = useState("");
+
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +98,97 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
     }
   };
 
-  const handleDelete = async () => {
+  const handleOpenEditDate = (exp: Expediente, field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega", displayName: string) => {
+    const today = new Date().toISOString().split("T")[0];
+    setInputDate(today);
+    setEditDateModal({ expediente: exp, fieldName: field, displayName });
+  };
+
+  const handleSaveDate = async () => {
+    if (!editDateModal) return;
+    setLoading(true);
+    setError(null);
+
+    const { expediente, fieldName, displayName } = editDateModal;
+
+    try {
+      const response = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          expediente: {
+            [fieldName]: inputDate || null,
+          },
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Error al actualizar la fecha");
+      }
+
+      setExpedientes(prev => prev.map(e => e.id_expediente === expediente.id_expediente ? {
+        ...e,
+        [fieldName]: inputDate || null,
+      } : e));
+
+      showNotification(`Fecha de ${displayName} actualizada correctamente.`, "success");
+      setEditDateModal(null);
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Ocurrió un error al guardar la fecha.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDeleteDate = (exp: Expediente, field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega", displayName: string) => {
+    setDeleteDateModal({ expediente: exp, fieldName: field, displayName });
+  };
+
+  const handleDeleteDate = async () => {
+    if (!deleteDateModal) return;
+    setLoading(true);
+    setError(null);
+
+    const { expediente, fieldName, displayName } = deleteDateModal;
+
+    try {
+      const response = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          expediente: {
+            [fieldName]: null,
+          },
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Error al eliminar la fecha");
+      }
+
+      setExpedientes(prev => prev.map(e => e.id_expediente === expediente.id_expediente ? {
+        ...e,
+        [fieldName]: null,
+      } : e));
+
+      showNotification(`Fecha de ${displayName} eliminada correctamente.`, "success");
+      setDeleteDateModal(null);
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Ocurrió un error al eliminar la fecha.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteExpediente = async () => {
     if (!confirmDeleteExpediente) return;
     setDeleting(true);
     setError(null);
@@ -98,7 +205,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
       }
 
       setExpedientes(prev => prev.filter(e => e.id_expediente !== confirmDeleteExpediente.id_expediente));
-      showNotification(`Expediente #EXP-${String(confirmDeleteExpediente.id_expediente).padStart(4, "0")} eliminado con éxito.`, "success");
+      showNotification(`Expediente eliminado con éxito.`, "success");
       setConfirmDeleteExpediente(null);
       router.refresh();
     } catch (err: any) {
@@ -106,6 +213,66 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
     } finally {
       setDeleting(false);
     }
+  };
+
+  // Renderizador inline de fecha con botones
+  const renderDateField = (
+    exp: Expediente,
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega",
+    displayName: string
+  ) => {
+    const val = exp[field];
+    return (
+      <td>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+          <span style={{ fontSize: "0.85rem", color: val ? "var(--text-primary)" : "var(--text-muted)", fontWeight: val ? 500 : 400 }}>
+            {val || "-"}
+          </span>
+          <div style={{ display: "flex", gap: "4px" }}>
+            <button
+              onClick={() => handleOpenEditDate(exp, field, displayName)}
+              style={{
+                border: "none",
+                background: "rgba(255, 255, 255, 0.05)",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                padding: "4px 6px",
+                borderRadius: "4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s"
+              }}
+              title={`Modificar fecha de ${displayName}`}
+              className="glass-panel-interactive"
+            >
+              ✏️
+            </button>
+            {val && (
+              <button
+                onClick={() => handleOpenDeleteDate(exp, field, displayName)}
+                style={{
+                  border: "none",
+                  background: "rgba(239, 68, 68, 0.05)",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  padding: "4px 6px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s"
+                }}
+                title={`Eliminar fecha de ${displayName}`}
+                className="glass-panel-interactive"
+              >
+                🗑️
+              </button>
+            )}
+          </div>
+        </div>
+      </td>
+    );
   };
 
   return (
@@ -158,27 +325,23 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
           <table className="table-premium">
             <thead>
               <tr>
-                <th>Expediente</th>
-                <th>Cliente (DNI)</th>
+                <th>Cliente</th>
                 <th>Vehículo</th>
                 <th>Tipo Venta</th>
                 <th>Estado Vehículo</th>
                 <th>Vendedor</th>
-                <th>Fechas</th>
+                <th>F. Exp.</th>
+                <th>F. Afect</th>
+                <th>F. Mat</th>
+                <th>F. Entrega</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {expedientes.map((exp) => (
                 <tr key={exp.id_expediente}>
-                  <td style={{ fontWeight: "bold", color: "var(--primary)" }}>
-                    #EXP-{String(exp.id_expediente).padStart(4, "0")}
-                    {exp.matricula && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>Matrícula: {exp.matricula}</div>}
-                    {exp.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</div>}
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{exp.cliente?.nombre || "Sin Cliente"}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.cliente?.dni}</div>
+                  <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
+                    {exp.cliente?.nombre || "Sin Cliente"}
                   </td>
                   <td>
                     {exp.modelo ? (
@@ -193,6 +356,8 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                     ) : (
                       <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                     )}
+                    {exp.matricula && <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "2px" }}>Matrícula: {exp.matricula}</div>}
+                    {exp.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</div>}
                   </td>
                   <td>
                     {exp.tipoDeVenta ? (
@@ -221,12 +386,11 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                     <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
                   </td>
                   <td>
-                    <div style={{ fontSize: "0.75rem", display: "flex", flexDirection: "column", gap: "2px" }}>
-                      {exp.fecha_expediente && <span>📄 Exp: {exp.fecha_expediente}</span>}
-                      {exp.fecha_matriculacion && <span>🚗 Matr: {exp.fecha_matriculacion}</span>}
-                      {exp.fecha_entrega && <span>📦 Entr: {exp.fecha_entrega}</span>}
-                    </div>
+                    <span style={{ fontSize: "0.85rem" }}>{exp.fecha_expediente || "-"}</span>
                   </td>
+                  {renderDateField(exp, "fecha_afectacion", "Afectación")}
+                  {renderDateField(exp, "fecha_matriculacion", "Matriculación")}
+                  {renderDateField(exp, "fecha_entrega", "Entrega")}
                   <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
@@ -257,7 +421,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               ))}
               {expedientes.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                  <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                     No hay expedientes de venta registrados en la base de datos.
                   </td>
                 </tr>
@@ -267,7 +431,127 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
         </div>
       </div>
 
-      {/* MODAL DE CONFIRMACIÓN */}
+      {/* MODAL PARA EDITAR FECHA */}
+      {editDateModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "400px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              Establecer fecha de {editDateModal.displayName}
+            </h3>
+            
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Selecciona Fecha</label>
+              <input
+                type="date"
+                className="form-input"
+                value={inputDate}
+                onChange={e => setInputDate(e.target.value)}
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setEditDateModal(null)}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveDate}
+                disabled={loading}
+              >
+                {loading ? "Guardando..." : "Aceptar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA ELIMINAR FECHA */}
+      {deleteDateModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "400px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+            borderLeft: "4px solid var(--danger)"
+          }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              Eliminar fecha de {deleteDateModal.displayName}
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+              ¿Estás seguro de que deseas eliminar la fecha de <strong>{deleteDateModal.displayName}</strong> de este expediente?
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDeleteDateModal(null)}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleDeleteDate}
+                disabled={loading}
+                style={{
+                  backgroundColor: "var(--danger)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "8px 16px",
+                  cursor: "pointer",
+                  fontWeight: 600
+                }}
+              >
+                {loading ? "Eliminando..." : "Confirmar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ELIMINACIÓN DE EXPEDIENTE */}
       {confirmDeleteExpediente && (
         <div style={{
           position: "fixed",
@@ -295,8 +579,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               Confirmar Eliminación
             </h3>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", margin: 0 }}>
-              ¿Estás seguro de que deseas eliminar el expediente <strong>#EXP-{String(confirmDeleteExpediente.id_expediente).padStart(4, "0")}</strong>?
-              Esta acción es permanente y no se podrá deshacer.
+              ¿Estás seguro de que deseas eliminar permanentemente este expediente? Esta acción no se podrá deshacer.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
               <button
@@ -310,7 +593,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               <button
                 type="button"
                 className="btn"
-                onClick={handleDelete}
+                onClick={handleDeleteExpediente}
                 disabled={deleting}
                 style={{
                   backgroundColor: "var(--danger)",

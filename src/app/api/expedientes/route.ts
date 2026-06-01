@@ -166,16 +166,16 @@ export async function PUT(req: NextRequest) {
 
     // Actualizar expediente
     await db.update(expedientes).set({
-      id_modelo: expedienteData.id_modelo || null,
-      id_tipo_de_venta: expedienteData.id_tipo_de_venta || null,
-      id_estado_vehiculo: expedienteData.id_estado_vehiculo || null,
-      id_tienda: expedienteData.id_tienda || null,
-      fecha_expediente: expedienteData.fecha_expediente || null,
-      fecha_afectacion: expedienteData.fecha_afectacion || null,
-      fecha_matriculacion: expedienteData.fecha_matriculacion || null,
-      fecha_entrega: expedienteData.fecha_entrega || null,
-      matricula: expedienteData.matricula || null,
-      vin: expedienteData.vin || null,
+      id_modelo: expedienteData.id_modelo !== undefined ? expedienteData.id_modelo : undefined,
+      id_tipo_de_venta: expedienteData.id_tipo_de_venta !== undefined ? expedienteData.id_tipo_de_venta : undefined,
+      id_estado_vehiculo: expedienteData.id_estado_vehiculo !== undefined ? expedienteData.id_estado_vehiculo : undefined,
+      id_tienda: expedienteData.id_tienda !== undefined ? expedienteData.id_tienda : undefined,
+      fecha_expediente: expedienteData.fecha_expediente !== undefined ? expedienteData.fecha_expediente : undefined,
+      fecha_afectacion: expedienteData.fecha_afectacion !== undefined ? expedienteData.fecha_afectacion : undefined,
+      fecha_matriculacion: expedienteData.fecha_matriculacion !== undefined ? expedienteData.fecha_matriculacion : undefined,
+      fecha_entrega: expedienteData.fecha_entrega !== undefined ? expedienteData.fecha_entrega : undefined,
+      matricula: expedienteData.matricula !== undefined ? expedienteData.matricula : undefined,
+      vin: expedienteData.vin !== undefined ? expedienteData.vin : undefined,
       id_cliente: id_cliente !== undefined ? id_cliente : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 
