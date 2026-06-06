@@ -10,6 +10,8 @@ interface Cliente {
   dni: string | null;
   nombre: string | null;
   fecha_de_nacimiento?: string | null;
+  emails?: { email: string; tipo_email: string | null }[] | null;
+  telefonos?: { telefono: string; tipo_telefono: string | null }[] | null;
 }
 
 interface Marca {
@@ -192,7 +194,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
     // Cabeceras de las columnas del CSV
     const headers = [
-      "ID Expediente", "Cliente Nombre", "Cliente DNI", "Cliente Fecha Nacimiento",
+      "ID Expediente", "Cliente Nombre", "Cliente DNI", "Cliente Fecha Nacimiento", "Cliente Emails", "Cliente Telefonos",
       "Marca", "Marca Activo", "Marca Acceso Rapido", "Marca Sistema Comisiones",
       "Modelo", "Modelo Acceso Rapido", "Modelo Orden Acceso Rapido",
       "Tipo Venta", "Tipo Venta Color", "Estado Vehiculo", "Estado Vehiculo Predeterminado",
@@ -205,6 +207,8 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
       e.cliente?.nombre || "",
       e.cliente?.dni || "",
       e.cliente?.fecha_de_nacimiento || "",
+      e.cliente?.emails && e.cliente.emails.length > 0 ? e.cliente.emails.map(em => `${em.email}:${em.tipo_email || "Principal"}`).join("|") : "",
+      e.cliente?.telefonos && e.cliente.telefonos.length > 0 ? e.cliente.telefonos.map(tel => `${tel.telefono}:${tel.tipo_telefono || "Principal"}`).join("|") : "",
       e.modelo?.marca?.nombre || "",
       e.modelo?.marca?.activo !== undefined && e.modelo?.marca?.activo !== null ? String(e.modelo.marca.activo) : "true",
       e.modelo?.marca?.acceso_rapido !== undefined && e.modelo?.marca?.acceso_rapido !== null ? String(e.modelo.marca.acceso_rapido) : "false",
@@ -286,6 +290,8 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
         const idxClienteNombre = getColIndex(["cliente nombre", "nombre cliente", "cliente", "name"]);
         const idxClienteDni = getColIndex(["cliente dni", "dni cliente", "dni", "nif"]);
         const idxClienteFechaNac = getColIndex(["cliente fecha nacimiento", "cliente_fecha_nacimiento", "fecha_nacimiento_cliente"]);
+        const idxClienteEmails = getColIndex(["cliente emails", "cliente_emails", "emails_cliente"]);
+        const idxClienteTels = getColIndex(["cliente telefonos", "cliente_telefonos", "telefonos_cliente", "tels_cliente"]);
         const idxMarca = getColIndex(["marca", "brand"]);
         const idxMarcaActivo = getColIndex(["marca activo", "marca_activo"]);
         const idxMarcaAccesoRapido = getColIndex(["marca acceso rapido", "marca_acceso_rapido"]);
@@ -334,6 +340,8 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
             cliente_nombre: getValue(idxClienteNombre),
             cliente_dni: getValue(idxClienteDni),
             cliente_fecha_nacimiento: getValue(idxClienteFechaNac),
+            cliente_emails: getValue(idxClienteEmails),
+            cliente_telefonos: getValue(idxClienteTels),
             marca_nombre: getValue(idxMarca),
             marca_activo: getValue(idxMarcaActivo),
             marca_acceso_rapido: getValue(idxMarcaAccesoRapido),

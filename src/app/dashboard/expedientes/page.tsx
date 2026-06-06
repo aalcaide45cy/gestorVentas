@@ -20,7 +20,12 @@ export default async function ExpedientesPage() {
   const dbExpedientes = await db.query.expedientes.findMany({
     orderBy: [desc(expedientes.id_expediente)],
     with: {
-      cliente: true,
+      cliente: {
+        with: {
+          emails: true,
+          telefonos: true
+        }
+      },
       modelo: {
         with: {
           marca: true

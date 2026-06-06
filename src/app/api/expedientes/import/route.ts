@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, modelos, marcas, tipoDeVenta, estadoVehiculo, expedientes, usuariosTiendas } from "@/db/schema";
+import { usuarios, clientes, modelos, marcas, tipoDeVenta, estadoVehiculo, expedientes, usuariosTiendas, emailsClientes, telefonosClientes } from "@/db/schema";
 import { eq, ilike, and } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
@@ -97,6 +97,46 @@ export async function POST(req: NextRequest) {
             fecha_de_nacimiento: item.cliente_fecha_nacimiento || null,
           }).returning();
           idCliente = nuevoCliente.id;
+        }
+
+        // Re-sincronizar emails del cliente
+        if (item.cliente_emails !== undefined && item.cliente_emails !== null) {
+          await db.delete(emailsClientes).where(eq(emailsClientes.id_cliente, idCliente));
+          if (item.cliente_emails.trim().length > 0) {
+            const emailParts = item.cliente_emails.split("|");
+            const emailValues = emailParts.map((p: string) => {
+              const [email, tipo] = p.split(":");
+              return {
+                id_cliente: idCliente,
+                email: email.trim(),
+                tipo_email: tipo ? tipo.trim() : "Principal",
+              };
+            }).filter((e: any) => e.email.length > 0);
+
+            if (emailValues.length > 0) {
+              await db.insert(emailsClientes).values(emailValues);
+            }
+          }
+        }
+
+        // Re-sincronizar teléfonos del cliente
+        if (item.cliente_telefonos !== undefined && item.cliente_telefonos !== null) {
+          await db.delete(telefonosClientes).where(eq(telefonosClientes.id_cliente, idCliente));
+          if (item.cliente_telefonos.trim().length > 0) {
+            const telParts = item.cliente_telefonos.split("|");
+            const telValues = telParts.map((p: string) => {
+              const [telefono, tipo] = p.split(":");
+              return {
+                id_cliente: idCliente,
+                telefono: telefono.trim(),
+                tipo_telefono: tipo ? tipo.trim() : "Principal",
+              };
+            }).filter((t: any) => t.telefono.length > 0);
+
+            if (telValues.length > 0) {
+              await db.insert(telefonosClientes).values(telValues);
+            }
+          }
         }
       }
 
