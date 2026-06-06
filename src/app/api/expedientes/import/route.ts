@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // 2. Resolver/Crear Cliente
+      // 2. Resolver/Crear/Actualizar Cliente
       let idCliente: number | null = null;
       if (item.cliente_nombre) {
         let clienteExistente = null;
@@ -79,37 +79,57 @@ export async function POST(req: NextRequest) {
 
         if (clienteExistente) {
           idCliente = clienteExistente.id;
+          const updateData: any = {};
+          if (item.cliente_dni && clienteExistente.dni !== item.cliente_dni) {
+            updateData.dni = item.cliente_dni;
+          }
+          if (item.cliente_fecha_nacimiento && clienteExistente.fecha_de_nacimiento !== item.cliente_fecha_nacimiento) {
+            updateData.fecha_de_nacimiento = item.cliente_fecha_nacimiento;
+          }
+          if (Object.keys(updateData).length > 0) {
+            await db.update(clientes).set(updateData).where(eq(clientes.id, idCliente));
+          }
         } else {
           const [nuevoCliente] = await db.insert(clientes).values({
             cliente_id: crypto.randomUUID(),
             dni: item.cliente_dni || null,
             nombre: item.cliente_nombre,
+            fecha_de_nacimiento: item.cliente_fecha_nacimiento || null,
           }).returning();
           idCliente = nuevoCliente.id;
         }
       }
 
-      // 3. Resolver Modelo/Marca
+      // 3. Resolver/Crear/Actualizar Modelo y Marca
       let idModelo: number | null = null;
       if (item.modelo_nombre) {
-        // Encontrar o crear marca
         let idMarca: number | null = null;
         if (item.marca_nombre) {
           const marcaExistente = await db.query.marcas.findFirst({
             where: ilike(marcas.nombre, item.marca_nombre),
           });
+          const mActiva = item.marca_activo === null || item.marca_activo === "" ? true : item.marca_activo === "true";
+          const mAccRapido = item.marca_acceso_rapido === "true";
+          const mSistCom = item.marca_sistema_comisiones === "true";
+
           if (marcaExistente) {
             idMarca = marcaExistente.id_marca;
+            await db.update(marcas).set({
+              activo: mActiva,
+              acceso_rapido: mAccRapido,
+              sistema_comisiones: mSistCom,
+            }).where(eq(marcas.id_marca, idMarca));
           } else {
             const [nuevaMarca] = await db.insert(marcas).values({
               nombre: item.marca_nombre,
-              activo: true,
+              activo: mActiva,
+              acceso_rapido: mAccRapido,
+              sistema_comisiones: mSistCom,
             }).returning();
             idMarca = nuevaMarca.id_marca;
           }
         }
 
-        // Buscar modelo
         let modeloExistente = null;
         if (idMarca) {
           modeloExistente = await db.query.modelos.findFirst({
@@ -124,46 +144,64 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        const modAccRapido = item.modelo_acceso_rapido === "true";
+        const modOrden = item.modelo_orden_acceso_rapido ? parseInt(item.modelo_orden_acceso_rapido, 10) : 0;
+
         if (modeloExistente) {
           idModelo = modeloExistente.id_modelo;
+          await db.update(modelos).set({
+            acceso_rapido: modAccRapido,
+            orden_acceso_rapido: isNaN(modOrden) ? 0 : modOrden,
+            ...(idMarca ? { marca_id: idMarca } : {})
+          }).where(eq(modelos.id_modelo, idModelo));
         } else if (idMarca) {
           const [nuevoModelo] = await db.insert(modelos).values({
             marca_id: idMarca,
             nombre_modelo: item.modelo_nombre,
+            acceso_rapido: modAccRapido,
+            orden_acceso_rapido: isNaN(modOrden) ? 0 : modOrden,
           }).returning();
           idModelo = nuevoModelo.id_modelo;
         }
       }
 
-      // 4. Resolver Tipo de Venta
+      // 4. Resolver/Crear/Actualizar Tipo de Venta
       let idTipoDeVenta: number | null = null;
       if (item.tipo_venta_nombre) {
         const tipoVentaExistente = await db.query.tipoDeVenta.findFirst({
           where: ilike(tipoDeVenta.nombre_tipo_venta, item.tipo_venta_nombre),
         });
+        const colorVenta = item.tipo_venta_color || "#3b82f6";
         if (tipoVentaExistente) {
           idTipoDeVenta = tipoVentaExistente.id_tipo_de_venta;
+          await db.update(tipoDeVenta).set({
+            color: colorVenta,
+          }).where(eq(tipoDeVenta.id_tipo_de_venta, idTipoDeVenta));
         } else {
           const [nuevoTipo] = await db.insert(tipoDeVenta).values({
             nombre_tipo_venta: item.tipo_venta_nombre,
-            color: "#3b82f6",
+            color: colorVenta,
           }).returning();
           idTipoDeVenta = nuevoTipo.id_tipo_de_venta;
         }
       }
 
-      // 5. Resolver Estado Vehículo
+      // 5. Resolver/Crear/Actualizar Estado Vehículo
       let idEstadoVehiculo: number | null = null;
       if (item.estado_vehiculo_nombre) {
         const estadoVehiculoExistente = await db.query.estadoVehiculo.findFirst({
           where: ilike(estadoVehiculo.nombre_estado_vehiculo, item.estado_vehiculo_nombre),
         });
+        const esPredeterminado = item.estado_vehiculo_predeterminado === "true";
         if (estadoVehiculoExistente) {
           idEstadoVehiculo = estadoVehiculoExistente.id_estado_vehiculo;
+          await db.update(estadoVehiculo).set({
+            predeterminado: esPredeterminado,
+          }).where(eq(estadoVehiculo.id_estado_vehiculo, idEstadoVehiculo));
         } else {
           const [nuevoEstado] = await db.insert(estadoVehiculo).values({
             nombre_estado_vehiculo: item.estado_vehiculo_nombre,
-            predeterminado: false,
+            predeterminado: esPredeterminado,
           }).returning();
           idEstadoVehiculo = nuevoEstado.id_estado_vehiculo;
         }

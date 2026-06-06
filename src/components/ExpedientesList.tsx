@@ -9,17 +9,23 @@ interface Cliente {
   id: number;
   dni: string | null;
   nombre: string | null;
+  fecha_de_nacimiento?: string | null;
 }
 
 interface Marca {
   id_marca: number;
   nombre: string;
+  activo?: boolean | null;
+  acceso_rapido?: boolean | null;
+  sistema_comisiones?: boolean | null;
 }
 
 interface Modelo {
   id_modelo: number;
   nombre_modelo: string;
   marca?: Marca | null;
+  acceso_rapido?: boolean | null;
+  orden_acceso_rapido?: number | null;
 }
 
 interface TipoDeVenta {
@@ -31,6 +37,7 @@ interface TipoDeVenta {
 interface EstadoVehiculo {
   id_estado_vehiculo: number;
   nombre_estado_vehiculo: string;
+  predeterminado?: boolean | null;
 }
 
 interface Usuario {
@@ -185,8 +192,11 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
     // Cabeceras de las columnas del CSV
     const headers = [
-      "ID Expediente", "Cliente Nombre", "Cliente DNI", "Marca", "Modelo", 
-      "Tipo Venta", "Estado Vehiculo", "Vendedor", "F. Expediente", 
+      "ID Expediente", "Cliente Nombre", "Cliente DNI", "Cliente Fecha Nacimiento",
+      "Marca", "Marca Activo", "Marca Acceso Rapido", "Marca Sistema Comisiones",
+      "Modelo", "Modelo Acceso Rapido", "Modelo Orden Acceso Rapido",
+      "Tipo Venta", "Tipo Venta Color", "Estado Vehiculo", "Estado Vehiculo Predeterminado",
+      "Vendedor", "F. Expediente", 
       "F. Afectacion", "F. RCI", "F. Matriculacion", "F. Entrega", "Matricula", "VIN"
     ];
 
@@ -194,10 +204,18 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
       e.id_expediente,
       e.cliente?.nombre || "",
       e.cliente?.dni || "",
+      e.cliente?.fecha_de_nacimiento || "",
       e.modelo?.marca?.nombre || "",
+      e.modelo?.marca?.activo !== undefined ? String(e.modelo.marca.activo) : "true",
+      e.modelo?.marca?.acceso_rapido !== undefined ? String(e.modelo.marca.acceso_rapido) : "false",
+      e.modelo?.marca?.sistema_comisiones !== undefined ? String(e.modelo.marca.sistema_comisiones) : "false",
       e.modelo?.nombre_modelo || "",
+      e.modelo?.acceso_rapido !== undefined ? String(e.modelo.acceso_rapido) : "false",
+      e.modelo?.orden_acceso_rapido !== undefined ? String(e.modelo.orden_acceso_rapido) : "0",
       e.tipoDeVenta?.nombre_tipo_venta || "",
+      e.tipoDeVenta?.color || "",
       e.estadoVehiculo?.nombre_estado_vehiculo || "",
+      e.estadoVehiculo?.predeterminado !== undefined ? String(e.estadoVehiculo.predeterminado) : "false",
       e.usuario?.nombre || "",
       e.fecha_expediente || "",
       e.fecha_afectacion || "",
@@ -256,10 +274,18 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
         const idxClienteNombre = getColIndex(["cliente nombre", "nombre cliente", "cliente", "name"]);
         const idxClienteDni = getColIndex(["cliente dni", "dni cliente", "dni", "nif"]);
+        const idxClienteFechaNac = getColIndex(["cliente fecha nacimiento", "cliente_fecha_nacimiento", "fecha_nacimiento_cliente"]);
         const idxMarca = getColIndex(["marca", "brand"]);
+        const idxMarcaActivo = getColIndex(["marca activo", "marca_activo"]);
+        const idxMarcaAccesoRapido = getColIndex(["marca acceso rapido", "marca_acceso_rapido"]);
+        const idxMarcaSistemaComisiones = getColIndex(["marca sistema comisiones", "marca_sistema_comisiones"]);
         const idxModelo = getColIndex(["modelo", "model"]);
+        const idxModeloAccesoRapido = getColIndex(["modelo acceso rapido", "modelo_acceso_rapido"]);
+        const idxModeloOrdenAccesoRapido = getColIndex(["modelo orden acceso rapido", "modelo_orden_acceso_rapido"]);
         const idxTipoVenta = getColIndex(["tipo venta", "tipo de venta", "tipo_venta"]);
+        const idxTipoVentaColor = getColIndex(["tipo venta color", "tipo_venta_color"]);
         const idxEstadoVehiculo = getColIndex(["estado vehiculo", "estado de vehiculo", "estado_vehiculo", "estado"]);
+        const idxEstadoVehiculoPredeterminado = getColIndex(["estado vehiculo predeterminado", "estado_vehiculo_predeterminado"]);
         const idxFechaExp = getColIndex(["f. expediente", "fecha expediente", "fecha_expediente", "fecha"]);
         const idxFechaAfect = getColIndex(["f. afectacion", "fecha afectacion", "fecha_afectacion", "afectacion"]);
         const idxFechaRci = getColIndex(["f. rci", "fecha rci", "fecha_rci", "rci"]);
@@ -296,10 +322,18 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
           itemsToImport.push({
             cliente_nombre: getValue(idxClienteNombre),
             cliente_dni: getValue(idxClienteDni),
+            cliente_fecha_nacimiento: getValue(idxClienteFechaNac),
             marca_nombre: getValue(idxMarca),
+            marca_activo: getValue(idxMarcaActivo),
+            marca_acceso_rapido: getValue(idxMarcaAccesoRapido),
+            marca_sistema_comisiones: getValue(idxMarcaSistemaComisiones),
             modelo_nombre: getValue(idxModelo),
+            modelo_acceso_rapido: getValue(idxModeloAccesoRapido),
+            modelo_orden_acceso_rapido: getValue(idxModeloOrdenAccesoRapido),
             tipo_venta_nombre: getValue(idxTipoVenta),
+            tipo_venta_color: getValue(idxTipoVentaColor),
             estado_vehiculo_nombre: getValue(idxEstadoVehiculo),
+            estado_vehiculo_predeterminado: getValue(idxEstadoVehiculoPredeterminado),
             fecha_expediente: getValue(idxFechaExp),
             fecha_afectacion: getValue(idxFechaAfect),
             fecha_rci: getValue(idxFechaRci),
