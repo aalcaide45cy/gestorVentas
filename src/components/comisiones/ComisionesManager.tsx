@@ -154,7 +154,50 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setArrastre(plan.arrastre);
         setMinMatriculaciones(plan.min_matriculaciones);
 
-        setRates(plan.rates || []);
+        // Proactive Healing: Asegurar que cada modelo de marca activa tenga exactamente 2 filas (tasa cumplida y no cumplida)
+        const initialRates = plan.rates || [];
+        const activeBrands = marcas.filter(m => !!m.sistema_comisiones);
+        const activeBrandIds = activeBrands.map(b => b.id);
+        const systemModels = modelos.filter(m => activeBrandIds.includes(m.marca_id));
+        
+        const normalizedRates = [...initialRates];
+        systemModels.forEach(m => {
+          const hasInferior = initialRates.some((r: any) => r.id_modelo === m.id && r.tasa_intervencion_cumplida === false);
+          if (!hasInferior) {
+            normalizedRates.push({
+              id_plan: id,
+              id_modelo: m.id,
+              tasa_intervencion_cumplida: false,
+              rate_x_minus_3: 80,
+              rate_x_minus_2: 90,
+              rate_x_minus_1: 100,
+              rate_x: 120,
+              rate_x_plus_1: 140,
+              rate_x_plus_2: 160,
+              valor_objetivo: 1,
+              activo: true,
+            });
+          }
+          
+          const hasSuperior = initialRates.some((r: any) => r.id_modelo === m.id && r.tasa_intervencion_cumplida === true);
+          if (!hasSuperior) {
+            normalizedRates.push({
+              id_plan: id,
+              id_modelo: m.id,
+              tasa_intervencion_cumplida: true,
+              rate_x_minus_3: 100,
+              rate_x_minus_2: 110,
+              rate_x_minus_1: 120,
+              rate_x: 140,
+              rate_x_plus_1: 160,
+              rate_x_plus_2: 180,
+              valor_objetivo: 1,
+              activo: true,
+            });
+          }
+        });
+
+        setRates(normalizedRates);
         setRules(plan.rules || []);
         setBonusRules(plan.bonusRules || []);
         setUsedRates(plan.usedRates || []);
@@ -747,99 +790,104 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
             {/* TAB: OBJETIVO */}
             {activeTab === "objetivo" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "450px" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Cálculo del Objetivo X</h3>
-                
-                <div className="form-group">
-                  <label className="form-label">Objetivo Base del Periodo</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={objetivoBase}
-                    onChange={(e) => setObjetivoBase(Number(e.target.value))}
-                    disabled={planEstado === "cerrado" || !isAdmin}
-                  />
+              <div style={{ display: "flex", gap: "40px", flexWrap: "wrap", alignItems: "flex-start" }}>
+                {/* Bloque Izquierdo: Cálculo de Objetivo */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "20px", flex: 1, minWidth: "300px", maxWidth: "450px" }}>
+                  <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Cálculo del Objetivo X</h3>
+                  
+                  <div className="form-group">
+                    <label className="form-label">Objetivo Base del Periodo</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={objetivoBase}
+                      onChange={(e) => setObjetivoBase(Number(e.target.value))}
+                      disabled={planEstado === "cerrado" || !isAdmin}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Arrastre (Unidades adicionales)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={arrastre}
+                      onChange={(e) => setArrastre(Number(e.target.value))}
+                      disabled={planEstado === "cerrado" || !isAdmin}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Mínimo de Matriculaciones Reales (Derecho a cobro)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={minMatriculaciones}
+                      onChange={(e) => setMinMatriculaciones(Number(e.target.value))}
+                      disabled={planEstado === "cerrado" || !isAdmin}
+                    />
+                  </div>
+
+                  <div style={{
+                    padding: "16px 20px",
+                    background: "rgba(124, 58, 237, 0.05)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border-focus)",
+                    marginTop: "8px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}>
+                    <span style={{ fontWeight: 600 }}>Objetivo Resultante (X = Base + Arrastre)</span>
+                    <strong style={{ fontSize: "1.6rem", color: "var(--primary)" }}>{objetivoBase + arrastre}</strong>
+                  </div>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Arrastre (Unidades adicionales)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={arrastre}
-                    onChange={(e) => setArrastre(Number(e.target.value))}
-                    disabled={planEstado === "cerrado" || !isAdmin}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Mínimo de Matriculaciones Reales (Derecho a cobro)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={minMatriculaciones}
-                    onChange={(e) => setMinMatriculaciones(Number(e.target.value))}
-                    disabled={planEstado === "cerrado" || !isAdmin}
-                  />
-                </div>
-
-                <div style={{
-                  padding: "16px 20px",
-                  background: "rgba(124, 58, 237, 0.05)",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border-focus)",
-                  marginTop: "8px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center"
-                }}>
-                  <span style={{ fontWeight: 600 }}>Objetivo Resultante (X = Base + Arrastre)</span>
-                  <strong style={{ fontSize: "1.6rem", color: "var(--primary)" }}>{objetivoBase + arrastre}</strong>
-                </div>
-
-                {/* Tasa de Intervención por Marca */}
-                <div style={{ marginTop: "24px", borderTop: "1px solid var(--border-light)", paddingTop: "24px" }}>
-                  <h4 style={{ fontSize: "1.05rem", color: "var(--text-primary)", marginBottom: "8px" }}>Tasa de Intervención Objetiva por Marca</h4>
-                  <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", marginBottom: "16px" }}>
+                {/* Bloque Derecho: Tasa de Intervención por Marca */}
+                <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "20px", flex: 1, minWidth: "300px", maxWidth: "450px", padding: "24px", background: "rgba(255, 255, 255, 0.01)" }}>
+                  <h4 style={{ fontSize: "1.05rem", color: "var(--text-primary)", margin: 0 }}>Tasa de Intervención Objetiva por Marca</h4>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", margin: 0 }}>
                     Establece el porcentaje objetivo de financiamientos sobre las matriculaciones de cada marca en el mes.
                   </p>
                   
-                  {marcas.filter(m => !!m.sistema_comisiones).map((brand) => {
-                    const rateObj = brandInterventionRates.find(r => r.id_marca === brand.id) || {
-                      id_marca: brand.id,
-                      tasa_intervencion: 70
-                    };
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "8px" }}>
+                    {marcas.filter(m => !!m.sistema_comisiones).map((brand) => {
+                      const rateObj = brandInterventionRates.find(r => r.id_marca === brand.id) || {
+                        id_marca: brand.id,
+                        tasa_intervencion: 70
+                      };
 
-                    const handleInterventionChange = (newVal: number) => {
-                      const existingIdx = brandInterventionRates.findIndex(r => r.id_marca === brand.id);
-                      if (existingIdx !== -1) {
-                        const updated = [...brandInterventionRates];
-                        updated[existingIdx] = { ...updated[existingIdx], tasa_intervencion: newVal };
-                        setBrandInterventionRates(updated);
-                      } else {
-                        setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, tasa_intervencion: newVal }]);
-                      }
-                    };
+                      const handleInterventionChange = (newVal: number) => {
+                        const existingIdx = brandInterventionRates.findIndex(r => r.id_marca === brand.id);
+                        if (existingIdx !== -1) {
+                          const updated = [...brandInterventionRates];
+                          updated[existingIdx] = { ...updated[existingIdx], tasa_intervencion: newVal };
+                          setBrandInterventionRates(updated);
+                        } else {
+                          setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, tasa_intervencion: newVal }]);
+                        }
+                      };
 
-                    return (
-                      <div key={brand.id} className="form-group" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
-                        <span style={{ fontWeight: 600, fontSize: "0.88rem" }}>{brand.nombre}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <input
-                            type="number"
-                            className="form-input"
-                            value={rateObj.tasa_intervencion}
-                            onChange={(e) => handleInterventionChange(Number(e.target.value))}
-                            disabled={planEstado === "cerrado" || !isAdmin}
-                            style={{ width: "80px", textAlign: "right", padding: "6px" }}
-                            min={0}
-                            max={100}
-                          />
-                          <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>%</span>
+                      return (
+                        <div key={brand.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px" }}>
+                          <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--text-primary)" }}>{brand.nombre}</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <input
+                              type="number"
+                              className="form-input"
+                              value={rateObj.tasa_intervencion}
+                              onChange={(e) => handleInterventionChange(Number(e.target.value))}
+                              disabled={planEstado === "cerrado" || !isAdmin}
+                              style={{ width: "80px", textAlign: "right", padding: "6px" }}
+                              min={0}
+                              max={100}
+                            />
+                            <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>%</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -941,22 +989,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 return (
                                   <tr key={r.id_rate || idx}>
                                     <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{modelos.find(m => m.id === r.id_modelo)?.nombre || "Sin Nombre"}</td>
-                                    <td>
-                                      {planEstado === "cerrado" || !isAdmin ? (
-                                        <span className={`badge ${r.tasa_intervencion_cumplida ? 'badge-tienda' : 'badge-admin'}`} style={{ fontSize: "0.75rem" }}>
-                                          {r.tasa_intervencion_cumplida ? "Tasa ≥ Target" : "Tasa < Target"}
-                                        </span>
-                                      ) : (
-                                        <select
-                                          className="form-select"
-                                          value={r.tasa_intervencion_cumplida ? "true" : "false"}
-                                          onChange={(e) => handleChange("tasa_intervencion_cumplida", e.target.value === "true")}
-                                          style={{ padding: "4px 8px", fontSize: "0.85rem" }}
-                                        >
-                                          <option value="false">Tasa {"<"} Target</option>
-                                          <option value="true">Tasa ≥ Target</option>
-                                        </select>
-                                      )}
+                                    <td style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+                                      {(() => {
+                                        const rateObj = brandInterventionRates.find(ir => ir.id_marca === brand.id) || { tasa_intervencion: 70 };
+                                        return r.tasa_intervencion_cumplida 
+                                          ? `Tasa ≥ ${rateObj.tasa_intervencion}%` 
+                                          : `Tasa < ${rateObj.tasa_intervencion}%`;
+                                      })()}
                                     </td>
                                     <td style={{ textAlign: "center" }}>
                                       <select
