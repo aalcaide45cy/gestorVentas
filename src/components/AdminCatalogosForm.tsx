@@ -13,6 +13,7 @@ interface MarcaItem {
     id_modelo: number;
     nombre_modelo: string;
     acceso_rapido?: boolean | null;
+    orden_acceso_rapido?: number | null;
   }[];
 }
 
@@ -110,7 +111,8 @@ export default function AdminCatalogosForm({
       acceso_rapido: mod.acceso_rapido,
       id_marca: m.id_marca,
       nombre_marca: m.nombre,
-      sistema_comisiones: !!m.sistema_comisiones
+      sistema_comisiones: !!m.sistema_comisiones,
+      orden_acceso_rapido: mod.orden_acceso_rapido || 0
     }))
   );
 
@@ -130,6 +132,9 @@ export default function AdminCatalogosForm({
     } else if (sortField === "acceso_rapido") {
       aVal = a.acceso_rapido ? 1 : 0;
       bVal = b.acceso_rapido ? 1 : 0;
+    } else if (sortField === "orden_acceso_rapido") {
+      aVal = a.orden_acceso_rapido || 0;
+      bVal = b.orden_acceso_rapido || 0;
     } else if (sortField === "marca") {
       aVal = a.nombre_marca;
       bVal = b.nombre_marca;
@@ -373,6 +378,40 @@ export default function AdminCatalogosForm({
         modelos: m.modelos.map(mod => mod.id_modelo === idModelo ? { ...mod, acceso_rapido: result.data.acceso_rapido } : mod)
       })));
       showNotification("Acceso rápido del modelo actualizado", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateModelOrder = async (idModelo: number, nuevoOrden: number, idMarca: number) => {
+    setLoading(true);
+    try {
+      const modelItem = flatModelos.find(m => m.id_modelo === idModelo);
+      const res = await fetch("/api/admin/catalogos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          tipo: "modelo", 
+          id: idModelo, 
+          orden_acceso_rapido: nuevoOrden, 
+          nombre_modelo: modelItem?.nombre_modelo 
+        })
+      });
+      if (!res.ok) throw new Error("Error al cambiar el orden del modelo");
+      const result = await res.json();
+      setMarcas(marcas.map(m => {
+        if (m.id_marca === idMarca) {
+          return {
+            ...m,
+            modelos: m.modelos.map(mod => mod.id_modelo === idModelo ? { ...mod, orden_acceso_rapido: result.data.orden_acceso_rapido } : mod)
+          };
+        }
+        return m;
+      }));
+      showNotification("Orden de modelo actualizado", "success");
       router.refresh();
     } catch (err: any) {
       showNotification(err.message, "error");
@@ -1077,6 +1116,9 @@ export default function AdminCatalogosForm({
                         <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
                           Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                         </th>
+                        <th onClick={() => handleSort("orden_acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Orden Dashboard{sortField === "orden_acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
                         <th>Acciones</th>
                       </tr>
                     </thead>
@@ -1122,6 +1164,20 @@ export default function AdminCatalogosForm({
                               </button>
                             </td>
                             <td>
+                              {mod.acceso_rapido ? (
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={mod.orden_acceso_rapido || 0}
+                                  onChange={e => handleUpdateModelOrder(mod.id_modelo, Number(e.target.value), mod.id_marca)}
+                                  style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }}
+                                  disabled={loading}
+                                />
+                              ) : (
+                                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>—</span>
+                              )}
+                            </td>
+                            <td>
                               <div style={{ display: "flex", gap: "10px" }}>
                                 <button
                                   type="button"
@@ -1146,7 +1202,7 @@ export default function AdminCatalogosForm({
                       })}
                       {modelosDeMarca.length === 0 && (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
+                          <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
                             No hay modelos registrados para esta marca.
                           </td>
                         </tr>
@@ -1184,6 +1240,9 @@ export default function AdminCatalogosForm({
                         </th>
                         <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
                           Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th onClick={() => handleSort("orden_acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Orden Dashboard{sortField === "orden_acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                         </th>
                         <th>Acciones</th>
                       </tr>
@@ -1230,6 +1289,20 @@ export default function AdminCatalogosForm({
                               </button>
                             </td>
                             <td>
+                              {mod.acceso_rapido ? (
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={mod.orden_acceso_rapido || 0}
+                                  onChange={e => handleUpdateModelOrder(mod.id_modelo, Number(e.target.value), mod.id_marca)}
+                                  style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }}
+                                  disabled={loading}
+                                />
+                              ) : (
+                                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>—</span>
+                              )}
+                            </td>
+                            <td>
                               <div style={{ display: "flex", gap: "10px" }}>
                                 <button
                                   type="button"
@@ -1254,7 +1327,7 @@ export default function AdminCatalogosForm({
                       })}
                       {modelosResto.length === 0 && (
                         <tr>
-                          <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
+                          <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
                             No hay modelos para el resto de marcas.
                           </td>
                         </tr>

@@ -75,6 +75,25 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
   // Estados para selección masiva e Importación/Exportación
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
+
+  // Estados para buscadores y filtros
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [filterCliente, setFilterCliente] = useState("");
+  const [filterVehiculo, setFilterVehiculo] = useState("");
+  const [filterTipoVenta, setFilterTipoVenta] = useState("");
+  const [filterEstadoVehiculo, setFilterEstadoVehiculo] = useState("");
+  const [filterVendedor, setFilterVendedor] = useState("");
+  const [filterFExp, setFilterFExp] = useState("");
+  const [filterFAfect, setFilterFAfect] = useState("");
+  const [filterFRci, setFilterFRci] = useState("");
+  const [filterFMat, setFilterFMat] = useState("");
+  const [filterFEntrega, setFilterFEntrega] = useState("");
+
+  // Estados para estadísticas mensuales del final
+  const todayDate = new Date();
+  const [statsYear, setStatsYear] = useState<number>(todayDate.getFullYear());
+  const [statsMonth, setStatsMonth] = useState<number>(todayDate.getMonth() + 1);
   
   // Modales y estados para fechas inline
   const [editDateModal, setEditDateModal] = useState<{
@@ -539,6 +558,93 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
     );
   };
 
+  const months = [
+    { value: 1, name: "Enero" },
+    { value: 2, name: "Febrero" },
+    { value: 3, name: "Marzo" },
+    { value: 4, name: "Abril" },
+    { value: 5, name: "Mayo" },
+    { value: 6, name: "Junio" },
+    { value: 7, name: "Julio" },
+    { value: 8, name: "Agosto" },
+    { value: 9, name: "Septiembre" },
+    { value: 10, name: "Octubre" },
+    { value: 11, name: "Noviembre" },
+    { value: 12, name: "Diciembre" }
+  ];
+
+  const currentYearNum = new Date().getFullYear();
+  const years = [currentYearNum, currentYearNum - 1, currentYearNum - 2];
+
+  const getMonthStats = () => {
+    let matriculados = 0;
+    let entregados = 0;
+    let afectados = 0;
+
+    expedientes.forEach(exp => {
+      // Matriculados
+      if (exp.fecha_matriculacion) {
+        const parts = exp.fecha_matriculacion.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y === statsYear && m === statsMonth) matriculados++;
+      }
+      // Entregados
+      if (exp.fecha_entrega) {
+        const parts = exp.fecha_entrega.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y === statsYear && m === statsMonth) entregados++;
+      }
+      // Afectados
+      if (exp.fecha_afectacion) {
+        const parts = exp.fecha_afectacion.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y === statsYear && m === statsMonth) afectados++;
+      }
+    });
+
+    return { matriculados, entregados, afectados };
+  };
+
+  const stats = getMonthStats();
+
+  const filteredExpedientes = expedientes.filter(exp => {
+    // 1. Buscador global
+    if (globalSearch) {
+      const gs = globalSearch.toLowerCase();
+      const matchCliente = exp.cliente?.nombre?.toLowerCase().includes(gs) || exp.cliente?.dni?.toLowerCase().includes(gs);
+      const matchModelo = exp.modelo?.nombre_modelo?.toLowerCase().includes(gs) || exp.modelo?.marca?.nombre?.toLowerCase().includes(gs);
+      const matchTipo = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(gs);
+      const matchEstado = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(gs);
+      const matchVendedor = exp.usuario?.nombre?.toLowerCase().includes(gs);
+      const matchVin = exp.vin?.toLowerCase().includes(gs);
+      const matchMatricula = exp.matricula?.toLowerCase().includes(gs);
+      if (!matchCliente && !matchModelo && !matchTipo && !matchEstado && !matchVendedor && !matchVin && !matchMatricula) {
+        return false;
+      }
+    }
+
+    // 2. Filtros por columna
+    if (filterCliente && !exp.cliente?.nombre?.toLowerCase().includes(filterCliente.toLowerCase()) && !exp.cliente?.dni?.toLowerCase().includes(filterCliente.toLowerCase())) return false;
+    if (filterVehiculo) {
+      const fVeh = filterVehiculo.toLowerCase();
+      const modelMatch = exp.modelo?.nombre_modelo?.toLowerCase().includes(fVeh) || exp.modelo?.marca?.nombre?.toLowerCase().includes(fVeh) || exp.vin?.toLowerCase().includes(fVeh);
+      if (!modelMatch) return false;
+    }
+    if (filterTipoVenta && !exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(filterTipoVenta.toLowerCase())) return false;
+    if (filterEstadoVehiculo && !exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(filterEstadoVehiculo.toLowerCase())) return false;
+    if (filterVendedor && !exp.usuario?.nombre?.toLowerCase().includes(filterVendedor.toLowerCase())) return false;
+    if (filterFExp && !formatDate(exp.fecha_expediente).toLowerCase().includes(filterFExp.toLowerCase())) return false;
+    if (filterFAfect && !formatDate(exp.fecha_afectacion).toLowerCase().includes(filterFAfect.toLowerCase())) return false;
+    if (filterFRci && !formatDate(exp.fecha_rci).toLowerCase().includes(filterFRci.toLowerCase())) return false;
+    if (filterFMat && !formatDate(exp.fecha_matriculacion).toLowerCase().includes(filterFMat.toLowerCase()) && !(exp.matricula && exp.matricula.toLowerCase().includes(filterFMat.toLowerCase()))) return false;
+    if (filterFEntrega && !formatDate(exp.fecha_entrega).toLowerCase().includes(filterFEntrega.toLowerCase())) return false;
+
+    return true;
+  });
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* NOTIFICACIONES FLOTANTES */}
@@ -583,13 +689,61 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
         </div>
       )}
 
+      {/* BUSCADOR GENERAL */}
+      <div className="glass-panel" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Buscador Global:</span>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Busca por cliente, matrícula, DNI, vendedor, VIN..."
+          value={globalSearch}
+          onChange={e => setGlobalSearch(e.target.value)}
+          style={{ flex: 1, padding: "8px 14px" }}
+        />
+        {globalSearch && (
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            onClick={() => setGlobalSearch("")}
+            style={{ padding: "8px 14px", fontSize: "0.85rem" }}
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
       {/* PANEL DE ACCIONES MASIVAS E IMPORT/EXPORT */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          {selectedIds.length > 0 ? (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setBulkSelectionUnlocked(!bulkSelectionUnlocked);
+              if (bulkSelectionUnlocked) setSelectedIds([]);
+            }}
+            style={{
+              padding: "8px 14px",
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor: bulkSelectionUnlocked ? "var(--warning)" : "rgba(255,255,255,0.05)",
+              color: bulkSelectionUnlocked ? "black" : "var(--text-primary)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: 600
+            }}
+            title={bulkSelectionUnlocked ? "Bloquear Selección Masiva" : "Desbloquear Selección Masiva"}
+          >
+            {bulkSelectionUnlocked ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
+          </button>
+
+          {bulkSelectionUnlocked && selectedIds.length > 0 && (
             <>
               <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--primary)" }}>
-                {selectedIds.length} seleccionado(s):
+                ({selectedIds.length} seleccionados):
               </span>
               <button
                 type="button"
@@ -608,10 +762,6 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                 📤 Exportar Seleccionados (CSV)
               </button>
             </>
-          ) : (
-            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-              Selecciona expedientes de la lista para realizar acciones masivas
-            </span>
           )}
         </div>
 
@@ -644,14 +794,16 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
           <table className="table-premium">
             <thead>
               <tr>
-                <th style={{ width: "40px", textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={expedientes.length > 0 && selectedIds.length === expedientes.length}
-                    onChange={e => handleSelectAll(e.target.checked)}
-                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                  />
-                </th>
+                {bulkSelectionUnlocked && (
+                  <th style={{ width: "40px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={filteredExpedientes.length > 0 && selectedIds.length === filteredExpedientes.length}
+                      onChange={e => handleSelectAll(e.target.checked)}
+                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                    />
+                  </th>
+                )}
                 <th>Cliente</th>
                 <th>Vehículo</th>
                 <th>Tipo Venta</th>
@@ -664,18 +816,146 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                 <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Entrega</th>
                 <th>Acciones</th>
               </tr>
+              {/* FILTROS POR COLUMNA */}
+              <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
+                {bulkSelectionUnlocked && <td></td>}
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterCliente}
+                    onChange={e => setFilterCliente(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterVehiculo}
+                    onChange={e => setFilterVehiculo(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterTipoVenta}
+                    onChange={e => setFilterTipoVenta(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterEstadoVehiculo}
+                    onChange={e => setFilterEstadoVehiculo(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterVendedor}
+                    onChange={e => setFilterVendedor(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterFExp}
+                    onChange={e => setFilterFExp(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
+                  />
+                </td>
+                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterFAfect}
+                    onChange={e => setFilterFAfect(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
+                  />
+                </td>
+                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterFRci}
+                    onChange={e => setFilterFRci(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
+                  />
+                </td>
+                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterFMat}
+                    onChange={e => setFilterFMat(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
+                  />
+                </td>
+                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterFEntrega}
+                    onChange={e => setFilterFEntrega(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
+                  />
+                </td>
+                <td style={{ textAlign: "center" }}>
+                  {(filterCliente || filterVehiculo || filterTipoVenta || filterEstadoVehiculo || filterVendedor || filterFExp || filterFAfect || filterFRci || filterFMat || filterFEntrega) && (
+                    <button 
+                      onClick={() => {
+                        setFilterCliente("");
+                        setFilterVehiculo("");
+                        setFilterTipoVenta("");
+                        setFilterEstadoVehiculo("");
+                        setFilterVendedor("");
+                        setFilterFExp("");
+                        setFilterFAfect("");
+                        setFilterFRci("");
+                        setFilterFMat("");
+                        setFilterFEntrega("");
+                      }}
+                      style={{ border: "none", background: "none", cursor: "pointer", fontSize: "0.85rem", color: "var(--danger)" }}
+                      title="Limpiar filtros"
+                    >
+                      ✖
+                    </button>
+                  )}
+                </td>
+              </tr>
             </thead>
             <tbody>
-              {expedientes.map((exp) => (
+              {filteredExpedientes.map((exp) => (
                 <tr key={exp.id_expediente} style={{ background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined }}>
-                  <td style={{ textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(exp.id_expediente)}
-                      onChange={e => handleSelectOne(exp.id_expediente, e.target.checked)}
-                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                    />
-                  </td>
+                  {bulkSelectionUnlocked && (
+                    <td style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(exp.id_expediente)}
+                        onChange={e => handleSelectOne(exp.id_expediente, e.target.checked)}
+                        style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                      />
+                    </td>
+                  )}
                   <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
                     {exp.cliente?.nombre || "Sin Cliente"}
                   </td>
@@ -755,15 +1035,62 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                   </td>
                 </tr>
               ))}
-              {expedientes.length === 0 && (
+              {filteredExpedientes.length === 0 && (
                 <tr>
-                  <td colSpan={12} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
-                    No hay expedientes de venta registrados en la base de datos.
+                  <td colSpan={bulkSelectionUnlocked ? 12 : 11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                    No se encontraron expedientes con los filtros aplicados.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* SECCIÓN DE RESUMEN MENSUAL Y ESTADÍSTICAS */}
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", marginTop: "10px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px" }}>
+          <div>
+            <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
+          </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <select
+              className="form-select"
+              value={statsMonth}
+              onChange={e => setStatsMonth(Number(e.target.value))}
+              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+            >
+              {months.map(m => (
+                <option key={m.value} value={m.value}>{m.name}</option>
+              ))}
+            </select>
+            <select
+              className="form-select"
+              value={statsYear}
+              onChange={e => setStatsYear(Number(e.target.value))}
+              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+            >
+              {years.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "15px" }}>
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>AFECTADOS EN EL MES</span>
+            <h3 style={{ fontSize: "1.65rem", margin: "8px 0 0 0", color: "var(--primary)" }}>{stats.afectados}</h3>
+          </div>
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>MATRICULADOS EN EL MES</span>
+            <h3 style={{ fontSize: "1.65rem", margin: "8px 0 0 0", color: "var(--success)" }}>{stats.matriculados}</h3>
+          </div>
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>ENTREGADOS EN EL MES</span>
+            <h3 style={{ fontSize: "1.65rem", margin: "8px 0 0 0", color: "var(--accent)" }}>{stats.entregados}</h3>
+          </div>
         </div>
       </div>
 

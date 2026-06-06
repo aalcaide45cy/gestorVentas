@@ -164,7 +164,8 @@ export async function PUT(req: NextRequest) {
       const [actualizada] = await db.update(modelos)
         .set({ 
           nombre_modelo: data.nombre_modelo,
-          acceso_rapido: data.acceso_rapido !== undefined ? !!data.acceso_rapido : undefined
+          acceso_rapido: data.acceso_rapido !== undefined ? !!data.acceso_rapido : undefined,
+          orden_acceso_rapido: data.orden_acceso_rapido !== undefined ? Number(data.orden_acceso_rapido) : undefined
         })
         .where(eq(modelos.id_modelo, Number(id)))
         .returning();

@@ -68,12 +68,13 @@ export default async function DashboardPage() {
     }
   });
 
-  // Marcas y modelos con acceso rápido
+  // Marcas y modelos con acceso rápido ordenados por orden_acceso_rapido
   const dbMarcasAccesoRapido = await db.query.marcas.findMany({
     where: eq(marcas.acceso_rapido, true),
     with: {
       modelos: {
-        where: (m, { eq }) => eq(m.acceso_rapido, true)
+        where: (m, { eq }) => eq(m.acceso_rapido, true),
+        orderBy: (m, { asc }) => [asc(m.orden_acceso_rapido), asc(m.nombre_modelo)]
       }
     }
   });

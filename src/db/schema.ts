@@ -84,6 +84,7 @@ export const modelos = pgTable('modelos', {
   marca_id: integer('marca_id').references(() => marcas.id_marca, { onDelete: 'cascade' }),
   nombre_modelo: text('nombre_modelo').notNull(),
   acceso_rapido: boolean('acceso_rapido').default(false),
+  orden_acceso_rapido: integer('orden_acceso_rapido').default(0),
 });
 
 // TABLA: TIPO_DE_VENTA
