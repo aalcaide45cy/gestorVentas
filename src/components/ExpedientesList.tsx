@@ -1145,12 +1145,12 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
             <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
           </div>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "nowrap" }}>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={handleSetPreviousMonth}
-              style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+              style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}
             >
               ⬅ Mes Anterior
             </button>
@@ -1158,7 +1158,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               type="button"
               className="btn btn-secondary"
               onClick={handleSetCurrentMonth}
-              style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+              style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}
             >
               Mes Actual
             </button>
@@ -1176,7 +1176,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               className="form-select"
               value={statsYear}
               onChange={e => setStatsYear(Number(e.target.value))}
-              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+              style={{ padding: "6px 12px", fontSize: "0.85rem", minWidth: "90px" }}
             >
               {years.map(y => (
                 <option key={y} value={y}>{y}</option>
