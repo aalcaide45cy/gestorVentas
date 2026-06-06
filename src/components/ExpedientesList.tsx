@@ -90,7 +90,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   // Estados para buscadores y filtros
   const [globalSearch, setGlobalSearch] = useState("");
   const [filterCliente, setFilterCliente] = useState("");
-  const [filterVehiculo, setFilterVehiculo] = useState("");
+  const [filterMarca, setFilterMarca] = useState("");
+  const [filterModelo, setFilterModelo] = useState("");
   const [filterTipoVenta, setFilterTipoVenta] = useState("");
   const [filterEstadoVehiculo, setFilterEstadoVehiculo] = useState("");
   const [filterVendedor, setFilterVendedor] = useState("");
@@ -810,6 +811,14 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
     }
   };
 
+  const uniqueBrands = Array.from(
+    new Set(
+      expedientes
+        .map(e => e.modelo?.marca?.nombre)
+        .filter((brandName): brandName is string => !!brandName)
+    )
+  ).sort();
+
   const filteredExpedientes = expedientes.filter(exp => {
     // 1. Buscador global
     if (globalSearch) {
@@ -828,9 +837,16 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
 
     // 2. Filtros por columna
     if (filterCliente && !exp.cliente?.nombre?.toLowerCase().includes(filterCliente.toLowerCase()) && !exp.cliente?.dni?.toLowerCase().includes(filterCliente.toLowerCase())) return false;
-    if (filterVehiculo) {
-      const fVeh = filterVehiculo.toLowerCase();
-      const modelMatch = exp.modelo?.nombre_modelo?.toLowerCase().includes(fVeh) || exp.modelo?.marca?.nombre?.toLowerCase().includes(fVeh) || exp.vin?.toLowerCase().includes(fVeh);
+    if (filterMarca) {
+      if (filterMarca === "VO_NO_BRAND") {
+        if (exp.modelo?.marca?.nombre) return false;
+      } else {
+        if (exp.modelo?.marca?.nombre !== filterMarca) return false;
+      }
+    }
+    if (filterModelo) {
+      const fMod = filterModelo.toLowerCase();
+      const modelMatch = exp.modelo?.nombre_modelo?.toLowerCase().includes(fMod) || exp.vin?.toLowerCase().includes(fMod);
       if (!modelMatch) return false;
     }
     if (filterTipoVenta && !exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(filterTipoVenta.toLowerCase())) return false;
@@ -1051,9 +1067,10 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                   </th>
                 )}
                 <th>Cliente</th>
-                <th>Vehículo</th>
-                <th>Tipo Venta</th>
-                <th>Estado Vehículo</th>
+                <th>Marca</th>
+                <th>Modelo</th>
+                <th>T. Venta</th>
+                <th>Estado</th>
                 <th>Vendedor</th>
                 <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
                 <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
@@ -1076,12 +1093,26 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                   />
                 </td>
                 <td>
+                  <select
+                    className="form-select"
+                    value={filterMarca}
+                    onChange={e => setFilterMarca(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "100px" }}
+                  >
+                    <option value="">Todas</option>
+                    {uniqueBrands.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                    <option value="VO_NO_BRAND">VO (Sin marca)</option>
+                  </select>
+                </td>
+                <td>
                   <input
                     type="text"
                     placeholder="Filtrar..."
                     className="form-input"
-                    value={filterVehiculo}
-                    onChange={e => setFilterVehiculo(e.target.value)}
+                    value={filterModelo}
+                    onChange={e => setFilterModelo(e.target.value)}
                     style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
                   />
                 </td>
@@ -1166,11 +1197,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                   />
                 </td>
                 <td style={{ textAlign: "center" }}>
-                  {(filterCliente || filterVehiculo || filterTipoVenta || filterEstadoVehiculo || filterVendedor || filterFExp || filterFAfect || filterFRci || filterFMat || filterFEntrega) && (
+                  {(filterCliente || filterMarca || filterModelo || filterTipoVenta || filterEstadoVehiculo || filterVendedor || filterFExp || filterFAfect || filterFRci || filterFMat || filterFEntrega) && (
                     <button 
                       onClick={() => {
                         setFilterCliente("");
-                        setFilterVehiculo("");
+                        setFilterMarca("");
+                        setFilterModelo("");
                         setFilterTipoVenta("");
                         setFilterEstadoVehiculo("");
                         setFilterVendedor("");
@@ -1206,15 +1238,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                     {exp.cliente?.nombre || "Sin Cliente"}
                   </td>
                   <td>
+                    {exp.modelo?.marca?.nombre || (
+                      <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>
+                    )}
+                  </td>
+                  <td>
                     {exp.modelo ? (
-                      <>
-                        <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                          {exp.modelo.nombre_modelo}
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                          {exp.modelo.marca?.nombre}
-                        </div>
-                      </>
+                      <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                        {exp.modelo.nombre_modelo}
+                      </div>
                     ) : (
                       <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                     )}
