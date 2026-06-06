@@ -149,6 +149,14 @@ En la pestaña clientes, también quiero poder ordenar, pinchando en el titulo d
 
 
 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Quiero que el buscador, aparezca como una lista desplegable mientras escribo y pinchar en ella, es posible?
+También quiero, que cuando realice la búsqueda, me aparecen los expedientes en Resultados de búsqueda. Pero no me deja acceder a ellos, ni ver detalles. Quiero que me muestre las mismas columnas que muestra en la pestaña de expedientes.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 
 

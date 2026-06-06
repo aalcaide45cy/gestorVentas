@@ -578,16 +578,35 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
   const getMonthStats = () => {
     let matriculados = 0;
+    let matriculadosContado = 0;
+    let matriculadosCredito = 0;
+    let matriculadosPreference = 0;
+
     let entregados = 0;
     let afectados = 0;
 
+    let pedidos = 0;
+    let pedidosContado = 0;
+    let pedidosCredito = 0;
+    let pedidosPreference = 0;
+
     expedientes.forEach(exp => {
+      const tipoVentaNombre = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+      const isContado = tipoVentaNombre.includes("contado");
+      const isCredito = tipoVentaNombre.includes("credito") || tipoVentaNombre.includes("crédito");
+      const isPreference = tipoVentaNombre.includes("preference") || tipoVentaNombre.includes("box");
+
       // Matriculados
       if (exp.fecha_matriculacion) {
         const parts = exp.fecha_matriculacion.split("-");
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) matriculados++;
+        if (y === statsYear && m === statsMonth) {
+          matriculados++;
+          if (isContado) matriculadosContado++;
+          else if (isCredito) matriculadosCredito++;
+          else if (isPreference) matriculadosPreference++;
+        }
       }
       // Entregados
       if (exp.fecha_entrega) {
@@ -603,12 +622,50 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
         const m = parseInt(parts[1], 10);
         if (y === statsYear && m === statsMonth) afectados++;
       }
+      // Pedidos
+      if (exp.fecha_expediente) {
+        const parts = exp.fecha_expediente.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y === statsYear && m === statsMonth) {
+          pedidos++;
+          if (isContado) pedidosContado++;
+          else if (isCredito) pedidosCredito++;
+          else if (isPreference) pedidosPreference++;
+        }
+      }
     });
 
-    return { matriculados, entregados, afectados };
+    return {
+      matriculados,
+      matriculadosContado,
+      matriculadosCredito,
+      matriculadosPreference,
+      entregados,
+      afectados,
+      pedidos,
+      pedidosContado,
+      pedidosCredito,
+      pedidosPreference
+    };
   };
 
   const stats = getMonthStats();
+
+  const handleSetCurrentMonth = () => {
+    const d = new Date();
+    setStatsYear(d.getFullYear());
+    setStatsMonth(d.getMonth() + 1);
+  };
+
+  const handleSetPreviousMonth = () => {
+    if (statsMonth === 1) {
+      setStatsMonth(12);
+      setStatsYear(prev => prev - 1);
+    } else {
+      setStatsMonth(prev => prev - 1);
+    }
+  };
 
   const filteredExpedientes = expedientes.filter(exp => {
     // 1. Buscador global
@@ -1054,12 +1111,28 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
             <h4 style={{ fontSize: "1.1rem", fontWeight: "bold", margin: 0 }}>📊 Detalle y Resumen Estadístico</h4>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: "4px 0 0 0" }}>Estadísticas de ventas para el período seleccionado.</p>
           </div>
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleSetPreviousMonth}
+              style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+            >
+              ⬅ Mes Anterior
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleSetCurrentMonth}
+              style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+            >
+              Mes Actual
+            </button>
             <select
               className="form-select"
               value={statsMonth}
               onChange={e => setStatsMonth(Number(e.target.value))}
-              style={{ padding: "6px 12px", fontSize: "0.85rem" }}
+              style={{ padding: "6px 12px", fontSize: "0.85rem", minWidth: "120px" }}
             >
               {months.map(m => (
                 <option key={m.value} value={m.value}>{m.name}</option>
@@ -1078,18 +1151,53 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "15px" }}>
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "15px" }}>
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>AFECTADOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.65rem", margin: "8px 0 0 0", color: "var(--primary)" }}>{stats.afectados}</h3>
+            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{stats.afectados}</h3>
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", justifyContent: "center" }}>
+              <span>Total de afectaciones</span>
+            </div>
           </div>
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center" }}>
+          
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>MATRICULADOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.65rem", margin: "8px 0 0 0", color: "var(--success)" }}>{stats.matriculados}</h3>
+            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{stats.matriculados}</h3>
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Contado:</span> <strong>{stats.matriculadosContado}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Crédito:</span> <strong>{stats.matriculadosCredito}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Preference:</span> <strong>{stats.matriculadosPreference}</strong>
+              </div>
+            </div>
           </div>
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center" }}>
+
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
             <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>ENTREGADOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.65rem", margin: "8px 0 0 0", color: "var(--accent)" }}>{stats.entregados}</h3>
+            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--accent)", fontWeight: "bold" }}>{stats.entregados}</h3>
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", justifyContent: "center" }}>
+              <span>Total de entregas</span>
+            </div>
+          </div>
+
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>PEDIDOS EN EL MES</span>
+            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--warning)", fontWeight: "bold" }}>{stats.pedidos}</h3>
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Contado:</span> <strong>{stats.pedidosContado}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Crédito:</span> <strong>{stats.pedidosCredito}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Preference:</span> <strong>{stats.pedidosPreference}</strong>
+              </div>
+            </div>
           </div>
         </div>
       </div>
