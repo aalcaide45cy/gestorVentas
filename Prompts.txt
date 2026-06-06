@@ -116,5 +116,48 @@ En expedientes, quiero tener un botón para eliminar el expediente. Quiero que a
 A veces, sale este error en la consola del navegador, cuando pulso en el botón lateral de Clientes:
 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
 
+En el dashboard, los accesos rapidos, quiero que el fondo de los botones de creación rápida de expedientes, corresponda al color asignado en su configuración.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En la pestaña de expedientes, en la tabla, oculta la columna de Expediente, pues muestra un código que no es relevante.
+En la columna de cliente, solo muestra el nombre. El DNI no lo muestres.
+Quiero que la columna de Fechas, sea F. Exp.
+Añade a la derecha de esta, una columna de F. Afect, F.Mat, F. Entrega. (como ves son títulos reducidos correspondientes a Fecha de Afectación, fecha matriculación, fecha entrega.
+Estas nuevas columnas, cada una de las filas de la tabla que se muestra, tendrán un botón de lapiz y otro de basura cada una de las columnas que te he dicho de añadir. Al dar al lapiz, se mostrará un modal para introducir la fecha. Ese modal tendrá la fecha actual escrita para que solo sea dar a aceptar o cancelar, según corresponda.
+El botón de la basura, volverá a eliminar la fecha de ese campo. Lógicamente, la eliminación debe de ser confirmada mediante un modal para ello.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+revisa todos los campos de fechas, pues quiero que sea, Dia/Mes/Año en toda la aplicación
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Centra los textos de la tabla de expediente, de las fechas.
+Varia un poco el color de cada columna, asi podre diferenciarlas fácilmente, solo con que una columna sea mas clarita y la otra mas oscura me vale.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+En expedientes, quiero poder ordenar pinchando en el titulo de la columna.
+Cuando creo un expediente usando los accesos rapidos del dashboar, aparece un mensaje ¡Expediente rápido creado con éxito para Sandero (Contado)!. Quiero que este mensaje aparezca en la parte superior y central de la web, pero que no mueva ni desplace parte del contenido de la web, es decir, que esté como flotando.
+En la pestaña clientes, también quiero poder ordenar, pinchando en el titulo de la columna.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
