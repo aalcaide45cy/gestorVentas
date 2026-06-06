@@ -55,6 +55,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [confirmDeleteCliente, setConfirmDeleteCliente] = useState<ClienteItem | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
 
   // Filtros por columna
   const [filterNombre, setFilterNombre] = useState("");
@@ -411,7 +412,30 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
       {/* BARRA SUPERIOR DE ACCIONES */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {selectedIds.length > 0 && (
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setBulkSelectionUnlocked(!bulkSelectionUnlocked);
+              if (bulkSelectionUnlocked) setSelectedIds([]);
+            }}
+            style={{
+              padding: "10px 16px",
+              fontSize: "0.85rem",
+              backgroundColor: bulkSelectionUnlocked ? "var(--warning)" : "rgba(255,255,255,0.05)",
+              color: bulkSelectionUnlocked ? "black" : "var(--text-primary)",
+              border: "1px solid var(--border-light)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+            title={bulkSelectionUnlocked ? "Bloquear Selección Masiva" : "Desbloquear Selección Masiva"}
+          >
+            {bulkSelectionUnlocked ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
+          </button>
+
+          {bulkSelectionUnlocked && selectedIds.length > 0 && (
             <div
               className="glass-panel"
               style={{
@@ -462,14 +486,16 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
             <table className="table-premium">
               <thead>
                 <tr>
-                  <th style={{ width: "40px", textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={filteredClientesSorted.length > 0 && selectedIds.length === filteredClientesSorted.length}
-                      onChange={e => handleSelectAll(e.target.checked)}
-                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                    />
-                  </th>
+                  {bulkSelectionUnlocked && (
+                    <th style={{ width: "40px", textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={filteredClientesSorted.length > 0 && selectedIds.length === filteredClientesSorted.length}
+                        onChange={e => handleSelectAll(e.target.checked)}
+                        style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                      />
+                    </th>
+                  )}
                   <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer" }}>
                     Nombre {sortField === "nombre" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
                   </th>
@@ -492,7 +518,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
 
                 {/* FILTROS POR COLUMNA */}
                 <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
-                  <td></td>
+                  {bulkSelectionUnlocked && <td></td>}
                   <td>
                     <input
                       type="text"
@@ -584,15 +610,17 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                   const tiendaAsociada = tiendas.find(t => t.id_tienda === c.tienda_id);
                   const isSelected = selectedIds.includes(c.id);
                   return (
-                    <tr key={c.id} style={{ background: isSelected ? "rgba(var(--primary-rgb), 0.04)" : undefined }}>
-                      <td style={{ textAlign: "center" }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={e => handleSelectOne(c.id, e.target.checked)}
-                          style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                        />
-                      </td>
+                    <tr key={c.id} style={{ background: isSelected && bulkSelectionUnlocked ? "rgba(var(--primary-rgb), 0.04)" : undefined }}>
+                      {bulkSelectionUnlocked && (
+                        <td style={{ textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={e => handleSelectOne(c.id, e.target.checked)}
+                            style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                          />
+                        </td>
+                      )}
                       <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{c.nombre}</td>
                       <td>{c.dni || "N/D"}</td>
                       <td>{c.fecha_de_nacimiento ? formatDate(c.fecha_de_nacimiento) : "No indicada"}</td>
