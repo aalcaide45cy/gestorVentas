@@ -217,3 +217,212 @@ export const expedientesRelations = relations(expedientes, ({ one }) => ({
     references: [estadoVehiculo.id_estado_vehiculo],
   }),
 }));
+
+// === NUEVAS TABLAS PARA EL SISTEMA DE COMISIONES ===
+
+// 1. TABLA: COMMISSION_PLANS
+export const commissionPlans = pgTable('commission_plans', {
+  id_plan: serial('id_plan').primaryKey(),
+  nombre: text('nombre').notNull(),
+  fecha_inicio: date('fecha_inicio').notNull(),
+  fecha_fin: date('fecha_fin').notNull(),
+  estado: varchar('estado', { length: 50 }).notNull().default('borrador'), // borrador, activo, cerrado
+  objetivo_base: integer('objetivo_base').notNull().default(0),
+  arrastre: integer('arrastre').notNull().default(0),
+  min_matriculaciones: integer('min_matriculaciones').notNull().default(6),
+});
+
+// 2. TABLA: COMMISSION_PLAN_MODEL_RATES (Tramos de comisión por modelo)
+export const commissionPlanModelRates = pgTable('commission_plan_model_rates', {
+  id_rate: serial('id_rate').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  id_modelo: integer('id_modelo').references(() => modelos.id_modelo, { onDelete: 'cascade' }).notNull(),
+  rate_x_minus_3: integer('rate_x_minus_3').notNull().default(0),
+  rate_x_minus_2: integer('rate_x_minus_2').notNull().default(0),
+  rate_x_minus_1: integer('rate_x_minus_1').notNull().default(0),
+  rate_x: integer('rate_x').notNull().default(0),
+  rate_x_plus_1: integer('rate_x_plus_1').notNull().default(0),
+  rate_x_plus_2: integer('rate_x_plus_2').notNull().default(0),
+  valor_objetivo: integer('valor_objetivo').notNull().default(1), // valor computable objetivo (ej. 1 o 2)
+  activo: boolean('activo').notNull().default(true),
+});
+
+// 3. TABLA: COMMISSION_RULES (Reglas de comisión del plan)
+export const commissionRules = pgTable('commission_rules', {
+  id_rule: serial('id_rule').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  nombre: text('nombre').notNull(),
+  tipo_evento: varchar('tipo_evento', { length: 50 }).notNull(), // pedido, afectacion, matriculacion, financiacion, preference, manual
+  id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'set null' }),
+  id_modelo: integer('id_modelo').references(() => modelos.id_modelo, { onDelete: 'set null' }),
+  afecta_objetivo: boolean('afecta_objetivo').notNull().default(false),
+  valor_objetivo: integer('valor_objetivo').notNull().default(0),
+  afecta_comision: boolean('afecta_comision').notNull().default(false),
+  importe: integer('importe').notNull().default(0),
+  activa: boolean('activa').notNull().default(true),
+});
+
+// 4. TABLA: COMMISSION_BONUS_RULES (Bonus personalizados)
+export const commissionBonusRules = pgTable('commission_bonus_rules', {
+  id_bonus: serial('id_bonus').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  nombre: text('nombre').notNull(),
+  descripcion: text('descripcion'),
+  tipo_evento: varchar('tipo_evento', { length: 50 }).notNull(), // pedido, afectacion, matriculacion, financiacion, preference, manual
+  id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'set null' }),
+  id_modelo: integer('id_modelo').references(() => modelos.id_modelo, { onDelete: 'set null' }),
+  importe: integer('importe').notNull().default(0),
+  afecta_objetivo: boolean('afecta_objetivo').notNull().default(false),
+  valor_objetivo: integer('valor_objetivo').notNull().default(0),
+  fecha_inicio: date('fecha_inicio'),
+  fecha_fin: date('fecha_fin'),
+  activo: boolean('activo').notNull().default(true),
+});
+
+// 5. TABLA: COMMISSION_FINANCE_RULES (Reglas de financiación)
+export const commissionFinanceRules = pgTable('commission_finance_rules', {
+  id_finance: serial('id_finance').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  importe_normal: integer('importe_normal').notNull().default(0),
+  importe_preference: integer('importe_preference').notNull().default(0),
+});
+
+// 6. TABLA: COMMISSION_LIQUIDATIONS (Liquidación de un plan)
+export const commissionLiquidations = pgTable('commission_liquidations', {
+  id_liquidation: serial('id_liquidation').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  estado: varchar('estado', { length: 50 }).notNull().default('borrador'), // borrador, calculada, revisada, cerrada
+  fecha_calculo: date('fecha_calculo').notNull(),
+  objetivo_base_snapshot: integer('objetivo_base_snapshot').notNull(),
+  arrastre_snapshot: integer('arrastre_snapshot').notNull(),
+  x_calculado_snapshot: integer('x_calculado_snapshot').notNull(),
+  total_computables_snapshot: integer('total_computables_snapshot').notNull().default(0),
+  tramo_alcanzado_snapshot: varchar('tramo_alcanzado_snapshot', { length: 20 }).notNull(), // X-3, X-2, X-1, X, X+1, X+2
+  matriculaciones_reales_snapshot: integer('matriculaciones_reales_snapshot').notNull().default(0),
+  cumple_minimo_snapshot: boolean('cumple_minimo_snapshot').notNull().default(false),
+  total_comision_economica: integer('total_comision_economica').notNull().default(0),
+});
+
+// 7. TABLA: COMMISSION_LIQUIDATION_LINES (Línea de desglose de liquidación por expediente)
+export const commissionLiquidationLines = pgTable('commission_liquidation_lines', {
+  id_line: serial('id_line').primaryKey(),
+  id_liquidation: integer('id_liquidation').references(() => commissionLiquidations.id_liquidation, { onDelete: 'cascade' }).notNull(),
+  id_expediente: integer('id_expediente').references(() => expedientes.id_expediente, { onDelete: 'set null' }),
+  vendedor_nombre: text('vendedor_nombre').notNull(),
+  cliente_nombre: text('cliente_nombre').notNull(),
+  marca_nombre: text('marca_nombre').notNull(),
+  modelo_nombre: text('modelo_nombre').notNull(),
+  fecha_pedido: date('fecha_pedido'),
+  fecha_afectacion: date('fecha_afectacion'),
+  fecha_matriculacion: date('fecha_matriculacion'),
+  entra_por_pedido: boolean('entra_por_pedido').notNull().default(false),
+  entra_por_afectacion: boolean('entra_por_afectacion').notNull().default(false),
+  entra_por_matriculacion: boolean('entra_por_matriculacion').notNull().default(false),
+  valor_para_objetivo: integer('valor_para_objetivo').notNull().default(0),
+  comision_base: integer('comision_base').notNull().default(0),
+  comision_financiacion: integer('comision_financiacion').notNull().default(0),
+  comision_preference: integer('comision_preference').notNull().default(0),
+  bonus_acumulado: integer('bonus_acumulado').notNull().default(0),
+  total_generado: integer('total_generado').notNull().default(0),
+  mes_generacion: varchar('mes_generacion', { length: 50 }).notNull(),
+  mes_pago_estimado: varchar('mes_pago_estimado', { length: 50 }).notNull(),
+});
+
+// 8. TABLA: COMMISSION_LIQUIDATION_LINE_ITEMS (Detalle granular de conceptos por expediente)
+export const commissionLiquidationLineItems = pgTable('commission_liquidation_line_items', {
+  id_line_item: serial('id_line_item').primaryKey(),
+  id_line: integer('id_line').references(() => commissionLiquidationLines.id_line, { onDelete: 'cascade' }).notNull(),
+  concepto: text('concepto').notNull(), // ej. "Comisión Base", "Preference", "Bonus HEV"
+  importe: integer('importe').notNull().default(0),
+  afecta_objetivo: boolean('afecta_objetivo').notNull().default(false),
+  valor_objetivo: integer('valor_objetivo').notNull().default(0),
+});
+
+// === RELACIONES DRIZZLE PARA EL SISTEMA DE COMISIONES ===
+
+export const commissionPlansRelations = relations(commissionPlans, ({ many, one }) => ({
+  rates: many(commissionPlanModelRates),
+  rules: many(commissionRules),
+  bonusRules: many(commissionBonusRules),
+  financeRules: one(commissionFinanceRules, {
+    fields: [commissionPlans.id_plan],
+    references: [commissionFinanceRules.id_plan]
+  }),
+  liquidations: many(commissionLiquidations),
+}));
+
+export const commissionPlanModelRatesRelations = relations(commissionPlanModelRates, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionPlanModelRates.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  modelo: one(modelos, {
+    fields: [commissionPlanModelRates.id_modelo],
+    references: [modelos.id_modelo],
+  }),
+}));
+
+export const commissionRulesRelations = relations(commissionRules, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionRules.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  marca: one(marcas, {
+    fields: [commissionRules.id_marca],
+    references: [marcas.id_marca],
+  }),
+  modelo: one(modelos, {
+    fields: [commissionRules.id_modelo],
+    references: [modelos.id_modelo],
+  }),
+}));
+
+export const commissionBonusRulesRelations = relations(commissionBonusRules, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionBonusRules.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  marca: one(marcas, {
+    fields: [commissionBonusRules.id_marca],
+    references: [marcas.id_marca],
+  }),
+  modelo: one(modelos, {
+    fields: [commissionBonusRules.id_modelo],
+    references: [modelos.id_modelo],
+  }),
+}));
+
+export const commissionFinanceRulesRelations = relations(commissionFinanceRules, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionFinanceRules.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+}));
+
+export const commissionLiquidationsRelations = relations(commissionLiquidations, ({ one, many }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionLiquidations.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  lines: many(commissionLiquidationLines),
+}));
+
+export const commissionLiquidationLinesRelations = relations(commissionLiquidationLines, ({ one, many }) => ({
+  liquidation: one(commissionLiquidations, {
+    fields: [commissionLiquidationLines.id_liquidation],
+    references: [commissionLiquidations.id_liquidation],
+  }),
+  expediente: one(expedientes, {
+    fields: [commissionLiquidationLines.id_expediente],
+    references: [expedientes.id_expediente],
+  }),
+  items: many(commissionLiquidationLineItems),
+}));
+
+export const commissionLiquidationLineItemsRelations = relations(commissionLiquidationLineItems, ({ one }) => ({
+  line: one(commissionLiquidationLines, {
+    fields: [commissionLiquidationLineItems.id_line],
+    references: [commissionLiquidationLines.id_line],
+  }),
+}));
+

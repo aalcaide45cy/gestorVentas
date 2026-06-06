@@ -43,6 +43,13 @@
       "when": 1780748120735,
       "tag": "0005_military_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780748999664,
+      "tag": "0006_charming_centennial",
+      "breakpoints": true
     }
   ]
 }
