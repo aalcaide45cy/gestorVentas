@@ -206,16 +206,16 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
       e.cliente?.dni || "",
       e.cliente?.fecha_de_nacimiento || "",
       e.modelo?.marca?.nombre || "",
-      e.modelo?.marca?.activo !== undefined ? String(e.modelo.marca.activo) : "true",
-      e.modelo?.marca?.acceso_rapido !== undefined ? String(e.modelo.marca.acceso_rapido) : "false",
-      e.modelo?.marca?.sistema_comisiones !== undefined ? String(e.modelo.marca.sistema_comisiones) : "false",
+      e.modelo?.marca?.activo !== undefined && e.modelo?.marca?.activo !== null ? String(e.modelo.marca.activo) : "true",
+      e.modelo?.marca?.acceso_rapido !== undefined && e.modelo?.marca?.acceso_rapido !== null ? String(e.modelo.marca.acceso_rapido) : "false",
+      e.modelo?.marca?.sistema_comisiones !== undefined && e.modelo?.marca?.sistema_comisiones !== null ? String(e.modelo.marca.sistema_comisiones) : "false",
       e.modelo?.nombre_modelo || "",
-      e.modelo?.acceso_rapido !== undefined ? String(e.modelo.acceso_rapido) : "false",
-      e.modelo?.orden_acceso_rapido !== undefined ? String(e.modelo.orden_acceso_rapido) : "0",
+      e.modelo?.acceso_rapido !== undefined && e.modelo?.acceso_rapido !== null ? String(e.modelo.acceso_rapido) : "false",
+      e.modelo?.orden_acceso_rapido !== undefined && e.modelo?.orden_acceso_rapido !== null ? String(e.modelo.orden_acceso_rapido) : "0",
       e.tipoDeVenta?.nombre_tipo_venta || "",
       e.tipoDeVenta?.color || "",
       e.estadoVehiculo?.nombre_estado_vehiculo || "",
-      e.estadoVehiculo?.predeterminado !== undefined ? String(e.estadoVehiculo.predeterminado) : "false",
+      e.estadoVehiculo?.predeterminado !== undefined && e.estadoVehiculo?.predeterminado !== null ? String(e.estadoVehiculo.predeterminado) : "false",
       e.usuario?.nombre || "",
       e.fecha_expediente || "",
       e.fecha_afectacion || "",
@@ -226,8 +226,9 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
       e.vin || ""
     ]);
 
-    // Añadir el BOM para asegurar compatibilidad de caracteres especiales (tildes, etc.) en Excel
+    // Añadir el BOM y directiva sep=; para asegurar compatibilidad de caracteres especiales y detección de separador en Excel
     const csvContent = "\uFEFF" + [
+      "sep=;",
       headers.join(";"),
       ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(";"))
     ].join("\n");
@@ -263,8 +264,18 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
           throw new Error("El archivo CSV no contiene suficientes líneas (cabecera + datos).");
         }
 
+        // Detectar si la primera línea es la directiva de separador (ej: sep=;)
+        let headerIndex = 0;
+        if (lines[0].toLowerCase().startsWith("sep=")) {
+          headerIndex = 1;
+        }
+
+        if (lines.length <= headerIndex + 1) {
+          throw new Error("El archivo CSV no contiene suficientes líneas de datos.");
+        }
+
         // Detectar delimitador (punto y coma o coma)
-        const headerLine = lines[0];
+        const headerLine = lines[headerIndex];
         const delimiter = headerLine.includes(";") ? ";" : ",";
         const rawHeaders = headerLine.split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, "").toLowerCase());
 
@@ -296,7 +307,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
         const itemsToImport = [];
 
-        for (let i = 1; i < lines.length; i++) {
+        for (let i = headerIndex + 1; i < lines.length; i++) {
           const line = lines[i];
           // Regex robusto para separar valores respetando comillas
           let parts = [];
