@@ -200,17 +200,14 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ message: "Faltan los IDs de los clientes a eliminar" }, { status: 400 });
     }
 
-    // Ejecutar transaccionalmente: actualizar expedientes para desligar el cliente
-    await db.transaction(async (tx) => {
-      // 1. Poner a null el id_cliente en los expedientes correspondientes
-      await tx.update(expedientes)
-        .set({ id_cliente: null })
-        .where(inArray(expedientes.id_cliente, idsToDelete));
+    // 1. Poner a null el id_cliente en los expedientes correspondientes
+    await db.update(expedientes)
+      .set({ id_cliente: null })
+      .where(inArray(expedientes.id_cliente, idsToDelete));
 
-      // 2. Eliminar los clientes (los correos y teléfonos se borran por cascade en FK)
-      await tx.delete(clientes)
-        .where(inArray(clientes.id, idsToDelete));
-    });
+    // 2. Eliminar los clientes (los correos y teléfonos se borran por cascade en FK)
+    await db.delete(clientes)
+      .where(inArray(clientes.id, idsToDelete));
 
     return NextResponse.json({
       success: true,

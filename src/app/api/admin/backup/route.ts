@@ -138,33 +138,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Formato de backup inválido" }, { status: 400 });
     }
 
-    // Execute in transaction
-    await db.transaction(async (tx) => {
-      // 1. Delete all tables in reverse order to avoid FK constraint violations
-      const reversedTables = [...tablesMap].reverse();
-      for (const table of reversedTables) {
-        await tx.delete(table.schema);
-      }
+    // 1. Delete all tables in reverse order to avoid FK constraint violations
+    const reversedTables = [...tablesMap].reverse();
+    for (const table of reversedTables) {
+      await db.delete(table.schema);
+    }
 
-      // 2. Insert all tables in forward order of dependencies
-      for (const table of tablesMap) {
-        const rows = data[table.key];
-        if (rows && rows.length > 0) {
-          await tx.insert(table.schema).values(rows);
-        }
+    // 2. Insert all tables in forward order of dependencies
+    for (const table of tablesMap) {
+      const rows = data[table.key];
+      if (rows && rows.length > 0) {
+        await db.insert(table.schema).values(rows);
       }
+    }
 
-      // 3. Reset all auto-increment sequences
-      for (const seq of sequenceMap) {
-        await tx.execute(sql.raw(`
-          SELECT setval(
-            pg_get_serial_sequence('${seq.table}', '${seq.pk}'),
-            COALESCE((SELECT MAX(${seq.pk}) FROM ${seq.table}), 1),
-            false
-          );
-        `));
-      }
-    });
+    // 3. Reset all auto-increment sequences
+    for (const seq of sequenceMap) {
+      await db.execute(sql.raw(`
+        SELECT setval(
+          pg_get_serial_sequence('${seq.table}', '${seq.pk}'),
+          COALESCE((SELECT MAX(${seq.pk}) FROM ${seq.table}), 1),
+          false
+        );
+      `));
+    }
 
     return NextResponse.json({
       success: true,
