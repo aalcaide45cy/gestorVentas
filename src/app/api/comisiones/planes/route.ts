@@ -11,6 +11,7 @@ import {
   commissionFinanceRates,
   commissionPreferenceRules,
   commissionVoPatterns,
+  commissionBrandInterventionRates,
   modelos,
   usuarios,
   marcas
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
             }
           },
           voPatterns: true,
+          brandInterventionRates: true,
           liquidations: {
             with: {
               lines: true
@@ -154,6 +156,7 @@ export async function POST(req: NextRequest) {
           sourceRates.map(r => ({
             id_plan: newId,
             id_modelo: r.id_modelo,
+            tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
             rate_x_minus_3: r.rate_x_minus_3,
             rate_x_minus_2: r.rate_x_minus_2,
             rate_x_minus_1: r.rate_x_minus_1,
@@ -162,6 +165,20 @@ export async function POST(req: NextRequest) {
             rate_x_plus_2: r.rate_x_plus_2,
             valor_objetivo: r.valor_objetivo,
             activo: r.activo,
+          }))
+        );
+      }
+
+      // 2b. Clonar tasas de intervención de marcas (brandInterventionRates)
+      const sourceInterventions = await db.query.commissionBrandInterventionRates.findMany({
+        where: eq(commissionBrandInterventionRates.id_plan, sourcePlanId)
+      });
+      if (sourceInterventions.length > 0) {
+        await db.insert(commissionBrandInterventionRates).values(
+          sourceInterventions.map(i => ({
+            id_plan: newId,
+            id_marca: i.id_marca,
+            tasa_intervencion: i.tasa_intervencion,
           }))
         );
       }
@@ -317,11 +334,14 @@ export async function POST(req: NextRequest) {
       }
 
       if (systemModels.length > 0) {
-        await db.insert(commissionPlanModelRates).values(
-          systemModels.map(m => ({
+        const ratesToInsert: any[] = [];
+        systemModels.forEach(m => {
+          // Fila 1: Tasa de intervención inferior
+          ratesToInsert.push({
             id_plan: newId,
             id_modelo: m.id_modelo,
-            rate_x_minus_3: 80, // valores semilla razonables
+            tasa_intervencion_cumplida: false,
+            rate_x_minus_3: 80,
             rate_x_minus_2: 90,
             rate_x_minus_1: 100,
             rate_x: 120,
@@ -329,8 +349,33 @@ export async function POST(req: NextRequest) {
             rate_x_plus_2: 160,
             valor_objetivo: 1,
             activo: true,
-          }))
-        );
+          });
+          // Fila 2: Tasa de intervención superior/igual
+          ratesToInsert.push({
+            id_plan: newId,
+            id_modelo: m.id_modelo,
+            tasa_intervencion_cumplida: true,
+            rate_x_minus_3: 100,
+            rate_x_minus_2: 110,
+            rate_x_minus_1: 120,
+            rate_x: 140,
+            rate_x_plus_1: 160,
+            rate_x_plus_2: 180,
+            valor_objetivo: 1,
+            activo: true,
+          });
+        });
+        await db.insert(commissionPlanModelRates).values(ratesToInsert);
+      }
+
+      // Inicializar tasa de intervención para marcas activas (70% por defecto)
+      const interventionsToInsert = activeBrandIds.map(bId => ({
+        id_plan: newId,
+        id_marca: bId,
+        tasa_intervencion: 70
+      }));
+      if (interventionsToInsert.length > 0) {
+        await db.insert(commissionBrandInterventionRates).values(interventionsToInsert);
       }
 
       // Inicializar regla de financiación plana vacía (compatibilidad)
@@ -410,7 +455,8 @@ export async function PUT(req: NextRequest) {
       usedRates,
       financeRates,
       preferenceRules,
-      voPatterns
+      voPatterns,
+      brandInterventionRates
     } = body;
 
     if (!id_plan) {
@@ -433,19 +479,25 @@ export async function PUT(req: NextRequest) {
 
     // 2. Actualizar tarifas de modelos (rates)
     if (rates && Array.isArray(rates)) {
-      for (const r of rates) {
-        if (r.id_rate) {
-          await db.update(commissionPlanModelRates).set({
-            rate_x_minus_3: Number(r.rate_x_minus_3),
-            rate_x_minus_2: Number(r.rate_x_minus_2),
-            rate_x_minus_1: Number(r.rate_x_minus_1),
-            rate_x: Number(r.rate_x),
-            rate_x_plus_1: Number(r.rate_x_plus_1),
-            rate_x_plus_2: Number(r.rate_x_plus_2),
-            valor_objetivo: Number(r.valor_objetivo),
-            activo: r.activo,
-          }).where(eq(commissionPlanModelRates.id_rate, Number(r.id_rate)));
-        }
+      // Eliminar anteriores de este plan para soportar adición, edición, clonación y eliminación reactivas
+      await db.delete(commissionPlanModelRates).where(eq(commissionPlanModelRates.id_plan, Number(id_plan)));
+      
+      const ratesToInsert = rates.map((r: any) => ({
+        id_plan: Number(id_plan),
+        id_modelo: Number(r.id_modelo),
+        tasa_intervencion_cumplida: !!r.tasa_intervencion_cumplida,
+        rate_x_minus_3: Number(r.rate_x_minus_3 ?? 0),
+        rate_x_minus_2: Number(r.rate_x_minus_2 ?? 0),
+        rate_x_minus_1: Number(r.rate_x_minus_1 ?? 0),
+        rate_x: Number(r.rate_x ?? 0),
+        rate_x_plus_1: Number(r.rate_x_plus_1 ?? 0),
+        rate_x_plus_2: Number(r.rate_x_plus_2 ?? 0),
+        valor_objetivo: Number(r.valor_objetivo ?? 1),
+        activo: r.activo !== undefined ? !!r.activo : true,
+      }));
+
+      if (ratesToInsert.length > 0) {
+        await db.insert(commissionPlanModelRates).values(ratesToInsert);
       }
     }
 
@@ -568,6 +620,22 @@ export async function PUT(req: NextRequest) {
             nombre: v.nombre,
             activo: v.activo !== undefined ? !!v.activo : true,
             tiers: typeof v.tiers === 'string' ? v.tiers : JSON.stringify(v.tiers || []),
+          }))
+        );
+      }
+    }
+
+    // 9b. Actualizar tasas de intervención de marcas (brandInterventionRates)
+    if (brandInterventionRates && Array.isArray(brandInterventionRates)) {
+      await db.delete(commissionBrandInterventionRates).where(eq(commissionBrandInterventionRates.id_plan, Number(id_plan)));
+      
+      const activeInterventions = brandInterventionRates.filter((i: any) => i.id_marca);
+      if (activeInterventions.length > 0) {
+        await db.insert(commissionBrandInterventionRates).values(
+          activeInterventions.map((i: any) => ({
+            id_plan: Number(id_plan),
+            id_marca: Number(i.id_marca),
+            tasa_intervencion: Number(i.tasa_intervencion ?? 70)
           }))
         );
       }

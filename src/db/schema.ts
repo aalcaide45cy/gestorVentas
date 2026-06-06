@@ -240,6 +240,7 @@ export const commissionPlanModelRates = pgTable('commission_plan_model_rates', {
   id_rate: serial('id_rate').primaryKey(),
   id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
   id_modelo: integer('id_modelo').references(() => modelos.id_modelo, { onDelete: 'cascade' }).notNull(),
+  tasa_intervencion_cumplida: boolean('tasa_intervencion_cumplida').notNull().default(false), // false = inferior, true = superior/igual
   rate_x_minus_3: integer('rate_x_minus_3').notNull().default(0),
   rate_x_minus_2: integer('rate_x_minus_2').notNull().default(0),
   rate_x_minus_1: integer('rate_x_minus_1').notNull().default(0),
@@ -333,6 +334,14 @@ export const commissionVoPatterns = pgTable('commission_vo_patterns', {
   tiers: text('tiers').notNull().default('[]'), // JSON string: [{ unidad: 1, importe: 150, valor_objetivo: 1 }]
 });
 
+// 5f. TABLA: COMMISSION_BRAND_INTERVENTION_RATES (Tasa de intervención objetiva por marca y plan)
+export const commissionBrandInterventionRates = pgTable('commission_brand_intervention_rates', {
+  id_intervention_rate: serial('id_intervention_rate').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'cascade' }).notNull(),
+  tasa_intervencion: integer('tasa_intervencion').notNull().default(70), // e.g. 70 para 70%
+});
+
 // 6. TABLA: COMMISSION_LIQUIDATIONS (Liquidación de un plan)
 export const commissionLiquidations = pgTable('commission_liquidations', {
   id_liquidation: serial('id_liquidation').primaryKey(),
@@ -400,6 +409,7 @@ export const commissionPlansRelations = relations(commissionPlans, ({ many, one 
   financeRates: many(commissionFinanceRates),
   preferenceRules: many(commissionPreferenceRules),
   voPatterns: many(commissionVoPatterns),
+  brandInterventionRates: many(commissionBrandInterventionRates),
   liquidations: many(commissionLiquidations),
 }));
 
@@ -515,6 +525,17 @@ export const commissionVoPatternsRelations = relations(commissionVoPatterns, ({ 
   plan: one(commissionPlans, {
     fields: [commissionVoPatterns.id_plan],
     references: [commissionPlans.id_plan],
+  }),
+}));
+
+export const commissionBrandInterventionRatesRelations = relations(commissionBrandInterventionRates, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionBrandInterventionRates.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  marca: one(marcas, {
+    fields: [commissionBrandInterventionRates.id_marca],
+    references: [marcas.id_marca],
   }),
 }));
 

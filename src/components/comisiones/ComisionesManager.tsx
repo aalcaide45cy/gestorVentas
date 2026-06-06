@@ -94,6 +94,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // Financiación por marca
   const [financeRates, setFinanceRates] = useState<any[]>([]);
+  const [brandInterventionRates, setBrandInterventionRates] = useState<any[]>([]);
 
   // Preference / BOX3
   const [preferenceRules, setPreferenceRules] = useState<any[]>([]);
@@ -160,6 +161,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setFinanceRates(plan.financeRates || []);
         setPreferenceRules(plan.preferenceRules || []);
         setVoPatterns(plan.voPatterns || []);
+        setBrandInterventionRates(plan.brandInterventionRates || []);
         
         if (plan.financeRules) {
           setFinanceNormal(plan.financeRules.importe_normal);
@@ -208,7 +210,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           usedRates,
           financeRates,
           preferenceRules,
-          voPatterns
+          voPatterns,
+          brandInterventionRates
         })
       });
 
@@ -492,6 +495,22 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               <button
                 onClick={() => {
                   setCloneFromId("");
+                  
+                  const meses = [
+                    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                  ];
+                  const hoy = new Date();
+                  const mesNombre = meses[hoy.getMonth()];
+                  const anio = hoy.getFullYear();
+                  
+                  const primerDia = `${anio}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+                  const ultimoDiaDate = new Date(anio, hoy.getMonth() + 1, 0);
+                  const ultimoDia = `${anio}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(ultimoDiaDate.getDate()).padStart(2, '0')}`;
+                  
+                  setNewPlanName(`${mesNombre} ${anio}`);
+                  setNewPlanStart(primerDia);
+                  setNewPlanEnd(ultimoDia);
                   setShowCreateModal(true);
                 }}
                 className="btn btn-primary"
@@ -556,6 +575,20 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 onClick={() => {
                                   setCloneFromId(String(p.id_plan));
                                   setNewPlanName(`Copia de ${p.nombre}`);
+                                  
+                                  const meses = [
+                                    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                                    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+                                  ];
+                                  const hoy = new Date();
+                                  const mesNombre = meses[hoy.getMonth()];
+                                  const anio = hoy.getFullYear();
+                                  const primerDia = `${anio}-${String(hoy.getMonth() + 1).padStart(2, '0')}-01`;
+                                  const ultimoDiaDate = new Date(anio, hoy.getMonth() + 1, 0);
+                                  const ultimoDia = `${anio}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(ultimoDiaDate.getDate()).padStart(2, '0')}`;
+                                  
+                                  setNewPlanStart(primerDia);
+                                  setNewPlanEnd(ultimoDia);
                                   setShowCreateModal(true);
                                 }}
                                 className="btn btn-secondary"
@@ -763,6 +796,51 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                   <span style={{ fontWeight: 600 }}>Objetivo Resultante (X = Base + Arrastre)</span>
                   <strong style={{ fontSize: "1.6rem", color: "var(--primary)" }}>{objetivoBase + arrastre}</strong>
                 </div>
+
+                {/* Tasa de Intervención por Marca */}
+                <div style={{ marginTop: "24px", borderTop: "1px solid var(--border-light)", paddingTop: "24px" }}>
+                  <h4 style={{ fontSize: "1.05rem", color: "var(--text-primary)", marginBottom: "8px" }}>Tasa de Intervención Objetiva por Marca</h4>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", marginBottom: "16px" }}>
+                    Establece el porcentaje objetivo de financiamientos sobre las matriculaciones de cada marca en el mes.
+                  </p>
+                  
+                  {marcas.filter(m => !!m.sistema_comisiones).map((brand) => {
+                    const rateObj = brandInterventionRates.find(r => r.id_marca === brand.id) || {
+                      id_marca: brand.id,
+                      tasa_intervencion: 70
+                    };
+
+                    const handleInterventionChange = (newVal: number) => {
+                      const existingIdx = brandInterventionRates.findIndex(r => r.id_marca === brand.id);
+                      if (existingIdx !== -1) {
+                        const updated = [...brandInterventionRates];
+                        updated[existingIdx] = { ...updated[existingIdx], tasa_intervencion: newVal };
+                        setBrandInterventionRates(updated);
+                      } else {
+                        setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, tasa_intervencion: newVal }]);
+                      }
+                    };
+
+                    return (
+                      <div key={brand.id} className="form-group" style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
+                        <span style={{ fontWeight: 600, fontSize: "0.88rem" }}>{brand.nombre}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <input
+                            type="number"
+                            className="form-input"
+                            value={rateObj.tasa_intervencion}
+                            onChange={(e) => handleInterventionChange(Number(e.target.value))}
+                            disabled={planEstado === "cerrado" || !isAdmin}
+                            style={{ width: "80px", textAlign: "right", padding: "6px" }}
+                            min={0}
+                            max={100}
+                          />
+                          <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -787,7 +865,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                   <div>
                     <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Modelos VN por Tramo</h3>
                     <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
-                      Define el valor computable para el objetivo (ej: 2 para modelos dobles) y el importe económico a comisionar según el tramo de cumplimiento para coches nuevos.
+                      Define las tarifas de comisiones de coches nuevos agrupados por marcas. Cada modelo tiene 2 líneas: una para cuando la tasa de intervención real del mes sea inferior a la establecida y otra para cuando sea superior o igual.
                     </p>
                   </div>
 
@@ -797,17 +875,46 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       return mId === brand.id;
                     });
 
+                    // Ordenar por nombre del modelo y luego por tasa cumplida (falses primero)
+                    brandRates.sort((a, b) => {
+                      const nameA = modelos.find(m => m.id === a.id_modelo)?.nombre || "";
+                      const nameB = modelos.find(m => m.id === b.id_modelo)?.nombre || "";
+                      if (nameA !== nameB) return nameA.localeCompare(nameB);
+                      return (a.tasa_intervencion_cumplida ? 1 : 0) - (b.tasa_intervencion_cumplida ? 1 : 0);
+                    });
+
+                    const handleCloneRate = (r: any) => {
+                      const cloned = {
+                        ...r,
+                        id_rate: undefined, // remove DB PK so it creates a new one
+                      };
+                      setRates([...rates, cloned]);
+                      showNotification(`Tarifa de ${modelos.find(m => m.id === r.id_modelo)?.nombre || "modelo"} clonada al final`, "success");
+                    };
+
+                    const handleDeleteRate = (r: any) => {
+                      setRates(rates.filter(item => item !== r));
+                      showNotification("Línea eliminada con éxito", "success");
+                    };
+
                     return (
                       <div key={brand.id} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.01)" }}>
-                        <h4 style={{ margin: 0, fontSize: "1.05rem", color: "var(--primary)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          📦 Modelos de {brand.nombre}
-                        </h4>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px" }}>
+                          <h4 style={{ margin: 0, fontSize: "1.05rem", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                            📦 Modelos de {brand.nombre}
+                          </h4>
+                          
+                          {isAdmin && planEstado !== "cerrado" && (
+                            <BrandModelAdder brandId={brand.id} rates={rates} setRates={setRates} modelos={modelos} showNotification={showNotification} />
+                          )}
+                        </div>
 
                         <div className="table-container">
                           <table className="table-premium" style={{ fontSize: "0.9rem" }}>
                             <thead>
                               <tr>
                                 <th>Modelo</th>
+                                <th>Tasa Intervención</th>
                                 <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
                                 <th style={{ width: "90px" }}>X - 3</th>
                                 <th style={{ width: "90px" }}>X - 2</th>
@@ -816,22 +923,41 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 <th style={{ width: "90px" }}>X + 1</th>
                                 <th style={{ width: "90px" }}>X + 2</th>
                                 <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
+                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "160px" }}>Acciones</th>}
                               </tr>
                             </thead>
                             <tbody>
                               {brandRates.map((r, idx) => {
                                 const handleChange = (field: string, val: any) => {
-                                  const originalIdx = rates.findIndex(item => item.id_modelo === r.id_modelo);
-                                  if (originalIdx !== -1) {
-                                    const updated = [...rates];
-                                    updated[originalIdx] = { ...updated[originalIdx], [field]: val };
-                                    setRates(updated);
-                                  }
+                                  const updated = rates.map(item => {
+                                    if (item === r) {
+                                      return { ...item, [field]: val };
+                                    }
+                                    return item;
+                                  });
+                                  setRates(updated);
                                 };
 
                                 return (
                                   <tr key={r.id_rate || idx}>
-                                    <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{r.modelo?.nombre_modelo || "Sin Nombre"}</td>
+                                    <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{modelos.find(m => m.id === r.id_modelo)?.nombre || "Sin Nombre"}</td>
+                                    <td>
+                                      {planEstado === "cerrado" || !isAdmin ? (
+                                        <span className={`badge ${r.tasa_intervencion_cumplida ? 'badge-tienda' : 'badge-admin'}`} style={{ fontSize: "0.75rem" }}>
+                                          {r.tasa_intervencion_cumplida ? "Tasa ≥ Target" : "Tasa < Target"}
+                                        </span>
+                                      ) : (
+                                        <select
+                                          className="form-select"
+                                          value={r.tasa_intervencion_cumplida ? "true" : "false"}
+                                          onChange={(e) => handleChange("tasa_intervencion_cumplida", e.target.value === "true")}
+                                          style={{ padding: "4px 8px", fontSize: "0.85rem" }}
+                                        >
+                                          <option value="false">Tasa {"<"} Target</option>
+                                          <option value="true">Tasa ≥ Target</option>
+                                        </select>
+                                      )}
+                                    </td>
                                     <td style={{ textAlign: "center" }}>
                                       <select
                                         className="form-select"
@@ -865,12 +991,40 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         disabled={planEstado === "cerrado" || !isAdmin}
                                       />
                                     </td>
+                                    {isAdmin && planEstado !== "cerrado" && (
+                                      <td>
+                                        <div style={{ display: "flex", gap: "6px" }}>
+                                          <button
+                                            type="button"
+                                            className="btn btn-secondary"
+                                            onClick={() => handleCloneRate(r)}
+                                            style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                            title="Clonar esta línea de tarifas"
+                                          >
+                                            📋 Clonar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn"
+                                            onClick={() => handleDeleteRate(r)}
+                                            style={{
+                                              padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                              background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                              borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                            }}
+                                            title="Eliminar esta línea"
+                                          >
+                                            🗑️ Quitar
+                                          </button>
+                                        </div>
+                                      </td>
+                                    )}
                                   </tr>
                                 );
                               })}
                               {brandRates.length === 0 && (
                                 <tr>
-                                  <td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                                  <td colSpan={11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
                                     No hay modelos de {brand.nombre} configurados en este plan.
                                   </td>
                                 </tr>
@@ -2164,5 +2318,83 @@ function LineDetailsItems({ lineId }: { lineId: number }) {
         <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", textAlign: "center" }}>No hay conceptos aplicados.</div>
       )}
     </>
+  );
+}
+
+interface BrandModelAdderProps {
+  brandId: number;
+  rates: any[];
+  setRates: (rates: any[]) => void;
+  modelos: any[];
+  showNotification: (text: string, type: "success" | "error") => void;
+}
+
+function BrandModelAdder({ brandId, rates, setRates, modelos, showNotification }: BrandModelAdderProps) {
+  const [selectedModeloId, setSelectedModeloId] = useState<number | "">("");
+  const [tasaIntervencion, setTasaIntervencion] = useState<boolean>(false);
+
+  const brandModels = modelos.filter(m => m.marca_id === brandId);
+
+  const handleAdd = () => {
+    if (!selectedModeloId) return;
+
+    const exists = rates.some(
+      r => r.id_modelo === Number(selectedModeloId) && r.tasa_intervencion_cumplida === tasaIntervencion
+    );
+    if (exists) {
+      showNotification("Ya existe una tarifa para este modelo con la tasa de intervención seleccionada.", "error");
+      return;
+    }
+
+    const newRate = {
+      id_modelo: Number(selectedModeloId),
+      tasa_intervencion_cumplida: tasaIntervencion,
+      rate_x_minus_3: 80,
+      rate_x_minus_2: 90,
+      rate_x_minus_1: 100,
+      rate_x: 120,
+      rate_x_plus_1: 140,
+      rate_x_plus_2: 160,
+      valor_objetivo: 1,
+      activo: true,
+    };
+
+    setRates([...rates, newRate]);
+    setSelectedModeloId("");
+    showNotification("Tarifa añadida con éxito. Guarda el plan para persistir los cambios.", "success");
+  };
+
+  return (
+    <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+      <select
+        className="form-select"
+        value={selectedModeloId}
+        onChange={e => setSelectedModeloId(e.target.value ? Number(e.target.value) : "")}
+        style={{ width: "160px", padding: "4px 8px", fontSize: "0.8rem" }}
+      >
+        <option value="">-- Modelo --</option>
+        {brandModels.map(m => (
+          <option key={m.id} value={m.id}>{m.nombre}</option>
+        ))}
+      </select>
+      <select
+        className="form-select"
+        value={tasaIntervencion ? "true" : "false"}
+        onChange={e => setTasaIntervencion(e.target.value === "true")}
+        style={{ width: "140px", padding: "4px 8px", fontSize: "0.8rem" }}
+      >
+        <option value="false">Tasa {"<"} Target</option>
+        <option value="true">Tasa ≥ Target</option>
+      </select>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        onClick={handleAdd}
+        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+        disabled={!selectedModeloId}
+      >
+        ➕ Añadir Línea
+      </button>
+    </div>
   );
 }

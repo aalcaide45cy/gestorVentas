@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
         financeRates: true,
         preferenceRules: true,
         voPatterns: true,
+        brandInterventionRates: true,
         liquidations: true
       }
     });
@@ -178,6 +179,45 @@ export async function POST(req: NextRequest) {
         return dateA.localeCompare(dateB);
       });
 
+      // Pre-calcular tasas de intervención por marca para el vendedor actual (basado en VN matriculados)
+      const totalMatriculadosPorMarca: Record<number, number> = {};
+      const financiadosPorMarca: Record<number, number> = {};
+
+      vendedorExps.forEach((exp) => {
+        const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+        if (entraMatriculacion) {
+          const brandId = exp.modelo?.marca_id;
+          if (brandId) {
+            const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+            const isVN = stateName === "nuevo" || stateName === "demo";
+            
+            if (isVN) {
+              totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
+              
+              const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+              const isFinanced = salesTypeName.includes("preference") || 
+                                 salesTypeName.includes("crédito") || 
+                                 salesTypeName.includes("credito") || 
+                                 salesTypeName.includes("renting");
+              if (isFinanced) {
+                financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
+              }
+            }
+          }
+        }
+      });
+
+      const checkTasaCumplida = (brandId: number) => {
+        const total = totalMatriculadosPorMarca[brandId] || 0;
+        if (total === 0) return true; // Por defecto cumple si no tiene matriculaciones de esa marca
+        
+        const financiados = financiadosPorMarca[brandId] || 0;
+        const actualRate = (financiados / total) * 100;
+        
+        const targetRate = plan.brandInterventionRates?.find((i: any) => i.id_marca === brandId)?.tasa_intervencion ?? 70;
+        return actualRate >= targetRate;
+      };
+
       // --- Primera Pasada: Identificar tipos, calcular totalComputablesVendedor y matriculacionesRealesVendedor ---
       let totalComputablesVendedor = 0;
       let matriculacionesRealesVendedor = 0;
@@ -210,11 +250,13 @@ export async function POST(req: NextRequest) {
         // A. Cómputo objetivo base VN o VO
         if (entraMatriculacion) {
           if (isVN) {
-            const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
+            const brandId = exp.modelo?.marca_id;
+            const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
+            const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
             if (modelRate) {
               objValorExpediente += modelRate.valor_objetivo;
               itemsDetalle.push({
-                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo})`,
+                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo}) [${tasaCumplida ? 'Tasa OK' : 'Tasa Baja'}]`,
                 importe: 0,
                 afecta_objetivo: true,
                 valor_objetivo: modelRate.valor_objetivo
@@ -368,7 +410,9 @@ export async function POST(req: NextRequest) {
           if (isVN) {
             if (!isVOVendedor) {
               // VN
-              const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
+              const brandId = exp.modelo?.marca_id;
+              const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
+              const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
               if (modelRate) {
                 let rateImporte = modelRate.rate_x_minus_3;
                 if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
@@ -379,7 +423,7 @@ export async function POST(req: NextRequest) {
 
                 comisionBaseVN = rateImporte;
                 finalItems.push({
-                  concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Tramo ${tramoAlcanzado}`,
+                  concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Tramo ${tramoAlcanzado} (${tasaCumplida ? 'Tasa Int. OK' : 'Tasa Int. Baja'})`,
                   importe: rateImporte,
                   afecta_objetivo: false,
                   valor_objetivo: 0
