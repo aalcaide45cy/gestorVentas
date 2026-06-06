@@ -146,7 +146,37 @@ export async function POST(req: NextRequest) {
 
     // 2. Insert all tables in forward order of dependencies
     for (const table of tablesMap) {
-      const rows = data[table.key];
+      let rows = data[table.key];
+      
+      // Medida de seguridad: Evitar que el administrador que restaura pierda acceso
+      if (table.key === "usuarios" && rows) {
+        const adminClerkId = admin.clerk_id;
+        const adminIndex = rows.findIndex((u: any) => u.clerk_id === adminClerkId);
+        
+        if (adminIndex > -1) {
+          // Si el usuario existe en el backup, forzar rol administrador y desbloquearlo
+          rows[adminIndex].rol = "administrador";
+          rows[adminIndex].bloqueado = false;
+        } else {
+          // Si el usuario no existe en el backup, añadirlo para evitar que quede huérfano
+          const existingIds = new Set(rows.map((u: any) => Number(u.id_usuario)));
+          let targetId = admin.id_usuario;
+          while (existingIds.has(targetId)) {
+            targetId++;
+          }
+          rows.push({
+            id_usuario: targetId,
+            clerk_id: adminClerkId,
+            nombre: admin.nombre,
+            rol: "administrador",
+            fecha_de_registro: admin.fecha_de_registro || new Date().toISOString().split("T")[0],
+            bloqueado: false,
+            tipo_vendedor: admin.tipo_vendedor || "VN",
+            patron_vo: admin.patron_vo || "Estándar VO"
+          });
+        }
+      }
+
       if (rows && rows.length > 0) {
         await db.insert(table.schema).values(rows);
       }
