@@ -36,6 +36,13 @@
       "when": 1780271522062,
       "tag": "0004_misty_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780748120735,
+      "tag": "0005_military_hulk",
+      "breakpoints": true
     }
   ]
 }

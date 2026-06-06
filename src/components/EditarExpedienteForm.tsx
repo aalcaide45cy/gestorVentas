@@ -207,6 +207,7 @@ export default function EditarExpedienteForm({
 
   const [fechaExpediente, setFechaExpediente] = useState(expediente.fecha_expediente || "");
   const [fechaAfectacion, setFechaAfectacion] = useState(expediente.fecha_afectacion || "");
+  const [fechaRci, setFechaRci] = useState(expediente.fecha_rci || "");
   const [fechaMatriculacion, setFechaMatriculacion] = useState(expediente.fecha_matriculacion || "");
   const [fechaEntrega, setFechaEntrega] = useState(expediente.fecha_entrega || "");
   const [matricula, setMatricula] = useState(expediente.matricula || "");
@@ -280,6 +281,7 @@ export default function EditarExpedienteForm({
     if (estadoVehiculoSeleccionado !== (expediente.id_estado_vehiculo || "")) return true;
     if (fechaExpediente !== (expediente.fecha_expediente || "")) return true;
     if (fechaAfectacion !== (expediente.fecha_afectacion || "")) return true;
+    if (fechaRci !== (expediente.fecha_rci || "")) return true;
     if (fechaMatriculacion !== (expediente.fecha_matriculacion || "")) return true;
     if (fechaEntrega !== (expediente.fecha_entrega || "")) return true;
     if (matricula !== (expediente.matricula || "")) return true;
@@ -316,7 +318,7 @@ export default function EditarExpedienteForm({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleAnchorClick, true);
     };
-  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaMatriculacion, fechaEntrega, success]);
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, success]);
 
   // Envío del Formulario
   const handleSubmit = async (e: React.FormEvent) => {
@@ -338,6 +340,7 @@ export default function EditarExpedienteForm({
             id_tienda: tiendaId ? Number(tiendaId) : null,
             fecha_expediente: fechaExpediente || null,
             fecha_afectacion: fechaAfectacion || null,
+            fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
@@ -656,6 +659,10 @@ export default function EditarExpedienteForm({
             <div className="form-group">
               <label className="form-label">Fecha Afectación</label>
               <input type="date" className="form-input" value={fechaAfectacion} onChange={e => setFechaAfectacion(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fecha RCI (Financiación)</label>
+              <input type="date" className="form-input" value={fechaRci} onChange={e => setFechaRci(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Matriculación</label>

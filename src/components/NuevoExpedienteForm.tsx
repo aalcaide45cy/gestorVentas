@@ -198,6 +198,7 @@ export default function NuevoExpedienteForm({
 
   const [fechaExpediente, setFechaExpediente] = useState(new Date().toISOString().split("T")[0]);
   const [fechaAfectacion, setFechaAfectacion] = useState("");
+  const [fechaRci, setFechaRci] = useState("");
   const [fechaMatriculacion, setFechaMatriculacion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [matricula, setMatricula] = useState("");
@@ -254,6 +255,7 @@ export default function NuevoExpedienteForm({
     const today = new Date().toISOString().split("T")[0];
     if (fechaExpediente !== today) return true;
     if (fechaAfectacion !== "") return true;
+    if (fechaRci !== "") return true;
     if (fechaMatriculacion !== "") return true;
     if (fechaEntrega !== "") return true;
 
@@ -288,7 +290,7 @@ export default function NuevoExpedienteForm({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleAnchorClick, true);
     };
-  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaMatriculacion, fechaEntrega, success]);
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, success]);
 
   // Envío del Formulario
   const handleSubmit = async (e: React.FormEvent) => {
@@ -328,6 +330,7 @@ export default function NuevoExpedienteForm({
             id_tienda: tiendaId ? Number(tiendaId) : null,
             fecha_expediente: fechaExpediente || null,
             fecha_afectacion: fechaAfectacion || null,
+            fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
@@ -646,6 +649,10 @@ export default function NuevoExpedienteForm({
             <div className="form-group">
               <label className="form-label">Fecha Afectación</label>
               <input type="date" className="form-input" value={fechaAfectacion} onChange={e => setFechaAfectacion(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fecha RCI (Financiación)</label>
+              <input type="date" className="form-input" value={fechaRci} onChange={e => setFechaRci(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Matriculación</label>

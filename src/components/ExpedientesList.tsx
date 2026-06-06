@@ -48,6 +48,7 @@ interface Expediente {
   fecha_afectacion: string | null;
   fecha_matriculacion: string | null;
   fecha_entrega: string | null;
+  fecha_rci: string | null;
   matricula: string | null;
   id_tipo_de_venta: number | null;
   id_estado_vehiculo: number | null;
@@ -74,17 +75,18 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
   // Modales y estados para fechas inline
   const [editDateModal, setEditDateModal] = useState<{
     expediente: Expediente;
-    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega";
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci";
     displayName: string;
   } | null>(null);
 
   const [deleteDateModal, setDeleteDateModal] = useState<{
     expediente: Expediente;
-    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega";
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci";
     displayName: string;
   } | null>(null);
 
   const [inputDate, setInputDate] = useState("");
+  const [inputMatricula, setInputMatricula] = useState("");
 
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,9 +101,14 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
     }
   };
 
-  const handleOpenEditDate = (exp: Expediente, field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega", displayName: string) => {
+  const handleOpenEditDate = (
+    exp: Expediente,
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    displayName: string
+  ) => {
     const today = new Date().toISOString().split("T")[0];
-    setInputDate(today);
+    setInputDate(exp[field] || today);
+    setInputMatricula(exp.matricula || "");
     setEditDateModal({ expediente: exp, fieldName: field, displayName });
   };
 
@@ -112,15 +119,24 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
     const { expediente, fieldName, displayName } = editDateModal;
 
+    const updatePayload: any = {
+      [fieldName]: inputDate || null,
+    };
+
+    if (fieldName === "fecha_matriculacion") {
+      updatePayload.matricula = inputMatricula || null;
+      if (!expediente.fecha_rci) {
+        updatePayload.fecha_rci = inputDate || null;
+      }
+    }
+
     try {
       const response = await fetch("/api/expedientes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id_expediente: expediente.id_expediente,
-          expediente: {
-            [fieldName]: inputDate || null,
-          },
+          expediente: updatePayload,
         }),
       });
 
@@ -132,7 +148,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
       setExpedientes(prev => prev.map(e => e.id_expediente === expediente.id_expediente ? {
         ...e,
-        [fieldName]: inputDate || null,
+        ...updatePayload,
       } : e));
 
       showNotification(`Fecha de ${displayName} actualizada correctamente.`, "success");
@@ -145,7 +161,11 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
     }
   };
 
-  const handleOpenDeleteDate = (exp: Expediente, field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega", displayName: string) => {
+  const handleOpenDeleteDate = (
+    exp: Expediente,
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    displayName: string
+  ) => {
     setDeleteDateModal({ expediente: exp, fieldName: field, displayName });
   };
 
@@ -219,7 +239,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
   // Renderizador inline de fecha con botones
   const renderDateField = (
     exp: Expediente,
-    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega",
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
     displayName: string,
     backgroundColor?: string
   ) => {
@@ -332,10 +352,11 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                 <th>Tipo Venta</th>
                 <th>Estado Vehículo</th>
                 <th>Vendedor</th>
-                 <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
                 <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Mat</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Entrega</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. RCI</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Mat</th>
+                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Entrega</th>
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -391,8 +412,9 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                     <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
                   </td>
                   {renderDateField(exp, "fecha_afectacion", "Afectación", "rgba(128, 128, 128, 0.09)")}
-                  {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.03)")}
-                  {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.09)")}
+                  {renderDateField(exp, "fecha_rci", "RCI", "rgba(128, 128, 128, 0.03)")}
+                  {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.09)")}
+                  {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.03)")}
                   <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
@@ -469,6 +491,19 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                 onChange={e => setInputDate(e.target.value)}
               />
             </div>
+
+            {editDateModal.fieldName === "fecha_matriculacion" && (
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Matrícula (Opcional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={inputMatricula}
+                  onChange={e => setInputMatricula(e.target.value)}
+                  placeholder="Ej. 1234ABC"
+                />
+              </div>
+            )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
               <button

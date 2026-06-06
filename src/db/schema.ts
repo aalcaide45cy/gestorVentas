@@ -108,6 +108,7 @@ export const expedientes = pgTable('expedientes', {
   fecha_afectacion: date('fecha_afectacion'),
   fecha_matriculacion: date('fecha_matriculacion'),
   fecha_entrega: date('fecha_entrega'),
+  fecha_rci: date('fecha_rci'),
   matricula: varchar('matricula', { length: 50 }),
   id_tipo_de_venta: integer('id_tipo_de_venta').references(() => tipoDeVenta.id_tipo_de_venta),
   id_estado_vehiculo: integer('id_estado_vehiculo').references(() => estadoVehiculo.id_estado_vehiculo),
