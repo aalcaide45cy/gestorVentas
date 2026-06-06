@@ -77,16 +77,16 @@ const sequenceMap = [
   { table: 'commission_plans', pk: 'id_plan' },
   { table: 'commission_plan_model_rates', pk: 'id_rate' },
   { table: 'commission_rules', pk: 'id_rule' },
-  { table: 'commission_bonus_rules', pk: 'id_bonus_rule' },
-  { table: 'commission_finance_rules', pk: 'id_finance_rule' },
+  { table: 'commission_bonus_rules', pk: 'id_bonus' },
+  { table: 'commission_finance_rules', pk: 'id_finance' },
   { table: 'commission_used_rates', pk: 'id_used_rate' },
   { table: 'commission_finance_rates', pk: 'id_finance_rate' },
   { table: 'commission_preference_rules', pk: 'id_pref_rule' },
   { table: 'commission_vo_patterns', pk: 'id_vo_pattern' },
-  { table: 'commission_brand_intervention_rates', pk: 'id_rate' },
+  { table: 'commission_brand_intervention_rates', pk: 'id_intervention_rate' },
   { table: 'commission_liquidations', pk: 'id_liquidation' },
   { table: 'commission_liquidation_lines', pk: 'id_line' },
-  { table: 'commission_liquidation_line_items', pk: 'id_item' }
+  { table: 'commission_liquidation_line_items', pk: 'id_line_item' }
 ];
 
 async function checkAdmin() {
