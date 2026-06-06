@@ -58,9 +58,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // Modelos y tarifas
   const [rates, setRates] = useState<any[]>([]);
-  const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
-  const [modalBrandId, setModalBrandId] = useState<number | "">("");
-  const [modalModelId, setModalModelId] = useState<number | "">("");
 
   // Reglas generales
   const [rules, setRules] = useState<any[]>([]);
@@ -98,6 +95,21 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   // Financiación por marca
   const [financeRates, setFinanceRates] = useState<any[]>([]);
   const [brandInterventionRates, setBrandInterventionRates] = useState<any[]>([]);
+
+  // Clipboard para copiar/pegar valores de tarifas
+  const [rateClipboard, setRateClipboard] = useState<{
+    valor_objetivo: number;
+    rate_x_minus_3: number;
+    rate_x_minus_2: number;
+    rate_x_minus_1: number;
+    rate_x: number;
+    rate_x_plus_1: number;
+    rate_x_plus_2: number;
+    activo: boolean;
+  } | null>(null);
+
+  // Orden manual de modelos por marca (map brandId -> array de modelIds)
+  const [modelOrder, setModelOrder] = useState<Record<number, number[]>>({});
 
   // Preference / BOX3
   const [preferenceRules, setPreferenceRules] = useState<any[]>([]);
@@ -227,121 +239,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     } finally {
       setLoadingPlan(false);
     }
-  };
-
-  // Funciones para gestión de Modelos VN
-  const handleModalAddModel = () => {
-    if (!modalBrandId || !modalModelId) return;
-
-    const exists = rates.some(r => r.id_modelo === Number(modalModelId));
-    if (exists) {
-      showNotification("Ya existen tarifas para este modelo en este plan.", "error");
-      return;
-    }
-
-    const rateLess = {
-      id_modelo: Number(modalModelId),
-      tasa_intervencion_cumplida: false,
-      rate_x_minus_3: 80,
-      rate_x_minus_2: 90,
-      rate_x_minus_1: 100,
-      rate_x: 120,
-      rate_x_plus_1: 140,
-      rate_x_plus_2: 160,
-      valor_objetivo: 1,
-      activo: true,
-    };
-
-    const rateMore = {
-      id_modelo: Number(modalModelId),
-      tasa_intervencion_cumplida: true,
-      rate_x_minus_3: 100,
-      rate_x_minus_2: 110,
-      rate_x_minus_1: 120,
-      rate_x: 140,
-      rate_x_plus_1: 160,
-      rate_x_plus_2: 180,
-      valor_objetivo: 1,
-      activo: true,
-    };
-
-    setRates([...rates, rateLess, rateMore]);
-    setModalModelId("");
-    setIsAddModelModalOpen(false);
-    showNotification("Modelo y sus tarifas añadidos con éxito. Guarda el plan para persistir.", "success");
-  };
-
-  const handleCloneModel = (modelId: number) => {
-    const modelRates = rates.filter(r => r.id_modelo === modelId);
-    const clonedRates = modelRates.map(r => ({
-      ...r,
-      id_rate: undefined, // Clear primary key
-    }));
-    setRates([...rates, ...clonedRates]);
-    showNotification("Modelo clonado. Modifica el modelo en el desplegable si es necesario.", "success");
-  };
-
-  const handleModelChange = (oldModelId: number, newModelId: number) => {
-    const exists = rates.some(r => r.id_modelo === newModelId);
-    if (exists) {
-      showNotification("Ya existe una configuración de tarifas para el modelo seleccionado.", "error");
-      return;
-    }
-
-    const updated = rates.map(item => {
-      if (item.id_modelo === oldModelId) {
-        return { ...item, id_modelo: newModelId };
-      }
-      return item;
-    });
-    setRates(updated);
-    showNotification("Modelo actualizado correctamente.", "success");
-  };
-
-  const handleMoveModel = (modelId: number, brandId: number, direction: "up" | "down") => {
-    // Get unique model IDs for this brand in the order they currently appear in `rates`
-    const brandModelIds: number[] = [];
-    rates.forEach(r => {
-      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
-      if (mId === brandId && r.id_modelo && !brandModelIds.includes(r.id_modelo)) {
-        brandModelIds.push(r.id_modelo);
-      }
-    });
-
-    const index = brandModelIds.indexOf(modelId);
-    if (index === -1) return;
-    if (direction === "up" && index === 0) return;
-    if (direction === "down" && index === brandModelIds.length - 1) return;
-
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-
-    // Swap in the temp array
-    const newBrandModelIds = [...brandModelIds];
-    const temp = newBrandModelIds[index];
-    newBrandModelIds[index] = newBrandModelIds[targetIndex];
-    newBrandModelIds[targetIndex] = temp;
-
-    // Reconstruct the main rates array
-    const otherRates = rates.filter(r => {
-      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
-      return mId !== brandId;
-    });
-
-    const thisBrandRates = rates.filter(r => {
-      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
-      return mId === brandId;
-    });
-
-    thisBrandRates.sort((a, b) => {
-      const idxA = newBrandModelIds.indexOf(a.id_modelo);
-      const idxB = newBrandModelIds.indexOf(b.id_modelo);
-      if (idxA === -1) return 1;
-      if (idxB === -1) return -1;
-      if (idxA !== idxB) return idxA - idxB;
-      return (a.tasa_intervencion_cumplida ? 1 : 0) - (b.tasa_intervencion_cumplida ? 1 : 0);
-    });
-
-    setRates([...otherRates, ...thisBrandRates]);
   };
 
   // Guardar Plan
@@ -1041,26 +938,75 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       return mId === brand.id;
                     });
 
+                    // Clipboard: copiar valores de una línea
+                    const handleCopyRate = (r: any) => {
+                      setRateClipboard({
+                        valor_objetivo: r.valor_objetivo,
+                        rate_x_minus_3: r.rate_x_minus_3 || 0,
+                        rate_x_minus_2: r.rate_x_minus_2 || 0,
+                        rate_x_minus_1: r.rate_x_minus_1 || 0,
+                        rate_x: r.rate_x || 0,
+                        rate_x_plus_1: r.rate_x_plus_1 || 0,
+                        rate_x_plus_2: r.rate_x_plus_2 || 0,
+                        activo: r.activo !== false,
+                      });
+                      showNotification("Valores copiados al portapapeles. Usa 📋 Pegar en otra línea.", "success");
+                    };
+
+                    const handlePasteRate = (targetRate: any) => {
+                      if (!rateClipboard) {
+                        showNotification("No hay valores en el portapapeles. Copia primero con 📄 Copiar.", "error");
+                        return;
+                      }
+                      const updated = rates.map(item => {
+                        if (item === targetRate) {
+                          return { ...item, ...rateClipboard };
+                        }
+                        return item;
+                      });
+                      setRates(updated);
+                      showNotification("Valores pegados correctamente.", "success");
+                    };
+
+                    // Reordering helpers
+                    const handleMoveModel = (currentModelIds: number[], modelId: number, direction: "up" | "down") => {
+                      const idx = currentModelIds.indexOf(modelId);
+                      if (idx === -1) return;
+                      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+                      if (swapIdx < 0 || swapIdx >= currentModelIds.length) return;
+                      const newOrder = [...currentModelIds];
+                      [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+                      setModelOrder(prev => ({ ...prev, [brand.id]: newOrder }));
+                    };
+
+                    // Model change handler
+                    const handleChangeModel = (oldModelId: number, newModelId: number) => {
+                      const updated = rates.map(item => {
+                        if (item.id_modelo === oldModelId) {
+                          return { ...item, id_modelo: newModelId };
+                        }
+                        return item;
+                      });
+                      setRates(updated);
+                      // Update model order if exists
+                      if (modelOrder[brand.id]) {
+                        setModelOrder(prev => ({
+                          ...prev,
+                          [brand.id]: prev[brand.id].map(id => id === oldModelId ? newModelId : id)
+                        }));
+                      }
+                      const newModelName = modelos.find(m => m.id === newModelId)?.nombre || "modelo";
+                      showNotification(`Modelo cambiado a ${newModelName} correctamente.`, "success");
+                    };
+
                     return (
                       <div key={brand.id} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.01)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px" }}>
                           <h4 style={{ margin: 0, fontSize: "1.05rem", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                             📦 Modelos de {brand.nombre}
                           </h4>
-                          
-                          {isAdmin && planEstado !== "cerrado" && (
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => {
-                                setModalBrandId(brand.id);
-                                setModalModelId("");
-                                setIsAddModelModalOpen(true);
-                              }}
-                              style={{ padding: "6px 12px", fontSize: "0.8rem" }}
-                            >
-                              ➕ Añadir Modelo
-                            </button>
+                          {rateClipboard && (
+                            <span style={{ fontSize: "0.75rem", color: "var(--success)", fontWeight: 600 }}>📋 Portapapeles con datos</span>
                           )}
                         </div>
 
@@ -1068,7 +1014,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <table className="table-premium" style={{ fontSize: "0.9rem" }}>
                             <thead>
                               <tr>
-                                <th>Modelo</th>
+                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "50px", textAlign: "center" }}>Orden</th>}
+                                <th style={{ minWidth: "140px" }}>Modelo</th>
                                 <th>Tasa Intervención</th>
                                 <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
                                 <th style={{ width: "90px" }}>X - 3</th>
@@ -1078,23 +1025,38 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 <th style={{ width: "90px" }}>X + 1</th>
                                 <th style={{ width: "90px" }}>X + 2</th>
                                 <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
-                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "120px" }}>Acciones</th>}
+                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "150px" }}>Acciones</th>}
                               </tr>
                             </thead>
                             <tbody>
                               {(() => {
-                                // Get all unique model IDs for this brand in their current array order in rates
-                                const modelIds: number[] = [];
-                                brandRates.forEach(r => {
-                                  if (r.id_modelo && !modelIds.includes(r.id_modelo)) {
-                                    modelIds.push(r.id_modelo);
-                                  }
-                                });
+                                // Get all unique model IDs for this brand in the rates
+                                let sortedModelIds = Array.from(new Set(brandRates.map(r => r.id_modelo).filter(Boolean)));
+                                
+                                // Use custom order if set, otherwise alphabetical
+                                if (modelOrder[brand.id] && modelOrder[brand.id].length > 0) {
+                                  const customOrder = modelOrder[brand.id];
+                                  // Keep models that exist in rates, in custom order, then any new ones appended
+                                  const ordered = customOrder.filter(id => sortedModelIds.includes(id));
+                                  const remaining = sortedModelIds.filter(id => !ordered.includes(id));
+                                  remaining.sort((a, b) => {
+                                    const na = modelos.find(m => m.id === a)?.nombre || "";
+                                    const nb = modelos.find(m => m.id === b)?.nombre || "";
+                                    return na.localeCompare(nb);
+                                  });
+                                  sortedModelIds = [...ordered, ...remaining];
+                                } else {
+                                  sortedModelIds.sort((idA, idB) => {
+                                    const nameA = modelos.find(m => m.id === idA)?.nombre || "";
+                                    const nameB = modelos.find(m => m.id === idB)?.nombre || "";
+                                    return nameA.localeCompare(nameB);
+                                  });
+                                }
 
-                                if (modelIds.length === 0) {
+                                if (sortedModelIds.length === 0) {
                                   return (
                                     <tr>
-                                      <td colSpan={11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                                      <td colSpan={13} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
                                         No hay modelos de {brand.nombre} configurados en este plan.
                                       </td>
                                     </tr>
@@ -1104,7 +1066,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 const rateObj = brandInterventionRates.find(ir => ir.id_marca === brand.id) || { tasa_intervencion: 70 };
                                 const targetIntervention = rateObj.tasa_intervencion;
 
-                                return modelIds.map((modelId) => {
+                                // Models already used in this brand's rates (for dropdown filtering)
+                                const usedModelIds = new Set(sortedModelIds);
+                                const availableModelsForSwap = modelos.filter(m => m.marca_id === brand.id);
+
+                                return sortedModelIds.map((modelId, modelIdx) => {
                                   const modelRates = brandRates.filter(r => r.id_modelo === modelId);
                                   
                                   let rateLess = modelRates.find(r => !r.tasa_intervencion_cumplida);
@@ -1112,31 +1078,21 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
                                   const modelName = modelos.find(m => m.id === modelId)?.nombre || "Sin Nombre";
 
-                                  // If one is missing, fallback/create temporary state
                                   if (!rateLess) {
                                     rateLess = {
                                       id_modelo: modelId,
                                       tasa_intervencion_cumplida: false,
-                                      rate_x_minus_3: 80,
-                                      rate_x_minus_2: 90,
-                                      rate_x_minus_1: 100,
-                                      rate_x: 120,
-                                      rate_x_plus_1: 140,
-                                      rate_x_plus_2: 160,
-                                      valor_objetivo: 1,
-                                      activo: true,
+                                      rate_x_minus_3: 80, rate_x_minus_2: 90, rate_x_minus_1: 100,
+                                      rate_x: 120, rate_x_plus_1: 140, rate_x_plus_2: 160,
+                                      valor_objetivo: 1, activo: true,
                                     };
                                   }
                                   if (!rateMore) {
                                     rateMore = {
                                       id_modelo: modelId,
                                       tasa_intervencion_cumplida: true,
-                                      rate_x_minus_3: 100,
-                                      rate_x_minus_2: 110,
-                                      rate_x_minus_1: 120,
-                                      rate_x: 140,
-                                      rate_x_plus_1: 160,
-                                      rate_x_plus_2: 180,
+                                      rate_x_minus_3: 100, rate_x_minus_2: 110, rate_x_minus_1: 120,
+                                      rate_x: 140, rate_x_plus_1: 160, rate_x_plus_2: 180,
                                       valor_objetivo: rateLess.valor_objetivo || 1,
                                       activo: rateLess.activo !== undefined ? rateLess.activo : true,
                                     };
@@ -1157,57 +1113,61 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                     showNotification(`Modelo ${modelName} y sus tarifas eliminados con éxito`, "success");
                                   };
 
+                                  // Dropdown options: current model + any unused models of this brand
+                                  const dropdownOptions = availableModelsForSwap.filter(m => m.id === modelId || !usedModelIds.has(m.id));
+
+                                  const isFirst = modelIdx === 0;
+                                  const isLast = modelIdx === sortedModelIds.length - 1;
+
                                   return (
                                     <Fragment key={modelId}>
                                       {/* Fila 1: Tasa < Target */}
                                       <tr style={{ borderBottom: "none" }}>
+                                        {isAdmin && planEstado !== "cerrado" && (
+                                          <td rowSpan={2} style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)", padding: "4px" }}>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMoveModel(sortedModelIds, modelId, "up")}
+                                                disabled={isFirst}
+                                                style={{
+                                                  border: "none", background: isFirst ? "transparent" : "rgba(255,255,255,0.05)",
+                                                  cursor: isFirst ? "default" : "pointer", padding: "2px 6px", borderRadius: "4px",
+                                                  fontSize: "0.9rem", color: isFirst ? "var(--text-muted)" : "var(--text-primary)",
+                                                  opacity: isFirst ? 0.3 : 1, transition: "all 0.15s"
+                                                }}
+                                                title="Subir"
+                                              >▲</button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMoveModel(sortedModelIds, modelId, "down")}
+                                                disabled={isLast}
+                                                style={{
+                                                  border: "none", background: isLast ? "transparent" : "rgba(255,255,255,0.05)",
+                                                  cursor: isLast ? "default" : "pointer", padding: "2px 6px", borderRadius: "4px",
+                                                  fontSize: "0.9rem", color: isLast ? "var(--text-muted)" : "var(--text-primary)",
+                                                  opacity: isLast ? 0.3 : 1, transition: "all 0.15s"
+                                                }}
+                                                title="Bajar"
+                                              >▼</button>
+                                            </div>
+                                          </td>
+                                        )}
                                         <td rowSpan={2} style={{ fontWeight: 600, color: "var(--text-primary)", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                            {/* Reorder Arrows */}
-                                            {isAdmin && planEstado !== "cerrado" && (
-                                              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleMoveModel(modelId, brand.id, "up")}
-                                                  style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1 }}
-                                                  title="Subir orden"
-                                                >
-                                                  ▲
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleMoveModel(modelId, brand.id, "down")}
-                                                  style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1 }}
-                                                  title="Bajar orden"
-                                                >
-                                                  ▼
-                                                </button>
-                                              </div>
-                                            )}
-                                            
-                                            {/* Model Select Dropdown */}
+                                          {isAdmin && planEstado !== "cerrado" && dropdownOptions.length > 1 ? (
                                             <select
                                               className="form-select"
                                               value={modelId}
-                                              onChange={(e) => handleModelChange(modelId, Number(e.target.value))}
-                                              disabled={planEstado === "cerrado" || !isAdmin}
-                                              style={{ padding: "4px 8px", fontSize: "0.88rem", fontWeight: 600, width: "135px" }}
+                                              onChange={(e) => handleChangeModel(modelId, Number(e.target.value))}
+                                              style={{ fontWeight: 600, fontSize: "0.85rem", padding: "4px 8px", width: "100%" }}
                                             >
-                                              {modelos.filter(m => m.marca_id === brand.id).map(m => {
-                                                const isCurrent = m.id === modelId;
-                                                const isAlreadyUsed = modelIds.includes(m.id);
-                                                return (
-                                                  <option 
-                                                    key={m.id} 
-                                                    value={m.id} 
-                                                    disabled={isAlreadyUsed && !isCurrent}
-                                                  >
-                                                    {m.nombre}
-                                                  </option>
-                                                );
-                                              })}
+                                              {dropdownOptions.map(m => (
+                                                <option key={m.id} value={m.id}>{m.nombre}</option>
+                                              ))}
                                             </select>
-                                          </div>
+                                          ) : (
+                                            modelName
+                                          )}
                                         </td>
                                         <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle" }}>
                                           Tasa {"<"} {targetIntervention}%
@@ -1246,30 +1206,16 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                           />
                                         </td>
                                         {isAdmin && planEstado !== "cerrado" && (
-                                          <td rowSpan={2} style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                                              <button
-                                                type="button"
-                                                className="btn btn-secondary"
-                                                onClick={() => handleCloneModel(modelId)}
-                                                style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%" }}
-                                                title="Clonar este modelo"
-                                              >
-                                                📋 Clonar
-                                              </button>
-                                              <button
-                                                type="button"
-                                                className="btn"
-                                                onClick={handleDeleteModel}
-                                                style={{
-                                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
-                                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                                  borderRadius: "var(--radius-sm)", cursor: "pointer", width: "100%"
-                                                }}
-                                                title="Eliminar este modelo"
-                                              >
-                                                🗑️ Quitar
-                                              </button>
+                                          <td style={{ verticalAlign: "middle" }}>
+                                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                              <button type="button" onClick={() => handleCopyRate(rateLess)}
+                                                style={{ border: "none", background: "rgba(124,58,237,0.06)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600 }}
+                                                title="Copiar valores de esta línea">📄 Copiar</button>
+                                              {rateClipboard && (
+                                                <button type="button" onClick={() => handlePasteRate(rateLess)}
+                                                  style={{ border: "none", background: "rgba(16,185,129,0.08)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--success)", fontWeight: 600 }}
+                                                  title="Pegar valores del portapapeles">📋 Pegar</button>
+                                              )}
                                             </div>
                                           </td>
                                         )}
@@ -1312,6 +1258,20 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                             disabled={planEstado === "cerrado" || !isAdmin}
                                           />
                                         </td>
+                                        {isAdmin && planEstado !== "cerrado" && (
+                                          <td style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                              <button type="button" onClick={() => handleCopyRate(rateMore)}
+                                                style={{ border: "none", background: "rgba(124,58,237,0.06)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600 }}
+                                                title="Copiar valores de esta línea">📄 Copiar</button>
+                                              {rateClipboard && (
+                                                <button type="button" onClick={() => handlePasteRate(rateMore)}
+                                                  style={{ border: "none", background: "rgba(16,185,129,0.08)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--success)", fontWeight: 600 }}
+                                                  title="Pegar valores del portapapeles">📋 Pegar</button>
+                                              )}
+                                            </div>
+                                          </td>
+                                        )}
                                       </tr>
                                     </Fragment>
                                   );
@@ -2456,77 +2416,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         </div>
       )}
 
-      {/* MODAL: AÑADIR MODELO VN */}
-      {isAddModelModalOpen && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
-          justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
-        }}>
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "420px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
-            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
-              ➕ Añadir Modelo al Plan
-            </h3>
-
-            <div className="form-group">
-              <label className="form-label">Marca</label>
-              <select
-                className="form-select"
-                value={modalBrandId}
-                onChange={(e) => {
-                  setModalBrandId(e.target.value ? Number(e.target.value) : "");
-                  setModalModelId("");
-                }}
-                style={{ width: "100%" }}
-              >
-                <option value="">-- Seleccionar Marca --</option>
-                {marcas.filter(m => !!m.sistema_comisiones).map(m => (
-                  <option key={m.id} value={m.id}>{m.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            {modalBrandId && (
-              <div className="form-group">
-                <label className="form-label">Modelo</label>
-                <select
-                  className="form-select"
-                  value={modalModelId}
-                  onChange={(e) => setModalModelId(e.target.value ? Number(e.target.value) : "")}
-                  style={{ width: "100%" }}
-                >
-                  <option value="">-- Seleccionar Modelo --</option>
-                  {modelos
-                    .filter(m => m.marca_id === Number(modalBrandId))
-                    .filter(m => !rates.some(r => r.id_modelo === m.id))
-                    .map(m => (
-                      <option key={m.id} value={m.id}>{m.nombre}</option>
-                    ))}
-                </select>
-              </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setIsAddModelModalOpen(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleModalAddModel}
-                disabled={!modalBrandId || !modalModelId}
-              >
-                Añadir Modelo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* MODAL 2: CREACIÓN / CLONACIÓN DE PLAN */}
       {showCreateModal && (
         <div style={{
@@ -2680,80 +2569,4 @@ function LineDetailsItems({ lineId }: { lineId: number }) {
   );
 }
 
-interface BrandModelAdderProps {
-  brandId: number;
-  rates: any[];
-  setRates: (rates: any[]) => void;
-  modelos: any[];
-  showNotification: (text: string, type: "success" | "error") => void;
-}
 
-function BrandModelAdder({ brandId, rates, setRates, modelos, showNotification }: BrandModelAdderProps) {
-  const [selectedModeloId, setSelectedModeloId] = useState<number | "">("");
-  const brandModels = modelos.filter(m => m.marca_id === brandId);
-
-  const handleAdd = () => {
-    if (!selectedModeloId) return;
-
-    const exists = rates.some(r => r.id_modelo === Number(selectedModeloId));
-    if (exists) {
-      showNotification("Ya existen tarifas para este modelo en este plan.", "error");
-      return;
-    }
-
-    const rateLess = {
-      id_modelo: Number(selectedModeloId),
-      tasa_intervencion_cumplida: false,
-      rate_x_minus_3: 80,
-      rate_x_minus_2: 90,
-      rate_x_minus_1: 100,
-      rate_x: 120,
-      rate_x_plus_1: 140,
-      rate_x_plus_2: 160,
-      valor_objetivo: 1,
-      activo: true,
-    };
-
-    const rateMore = {
-      id_modelo: Number(selectedModeloId),
-      tasa_intervencion_cumplida: true,
-      rate_x_minus_3: 100,
-      rate_x_minus_2: 110,
-      rate_x_minus_1: 120,
-      rate_x: 140,
-      rate_x_plus_1: 160,
-      rate_x_plus_2: 180,
-      valor_objetivo: 1,
-      activo: true,
-    };
-
-    setRates([...rates, rateLess, rateMore]);
-    setSelectedModeloId("");
-    showNotification("Modelo y sus tarifas añadidos con éxito. Guarda el plan para persistir.", "success");
-  };
-
-  return (
-    <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-      <select
-        className="form-select"
-        value={selectedModeloId}
-        onChange={e => setSelectedModeloId(e.target.value ? Number(e.target.value) : "")}
-        style={{ width: "180px", padding: "4px 8px", fontSize: "0.8rem" }}
-      >
-        <option value="">-- Seleccionar Modelo --</option>
-        {brandModels.map(m => (
-          <option key={m.id} value={m.id}>{m.nombre}</option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="btn btn-secondary"
-        onClick={handleAdd}
-        style={{ padding: "4px 8px", fontSize: "0.8rem" }}
-        disabled={!selectedModeloId}
-      >
-        ➕ Añadir Modelo
-      </button>
-    </div>
-  );
-}
