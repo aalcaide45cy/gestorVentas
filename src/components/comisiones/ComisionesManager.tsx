@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/date-utils";
 
@@ -923,28 +923,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       return mId === brand.id;
                     });
 
-                    // Ordenar por nombre del modelo y luego por tasa cumplida (falses primero)
-                    brandRates.sort((a, b) => {
-                      const nameA = modelos.find(m => m.id === a.id_modelo)?.nombre || "";
-                      const nameB = modelos.find(m => m.id === b.id_modelo)?.nombre || "";
-                      if (nameA !== nameB) return nameA.localeCompare(nameB);
-                      return (a.tasa_intervencion_cumplida ? 1 : 0) - (b.tasa_intervencion_cumplida ? 1 : 0);
-                    });
-
-                    const handleCloneRate = (r: any) => {
-                      const cloned = {
-                        ...r,
-                        id_rate: undefined, // remove DB PK so it creates a new one
-                      };
-                      setRates([...rates, cloned]);
-                      showNotification(`Tarifa de ${modelos.find(m => m.id === r.id_modelo)?.nombre || "modelo"} clonada al final`, "success");
-                    };
-
-                    const handleDeleteRate = (r: any) => {
-                      setRates(rates.filter(item => item !== r));
-                      showNotification("Línea eliminada con éxito", "success");
-                    };
-
                     return (
                       <div key={brand.id} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.01)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px" }}>
@@ -971,103 +949,191 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 <th style={{ width: "90px" }}>X + 1</th>
                                 <th style={{ width: "90px" }}>X + 2</th>
                                 <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
-                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "160px" }}>Acciones</th>}
+                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "120px" }}>Acciones</th>}
                               </tr>
                             </thead>
                             <tbody>
-                              {brandRates.map((r, idx) => {
-                                const handleChange = (field: string, val: any) => {
-                                  const updated = rates.map(item => {
-                                    if (item === r) {
-                                      return { ...item, [field]: val };
-                                    }
-                                    return item;
-                                  });
-                                  setRates(updated);
-                                };
+                              {(() => {
+                                // Get all unique model IDs for this brand in the rates
+                                const modelIds = Array.from(new Set(brandRates.map(r => r.id_modelo).filter(Boolean)));
+                                
+                                // Sort models alphabetically by name
+                                modelIds.sort((idA, idB) => {
+                                  const nameA = modelos.find(m => m.id === idA)?.nombre || "";
+                                  const nameB = modelos.find(m => m.id === idB)?.nombre || "";
+                                  return nameA.localeCompare(nameB);
+                                });
 
-                                return (
-                                  <tr key={r.id_rate || idx}>
-                                    <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{modelos.find(m => m.id === r.id_modelo)?.nombre || "Sin Nombre"}</td>
-                                    <td style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
-                                      {(() => {
-                                        const rateObj = brandInterventionRates.find(ir => ir.id_marca === brand.id) || { tasa_intervencion: 70 };
-                                        return r.tasa_intervencion_cumplida 
-                                          ? `Tasa ≥ ${rateObj.tasa_intervencion}%` 
-                                          : `Tasa < ${rateObj.tasa_intervencion}%`;
-                                      })()}
-                                    </td>
-                                    <td style={{ textAlign: "center" }}>
-                                      <select
-                                        className="form-select"
-                                        value={r.valor_objetivo}
-                                        onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
-                                        disabled={planEstado === "cerrado" || !isAdmin}
-                                        style={{ padding: "4px 8px", width: "60px" }}
-                                      >
-                                        <option value={0}>0</option>
-                                        <option value={1}>1</option>
-                                        <option value={2}>2</option>
-                                      </select>
-                                    </td>
-                                    {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
-                                      <td key={col}>
-                                        <input
-                                          type="number"
-                                          className="form-input"
-                                          value={r[col]}
-                                          onChange={(e) => handleChange(col, Number(e.target.value))}
-                                          disabled={planEstado === "cerrado" || !isAdmin}
-                                          style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
-                                        />
+                                if (modelIds.length === 0) {
+                                  return (
+                                    <tr>
+                                      <td colSpan={11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                                        No hay modelos de {brand.nombre} configurados en este plan.
                                       </td>
-                                    ))}
-                                    <td style={{ textAlign: "center" }}>
-                                      <input
-                                        type="checkbox"
-                                        checked={r.activo}
-                                        onChange={(e) => handleChange("activo", e.target.checked)}
-                                        disabled={planEstado === "cerrado" || !isAdmin}
-                                      />
-                                    </td>
-                                    {isAdmin && planEstado !== "cerrado" && (
-                                      <td>
-                                        <div style={{ display: "flex", gap: "6px" }}>
-                                          <button
-                                            type="button"
-                                            className="btn btn-secondary"
-                                            onClick={() => handleCloneRate(r)}
-                                            style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                                            title="Clonar esta línea de tarifas"
+                                    </tr>
+                                  );
+                                }
+
+                                const rateObj = brandInterventionRates.find(ir => ir.id_marca === brand.id) || { tasa_intervencion: 70 };
+                                const targetIntervention = rateObj.tasa_intervencion;
+
+                                return modelIds.map((modelId) => {
+                                  const modelRates = brandRates.filter(r => r.id_modelo === modelId);
+                                  
+                                  let rateLess = modelRates.find(r => !r.tasa_intervencion_cumplida);
+                                  let rateMore = modelRates.find(r => !!r.tasa_intervencion_cumplida);
+
+                                  const modelName = modelos.find(m => m.id === modelId)?.nombre || "Sin Nombre";
+
+                                  // If one is missing, fallback/create temporary state
+                                  if (!rateLess) {
+                                    rateLess = {
+                                      id_modelo: modelId,
+                                      tasa_intervencion_cumplida: false,
+                                      rate_x_minus_3: 80,
+                                      rate_x_minus_2: 90,
+                                      rate_x_minus_1: 100,
+                                      rate_x: 120,
+                                      rate_x_plus_1: 140,
+                                      rate_x_plus_2: 160,
+                                      valor_objetivo: 1,
+                                      activo: true,
+                                    };
+                                  }
+                                  if (!rateMore) {
+                                    rateMore = {
+                                      id_modelo: modelId,
+                                      tasa_intervencion_cumplida: true,
+                                      rate_x_minus_3: 100,
+                                      rate_x_minus_2: 110,
+                                      rate_x_minus_1: 120,
+                                      rate_x: 140,
+                                      rate_x_plus_1: 160,
+                                      rate_x_plus_2: 180,
+                                      valor_objetivo: rateLess.valor_objetivo || 1,
+                                      activo: rateLess.activo !== undefined ? rateLess.activo : true,
+                                    };
+                                  }
+
+                                  const handleSpecificChange = (targetRate: any, field: string, val: any) => {
+                                    const updated = rates.map(item => {
+                                      if (item === targetRate || (item.id_modelo === modelId && item.tasa_intervencion_cumplida === targetRate.tasa_intervencion_cumplida && item.id_rate === targetRate.id_rate)) {
+                                        return { ...item, [field]: val };
+                                      }
+                                      return item;
+                                    });
+                                    setRates(updated);
+                                  };
+
+                                  const handleDeleteModel = () => {
+                                    setRates(rates.filter(item => item.id_modelo !== modelId));
+                                    showNotification(`Modelo ${modelName} y sus tarifas eliminados con éxito`, "success");
+                                  };
+
+                                  return (
+                                    <Fragment key={modelId}>
+                                      {/* Fila 1: Tasa < Target */}
+                                      <tr style={{ borderBottom: "none" }}>
+                                        <td rowSpan={2} style={{ fontWeight: 600, color: "var(--text-primary)", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          {modelName}
+                                        </td>
+                                        <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle" }}>
+                                          Tasa {"<"} {targetIntervention}%
+                                        </td>
+                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+                                          <select
+                                            className="form-select"
+                                            value={rateLess.valor_objetivo}
+                                            onChange={(e) => handleSpecificChange(rateLess, "valor_objetivo", Number(e.target.value))}
+                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                            style={{ padding: "4px 8px", width: "60px", margin: "0 auto" }}
                                           >
-                                            📋 Clonar
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className="btn"
-                                            onClick={() => handleDeleteRate(r)}
-                                            style={{
-                                              padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
-                                              background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                              borderRadius: "var(--radius-sm)", cursor: "pointer"
-                                            }}
-                                            title="Eliminar esta línea"
+                                            <option value={0}>0</option>
+                                            <option value={1}>1</option>
+                                            <option value={2}>2</option>
+                                          </select>
+                                        </td>
+                                        {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                          <td key={col} style={{ borderBottom: "none" }}>
+                                            <input
+                                              type="number"
+                                              className="form-input"
+                                              value={rateLess[col] || 0}
+                                              onChange={(e) => handleSpecificChange(rateLess, col, Number(e.target.value))}
+                                              disabled={planEstado === "cerrado" || !isAdmin}
+                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                            />
+                                          </td>
+                                        ))}
+                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={rateLess.activo !== false}
+                                            onChange={(e) => handleSpecificChange(rateLess, "activo", e.target.checked)}
+                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                          />
+                                        </td>
+                                        {isAdmin && planEstado !== "cerrado" && (
+                                          <td rowSpan={2} style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                            <button
+                                              type="button"
+                                              className="btn"
+                                              onClick={handleDeleteModel}
+                                              style={{
+                                                padding: "6px 12px", fontSize: "0.75rem", color: "var(--danger)",
+                                                background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                                borderRadius: "var(--radius-sm)", cursor: "pointer", width: "100%"
+                                              }}
+                                              title="Eliminar este modelo y sus tarifas"
+                                            >
+                                              🗑️ Quitar
+                                            </button>
+                                          </td>
+                                        )}
+                                      </tr>
+                                      {/* Fila 2: Tasa >= Target */}
+                                      <tr style={{ borderBottom: "1px solid var(--border-light)" }}>
+                                        <td style={{ color: "var(--success)", fontWeight: 600, verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          Tasa ≥ {targetIntervention}%
+                                        </td>
+                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          <select
+                                            className="form-select"
+                                            value={rateMore.valor_objetivo}
+                                            onChange={(e) => handleSpecificChange(rateMore, "valor_objetivo", Number(e.target.value))}
+                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                            style={{ padding: "4px 8px", width: "60px", margin: "0 auto" }}
                                           >
-                                            🗑️ Quitar
-                                          </button>
-                                        </div>
-                                      </td>
-                                    )}
-                                  </tr>
-                                );
-                              })}
-                              {brandRates.length === 0 && (
-                                <tr>
-                                  <td colSpan={11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
-                                    No hay modelos de {brand.nombre} configurados en este plan.
-                                  </td>
-                                </tr>
-                              )}
+                                            <option value={0}>0</option>
+                                            <option value={1}>1</option>
+                                            <option value={2}>2</option>
+                                          </select>
+                                        </td>
+                                        {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                          <td key={col} style={{ borderBottom: "1px solid var(--border-light)" }}>
+                                            <input
+                                              type="number"
+                                              className="form-input"
+                                              value={rateMore[col] || 0}
+                                              onChange={(e) => handleSpecificChange(rateMore, col, Number(e.target.value))}
+                                              disabled={planEstado === "cerrado" || !isAdmin}
+                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                            />
+                                          </td>
+                                        ))}
+                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={rateMore.activo !== false}
+                                            onChange={(e) => handleSpecificChange(rateMore, "activo", e.target.checked)}
+                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                          />
+                                        </td>
+                                      </tr>
+                                    </Fragment>
+                                  );
+                                });
+                              })()}
                             </tbody>
                           </table>
                         </div>
@@ -2370,24 +2436,20 @@ interface BrandModelAdderProps {
 
 function BrandModelAdder({ brandId, rates, setRates, modelos, showNotification }: BrandModelAdderProps) {
   const [selectedModeloId, setSelectedModeloId] = useState<number | "">("");
-  const [tasaIntervencion, setTasaIntervencion] = useState<boolean>(false);
-
   const brandModels = modelos.filter(m => m.marca_id === brandId);
 
   const handleAdd = () => {
     if (!selectedModeloId) return;
 
-    const exists = rates.some(
-      r => r.id_modelo === Number(selectedModeloId) && r.tasa_intervencion_cumplida === tasaIntervencion
-    );
+    const exists = rates.some(r => r.id_modelo === Number(selectedModeloId));
     if (exists) {
-      showNotification("Ya existe una tarifa para este modelo con la tasa de intervención seleccionada.", "error");
+      showNotification("Ya existen tarifas para este modelo en este plan.", "error");
       return;
     }
 
-    const newRate = {
+    const rateLess = {
       id_modelo: Number(selectedModeloId),
-      tasa_intervencion_cumplida: tasaIntervencion,
+      tasa_intervencion_cumplida: false,
       rate_x_minus_3: 80,
       rate_x_minus_2: 90,
       rate_x_minus_1: 100,
@@ -2398,9 +2460,22 @@ function BrandModelAdder({ brandId, rates, setRates, modelos, showNotification }
       activo: true,
     };
 
-    setRates([...rates, newRate]);
+    const rateMore = {
+      id_modelo: Number(selectedModeloId),
+      tasa_intervencion_cumplida: true,
+      rate_x_minus_3: 100,
+      rate_x_minus_2: 110,
+      rate_x_minus_1: 120,
+      rate_x: 140,
+      rate_x_plus_1: 160,
+      rate_x_plus_2: 180,
+      valor_objetivo: 1,
+      activo: true,
+    };
+
+    setRates([...rates, rateLess, rateMore]);
     setSelectedModeloId("");
-    showNotification("Tarifa añadida con éxito. Guarda el plan para persistir los cambios.", "success");
+    showNotification("Modelo y sus tarifas añadidos con éxito. Guarda el plan para persistir.", "success");
   };
 
   return (
@@ -2409,21 +2484,12 @@ function BrandModelAdder({ brandId, rates, setRates, modelos, showNotification }
         className="form-select"
         value={selectedModeloId}
         onChange={e => setSelectedModeloId(e.target.value ? Number(e.target.value) : "")}
-        style={{ width: "160px", padding: "4px 8px", fontSize: "0.8rem" }}
+        style={{ width: "180px", padding: "4px 8px", fontSize: "0.8rem" }}
       >
-        <option value="">-- Modelo --</option>
+        <option value="">-- Seleccionar Modelo --</option>
         {brandModels.map(m => (
           <option key={m.id} value={m.id}>{m.nombre}</option>
         ))}
-      </select>
-      <select
-        className="form-select"
-        value={tasaIntervencion ? "true" : "false"}
-        onChange={e => setTasaIntervencion(e.target.value === "true")}
-        style={{ width: "140px", padding: "4px 8px", fontSize: "0.8rem" }}
-      >
-        <option value="false">Tasa {"<"} Target</option>
-        <option value="true">Tasa ≥ Target</option>
       </select>
       <button
         type="button"
@@ -2432,7 +2498,7 @@ function BrandModelAdder({ brandId, rates, setRates, modelos, showNotification }
         style={{ padding: "4px 8px", fontSize: "0.8rem" }}
         disabled={!selectedModeloId}
       >
-        ➕ Añadir Línea
+        ➕ Añadir Modelo
       </button>
     </div>
   );
