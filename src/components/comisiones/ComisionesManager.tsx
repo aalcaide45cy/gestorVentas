@@ -29,7 +29,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [planData, setPlanData] = useState<any>(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "resumen" | "objetivo" | "modelos" | "reglas" | "bonus" | "financiacion" | "liquidacion"
+    "resumen" | "objetivo" | "modelos" | "usados" | "financiacion" | "preference" | "reglas" | "bonus" | "liquidacion"
   >("resumen");
 
   // Estados para creación/clonación de planes
@@ -86,6 +86,23 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [financeNormal, setFinanceNormal] = useState(0);
   const [financePref, setFinancePref] = useState(0);
 
+  // Usados / VO
+  const [usedRates, setUsedRates] = useState<any[]>([]);
+
+  // Financiación por marca
+  const [financeRates, setFinanceRates] = useState<any[]>([]);
+
+  // Preference / BOX3
+  const [preferenceRules, setPreferenceRules] = useState<any[]>([]);
+  const [newPrefName, setNewPrefName] = useState("");
+  const [newPrefMarca, setNewPrefMarca] = useState("");
+  const [newPrefModelo, setNewPrefModelo] = useState("");
+  const [newPrefFinType, setNewPrefFinType] = useState("");
+  const [newPrefImporte, setNewPrefImporte] = useState("100");
+
+  // Filtro tipo vehiculo para Bonus
+  const [newBonusTypeVehiculo, setNewBonusTypeVehiculo] = useState("cualquiera");
+
   // Liquidación
   const [calculating, setCalculating] = useState(false);
   const [selectedLineDetails, setSelectedLineDetails] = useState<any | null>(null);
@@ -136,6 +153,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setRates(plan.rates || []);
         setRules(plan.rules || []);
         setBonusRules(plan.bonusRules || []);
+        setUsedRates(plan.usedRates || []);
+        setFinanceRates(plan.financeRates || []);
+        setPreferenceRules(plan.preferenceRules || []);
         
         if (plan.financeRules) {
           setFinanceNormal(plan.financeRules.importe_normal);
@@ -180,7 +200,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             importe_preference: financePref
           },
           rules,
-          bonusRules
+          bonusRules,
+          usedRates,
+          financeRates,
+          preferenceRules
         })
       });
 
@@ -379,7 +402,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       valor_objetivo: Number(newBonusValObj || 0),
       fecha_inicio: newBonusStart || null,
       fecha_fin: newBonusEnd || null,
-      activo: true
+      activo: true,
+      tipo_vehiculo: newBonusTypeVehiculo
     };
     setBonusRules([...bonusRules, newBonus]);
     // Resetear
@@ -397,6 +421,29 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   const handleDeleteBonus = (idx: number) => {
     setBonusRules(bonusRules.filter((_, i) => i !== idx));
+  };
+
+  // --- CRUD local de preference rules ---
+  const handleAddPrefRule = () => {
+    if (!newPrefName) return;
+    const newRule = {
+      nombre: newPrefName,
+      id_marca: newPrefMarca ? Number(newPrefMarca) : null,
+      id_modelo: newPrefModelo ? Number(newPrefModelo) : null,
+      tipo_financiacion: newPrefFinType || null,
+      importe: Number(newPrefImporte || 0),
+      activa: true
+    };
+    setPreferenceRules([...preferenceRules, newRule]);
+    setNewPrefName("");
+    setNewPrefMarca("");
+    setNewPrefModelo("");
+    setNewPrefFinType("");
+    setNewPrefImporte("100");
+  };
+
+  const handleDeletePrefRule = (idx: number) => {
+    setPreferenceRules(preferenceRules.filter((_, i) => i !== idx));
   };
 
   return (
@@ -590,10 +637,12 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             {[
               { id: "resumen", label: "📋 Resumen" },
               { id: "objetivo", label: "🎯 Objetivo" },
-              { id: "modelos", label: "🚗 Modelos y Tramos" },
-              { id: "reglas", label: "⚙️ Reglas" },
-              { id: "bonus", label: "⭐ Bonus" },
+              { id: "modelos", label: "🚗 VN Renault/Dacia" },
+              { id: "usados", label: "🚙 Usados / VO" },
               { id: "financiacion", label: "💳 Financiación" },
+              { id: "preference", label: "⭐ Preference / BOX3" },
+              { id: "reglas", label: "⚙️ Reglas" },
+              { id: "bonus", label: "🎁 Bonus" },
               { id: "liquidacion", label: "💰 Liquidación" }
             ].map((tab) => (
               <button
@@ -643,7 +692,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px", fontSize: "0.95rem" }}>
-                  <div>• Modelos configurados en el plan: <strong>{rates.filter(r => r.activo).length}</strong> de {rates.length} totales.</div>
+                  <div>• Modelos VN configurados en el plan: <strong>{rates.filter(r => r.activo).length}</strong> de {rates.length} totales.</div>
+                  <div>• Tarifas de usados configuradas: <strong>{usedRates.filter(u => u.activo).length}</strong></div>
+                  <div>• Financiación por marca parametrizada: <strong>{financeRates.length} tarifas</strong></div>
+                  <div>• Reglas de Preference/BOX3 configuradas: <strong>{preferenceRules.filter(p => p.activa).length}</strong></div>
                   <div>• Reglas especiales creadas: <strong>{rules.length}</strong></div>
                   <div>• Bonus de campaña configurados: <strong>{bonusRules.length}</strong></div>
                   <div>• Financiamiento parametrizado: Normal: <strong>{financeNormal} €</strong> / Preference: <strong>{financePref} €</strong></div>
@@ -710,71 +762,182 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
             )}
 
-            {/* TAB: MODELOS Y TRAMOS */}
-            {activeTab === "modelos" && (
+            {/* TAB: VN RENAULT/DACIA */}
+            {activeTab === "modelos" && (() => {
+              const renDacMarcas = marcas.filter(m => {
+                const name = m.nombre.toLowerCase();
+                return name.includes("renault") || name.includes("dacia");
+              });
+              const renDacIds = renDacMarcas.map(m => m.id);
+
+              const filteredRates = rates.filter(r => {
+                const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
+                return mId && renDacIds.includes(mId);
+              });
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                  <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Modelos VN Renault/Dacia por Tramo</h3>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+                    Define el valor computable para el objetivo (ej: 2 para modelos dobles) y el importe económico a comisionar según el tramo de cumplimiento para coches nuevos.
+                  </p>
+
+                  <div className="table-container">
+                    <table className="table-premium" style={{ fontSize: "0.9rem" }}>
+                      <thead>
+                        <tr>
+                          <th>Marca</th>
+                          <th>Modelo</th>
+                          <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
+                          <th style={{ width: "90px" }}>X - 3</th>
+                          <th style={{ width: "90px" }}>X - 2</th>
+                          <th style={{ width: "90px" }}>X - 1</th>
+                          <th style={{ width: "90px" }}>X</th>
+                          <th style={{ width: "90px" }}>X + 1</th>
+                          <th style={{ width: "90px" }}>X + 2</th>
+                          <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRates.map((r, idx) => {
+                          const handleChange = (field: string, val: any) => {
+                            const originalIdx = rates.findIndex(item => item.id_modelo === r.id_modelo);
+                            if (originalIdx !== -1) {
+                              const updated = [...rates];
+                              updated[originalIdx] = { ...updated[originalIdx], [field]: val };
+                              setRates(updated);
+                            }
+                          };
+
+                          return (
+                            <tr key={r.id_rate || idx}>
+                              <td style={{ fontWeight: 600 }}>{r.modelo?.marca?.nombre || "VN"}</td>
+                              <td style={{ color: "var(--text-primary)" }}>{r.modelo?.nombre_modelo || "Sin Modelo"}</td>
+                              <td style={{ textAlign: "center" }}>
+                                <select
+                                  className="form-select"
+                                  value={r.valor_objetivo}
+                                  onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px", width: "60px" }}
+                                >
+                                  <option value={0}>0</option>
+                                  <option value={1}>1</option>
+                                  <option value={2}>2</option>
+                                </select>
+                              </td>
+                              {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                <td key={col}>
+                                  <input
+                                    type="number"
+                                    className="form-input"
+                                    value={r[col]}
+                                    onChange={(e) => handleChange(col, Number(e.target.value))}
+                                    disabled={planEstado === "cerrado" || !isAdmin}
+                                    style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                  />
+                                </td>
+                              ))}
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={r.activo}
+                                  onChange={(e) => handleChange("activo", e.target.checked)}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredRates.length === 0 && (
+                          <tr>
+                            <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                              No hay modelos Renault/Dacia cargados en el plan.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* TAB: USADOS / VO */}
+            {activeTab === "usados" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Modelos por Tramo</h3>
+                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Vehículos Usados / VO</h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-                  Define el valor computable para el objetivo (ej: 2 para modelos dobles) y el importe económico a comisionar según el tramo de cumplimiento.
+                  Parámetros generales de cobro para vehículos usados. Las comisiones se pagan de forma diferencial: primera unidad vs unidades siguientes (resto), si se cumple con el mínimo de unidades a aplicar en el mes.
                 </p>
 
                 <div className="table-container">
                   <table className="table-premium" style={{ fontSize: "0.9rem" }}>
                     <thead>
                       <tr>
-                        <th>Marca</th>
-                        <th>Modelo</th>
-                        <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
-                        <th style={{ width: "90px" }}>X - 3</th>
-                        <th style={{ width: "90px" }}>X - 2</th>
-                        <th style={{ width: "90px" }}>X - 1</th>
-                        <th style={{ width: "90px" }}>X</th>
-                        <th style={{ width: "90px" }}>X + 1</th>
-                        <th style={{ width: "90px" }}>X + 2</th>
-                        <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
+                        <th>Tipo de Usado</th>
+                        <th style={{ width: "120px", textAlign: "center" }}>Valor Objetivo</th>
+                        <th style={{ width: "150px" }}>1ª Unidad (€)</th>
+                        <th style={{ width: "150px" }}>Siguientes (€)</th>
+                        <th style={{ width: "120px", textAlign: "center" }}>Mín. Aplicar</th>
+                        <th style={{ width: "100px", textAlign: "center" }}>Activo</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {rates.map((r, idx) => {
+                      {usedRates.map((u, idx) => {
                         const handleChange = (field: string, val: any) => {
-                          const updated = [...rates];
+                          const updated = [...usedRates];
                           updated[idx] = { ...updated[idx], [field]: val };
-                          setRates(updated);
+                          setUsedRates(updated);
                         };
 
                         return (
-                          <tr key={r.id_rate || idx}>
-                            <td style={{ fontWeight: 600 }}>{r.modelo?.marca?.nombre || "VO"}</td>
-                            <td style={{ color: "var(--text-primary)" }}>{r.modelo?.nombre_modelo || "Sin Modelo"}</td>
+                          <tr key={u.id_used_rate || idx}>
+                            <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.tipo_usado}</td>
                             <td style={{ textAlign: "center" }}>
-                              <select
-                                className="form-select"
-                                value={r.valor_objetivo}
+                              <input
+                                type="number"
+                                className="form-input"
+                                value={u.valor_objetivo}
                                 onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
                                 disabled={planEstado === "cerrado" || !isAdmin}
-                                style={{ padding: "4px 8px", width: "60px" }}
-                              >
-                                <option value={0}>0</option>
-                                <option value={1}>1</option>
-                                <option value={2}>2</option>
-                              </select>
+                                style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
+                              />
                             </td>
-                            {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
-                              <td key={col}>
-                                <input
-                                  type="number"
-                                  className="form-input"
-                                  value={r[col]}
-                                  onChange={(e) => handleChange(col, Number(e.target.value))}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
-                                  style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
-                                />
-                              </td>
-                            ))}
+                            <td>
+                              <input
+                                type="number"
+                                className="form-input"
+                                value={u.importe_primera}
+                                onChange={(e) => handleChange("importe_primera", Number(e.target.value))}
+                                disabled={planEstado === "cerrado" || !isAdmin}
+                                style={{ padding: "4px 8px", width: "120px" }}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className="form-input"
+                                value={u.importe_resto}
+                                onChange={(e) => handleChange("importe_resto", Number(e.target.value))}
+                                disabled={planEstado === "cerrado" || !isAdmin}
+                                style={{ padding: "4px 8px", width: "120px" }}
+                              />
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                type="number"
+                                className="form-input"
+                                value={u.min_aplicar}
+                                onChange={(e) => handleChange("min_aplicar", Number(e.target.value))}
+                                disabled={planEstado === "cerrado" || !isAdmin}
+                                style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
+                              />
+                            </td>
                             <td style={{ textAlign: "center" }}>
                               <input
                                 type="checkbox"
-                                checked={r.activo}
+                                checked={u.activo}
                                 onChange={(e) => handleChange("activo", e.target.checked)}
                                 disabled={planEstado === "cerrado" || !isAdmin}
                               />
@@ -782,6 +945,256 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           </tr>
                         );
                       })}
+                      {usedRates.length === 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                            No hay tarifas de vehículos usados configuradas en el plan.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: FINANCIACIÓN */}
+            {activeTab === "financiacion" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                <div>
+                  <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Importes de Financiación por Marca</h3>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
+                    Configura la comisión de financiación que recibe el vendedor según la marca del vehículo y el tipo de producto financiero.
+                  </p>
+                </div>
+
+                <div className="table-premium-container">
+                  <table className="table-premium" style={{ fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr>
+                        <th>Marca</th>
+                        <th>Tipo de Financiación</th>
+                        <th style={{ width: "180px" }}>Importe (€)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {financeRates.map((f, idx) => {
+                        const brandName = marcas.find(m => m.id === f.id_marca)?.nombre || `Marca #${f.id_marca}`;
+                        const handleChange = (val: number) => {
+                          const updated = [...financeRates];
+                          updated[idx] = { ...updated[idx], importe: val };
+                          setFinanceRates(updated);
+                        };
+
+                        return (
+                          <tr key={f.id_finance_rate || idx}>
+                            <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{brandName}</td>
+                            <td>
+                              <span className="badge badge-tienda" style={{ fontSize: "0.75rem" }}>
+                                {f.tipo_financiacion}
+                              </span>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                className="form-input"
+                                value={f.importe}
+                                onChange={(e) => handleChange(Number(e.target.value))}
+                                disabled={planEstado === "cerrado" || !isAdmin}
+                                style={{ padding: "4px 8px", width: "120px" }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {financeRates.length === 0 && (
+                        <tr>
+                          <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                            No hay incentivos de financiación por marca configurados en el plan.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px", maxWidth: "450px" }}>
+                  <h4 style={{ margin: 0, fontSize: "1rem" }}>Configuración Global (Compatibilidad)</h4>
+                  <div className="form-group">
+                    <label className="form-label">Financiación Normal Global (€)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={financeNormal}
+                      onChange={(e) => setFinanceNormal(Number(e.target.value))}
+                      disabled={planEstado === "cerrado" || !isAdmin}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Financiación Preference Global (€)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={financePref}
+                      onChange={(e) => setFinancePref(Number(e.target.value))}
+                      disabled={planEstado === "cerrado" || !isAdmin}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB: PREFERENCE / BOX3 */}
+            {activeTab === "preference" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Reglas Especiales de Preference / BOX3</h3>
+                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+                  Define reglas para incentivos de financiación específicos del plan de negocio (por ejemplo, financiación RCI para modelos dobles o BOX3).
+                </p>
+
+                {isAdmin && planEstado !== "cerrado" && (
+                  <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
+                    <h4 style={{ margin: 0, fontSize: "1rem" }}>Añadir Nueva Regla Preference / BOX3</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+                      <div className="form-group">
+                        <label className="form-label">Nombre de la Regla</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={newPrefName}
+                          onChange={(e) => setNewPrefName(e.target.value)}
+                          placeholder="Ej. Campaña RCI Megane"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Filtrar por Marca (Opcional)</label>
+                        <select
+                          className="form-select"
+                          value={newPrefMarca}
+                          onChange={(e) => {
+                            setNewPrefMarca(e.target.value);
+                            setNewPrefModelo("");
+                          }}
+                        >
+                          <option value="">Todas las marcas</option>
+                          {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Filtrar por Modelo (Opcional)</label>
+                        <select
+                          className="form-select"
+                          value={newPrefModelo}
+                          onChange={(e) => setNewPrefModelo(e.target.value)}
+                          disabled={!newPrefMarca}
+                        >
+                          <option value="">Todos los modelos</option>
+                          {modelos.filter(m => m.marca_id === Number(newPrefMarca)).map(m => (
+                            <option key={m.id} value={m.id}>{m.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Filtrar por Tipo Financiación (Opcional)</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={newPrefFinType}
+                          onChange={(e) => setNewPrefFinType(e.target.value)}
+                          placeholder="Ej. Preference, RCI, BOX3"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Importe Comisión (€)</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={newPrefImporte}
+                          onChange={(e) => setNewPrefImporte(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddPrefRule}
+                      className="btn btn-secondary"
+                      style={{ alignSelf: "flex-end", padding: "10px 20px" }}
+                    >
+                      ➕ Añadir Regla Preference / BOX3
+                    </button>
+                  </div>
+                )}
+
+                <div className="table-container">
+                  <table className="table-premium" style={{ fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr>
+                        <th>Nombre de la Regla</th>
+                        <th>Marca Filtro</th>
+                        <th>Modelo Filtro</th>
+                        <th>Financiación Filtro</th>
+                        <th style={{ textAlign: "right" }}>Importe (€)</th>
+                        <th style={{ textAlign: "center" }}>Activa</th>
+                        <th>Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preferenceRules.map((p, idx) => {
+                        const mName = p.id_marca ? marcas.find(m => m.id === p.id_marca)?.nombre : "Todas";
+                        const modName = p.id_modelo ? modelos.find(m => m.id === p.id_modelo)?.nombre : "Todos";
+                        const handleToggleActiva = () => {
+                          const updated = [...preferenceRules];
+                          updated[idx] = { ...updated[idx], activa: !updated[idx].activa };
+                          setPreferenceRules(updated);
+                        };
+
+                        return (
+                          <tr key={idx}>
+                            <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{p.nombre}</td>
+                            <td>{mName}</td>
+                            <td>{modName}</td>
+                            <td>
+                              {p.tipo_financiacion ? (
+                                <span className="badge badge-tienda" style={{ fontSize: "0.7rem" }}>{p.tipo_financiacion}</span>
+                              ) : "Cualquiera"}
+                            </td>
+                            <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{p.importe} €</td>
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={p.activa}
+                                onChange={handleToggleActiva}
+                                disabled={planEstado === "cerrado" || !isAdmin}
+                              />
+                            </td>
+                            <td>
+                              <button
+                                onClick={() => handleDeletePrefRule(idx)}
+                                disabled={planEstado === "cerrado" || !isAdmin}
+                                className="btn"
+                                style={{
+                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                  borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                }}
+                              >
+                                Quitar
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {preferenceRules.length === 0 && (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                            No hay reglas de Preference / BOX3 configuradas en el plan.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1041,6 +1454,19 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       </div>
 
                       <div className="form-group">
+                        <label className="form-label">Tipo de Vehículo</label>
+                        <select
+                          className="form-select"
+                          value={newBonusTypeVehiculo}
+                          onChange={(e) => setNewBonusTypeVehiculo(e.target.value)}
+                        >
+                          <option value="cualquiera">Cualquiera</option>
+                          <option value="nuevo">Nuevo</option>
+                          <option value="usado">Usado / VO</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
                         <label className="form-label">Importe Comisión (€)</label>
                         <input
                           type="number"
@@ -1125,7 +1551,12 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{b.nombre}</div>
                               {b.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{b.descripcion}</div>}
                             </td>
-                            <td><span className="badge badge-tienda" style={{ fontSize: "0.7rem" }}>{b.tipo_evento}</span></td>
+                             <td>
+                              <span className="badge badge-tienda" style={{ fontSize: "0.7rem", marginRight: "4px" }}>{b.tipo_evento}</span>
+                              <span className={`badge ${b.tipo_vehiculo === 'nuevo' ? 'badge-admin' : b.tipo_vehiculo === 'usado' ? 'badge-vendedor' : 'badge-tienda'}`} style={{ fontSize: "0.7rem" }}>
+                                {b.tipo_vehiculo === 'nuevo' ? "VN" : b.tipo_vehiculo === 'usado' ? "VO" : "Cualquiera"}
+                              </span>
+                            </td>
                             <td>{mName} / {modName}</td>
                             <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{b.importe} €</td>
                             <td style={{ textAlign: "center" }}>
@@ -1295,9 +1726,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               <th>Coche</th>
                               <th style={{ textAlign: "center" }}>Ingresa Por</th>
                               <th style={{ textAlign: "center" }}>Obj</th>
-                              <th style={{ textAlign: "right" }}>Base</th>
+                              <th style={{ textAlign: "right" }}>VN Base</th>
+                              <th style={{ textAlign: "right" }}>Usado</th>
                               <th style={{ textAlign: "right" }}>Finan</th>
-                              <th style={{ textAlign: "right" }}>Pref</th>
+                              <th style={{ textAlign: "right" }}>Pref/BOX3</th>
                               <th style={{ textAlign: "right" }}>Bonus</th>
                               <th style={{ textAlign: "right" }}>Total</th>
                               <th style={{ textAlign: "center" }}>Detalles</th>
@@ -1321,11 +1753,12 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   {line.entra_por_matriculacion && <span className="badge badge-admin" style={{ fontSize: "0.65rem" }}>Matric.</span>}
                                 </td>
                                 <td style={{ textAlign: "center", fontWeight: 700 }}>+{line.valor_para_objetivo}</td>
-                                <td style={{ textAlign: "right" }}>{line.comision_base} €</td>
-                                <td style={{ textAlign: "right" }}>{line.comision_financiacion} €</td>
-                                <td style={{ textAlign: "right" }}>{line.comision_preference} €</td>
-                                <td style={{ textAlign: "right" }}>{line.bonus_acumulado} €</td>
-                                <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{line.total_generado} €</td>
+                                <td style={{ textAlign: "right" }}>{(line.comision_base_vn || 0).toLocaleString()} €</td>
+                                <td style={{ textAlign: "right" }}>{(line.comision_usado || 0).toLocaleString()} €</td>
+                                <td style={{ textAlign: "right" }}>{(line.comision_financiacion || 0).toLocaleString()} €</td>
+                                <td style={{ textAlign: "right" }}>{(line.comision_preference || 0).toLocaleString()} €</td>
+                                <td style={{ textAlign: "right" }}>{(line.bonus_acumulado || 0).toLocaleString()} €</td>
+                                <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{(line.total_generado || 0).toLocaleString()} €</td>
                                 <td style={{ textAlign: "center" }}>
                                   <button
                                     onClick={() => setSelectedLineDetails(line)}

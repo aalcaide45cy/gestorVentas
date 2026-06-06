@@ -277,6 +277,7 @@ export const commissionBonusRules = pgTable('commission_bonus_rules', {
   fecha_inicio: date('fecha_inicio'),
   fecha_fin: date('fecha_fin'),
   activo: boolean('activo').notNull().default(true),
+  tipo_vehiculo: varchar('tipo_vehiculo', { length: 50 }).notNull().default('cualquiera'), // nuevo, usado, cualquiera
 });
 
 // 5. TABLA: COMMISSION_FINANCE_RULES (Reglas de financiación)
@@ -285,6 +286,39 @@ export const commissionFinanceRules = pgTable('commission_finance_rules', {
   id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
   importe_normal: integer('importe_normal').notNull().default(0),
   importe_preference: integer('importe_preference').notNull().default(0),
+});
+
+// 5b. TABLA: COMMISSION_USED_RATES (Tarifas de vehículos usados)
+export const commissionUsedRates = pgTable('commission_used_rates', {
+  id_used_rate: serial('id_used_rate').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  tipo_usado: varchar('tipo_usado', { length: 50 }).notNull(), // VO, KM0, BB, Usado
+  importe_primera: integer('importe_primera').notNull().default(0),
+  importe_resto: integer('importe_resto').notNull().default(0),
+  valor_objetivo: integer('valor_objetivo').notNull().default(1),
+  min_aplicar: integer('min_aplicar').notNull().default(1),
+  activo: boolean('activo').notNull().default(true),
+});
+
+// 5c. TABLA: COMMISSION_FINANCE_RATES (Incentivos de financiación por marca)
+export const commissionFinanceRates = pgTable('commission_finance_rates', {
+  id_finance_rate: serial('id_finance_rate').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'cascade' }).notNull(),
+  tipo_financiacion: varchar('tipo_financiacion', { length: 50 }).notNull(), // Crédito, Preference, Renting, Contado
+  importe: integer('importe').notNull().default(0),
+});
+
+// 5d. TABLA: COMMISSION_PREFERENCE_RULES (Reglas específicas de Preference / BOX3)
+export const commissionPreferenceRules = pgTable('commission_preference_rules', {
+  id_pref_rule: serial('id_pref_rule').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  nombre: text('nombre').notNull(),
+  id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'set null' }),
+  id_modelo: integer('id_modelo').references(() => modelos.id_modelo, { onDelete: 'set null' }),
+  tipo_financiacion: varchar('tipo_financiacion', { length: 50 }), // RCI, BOX3, Preference, etc.
+  importe: integer('importe').notNull().default(0),
+  activa: boolean('activa').notNull().default(true),
 });
 
 // 6. TABLA: COMMISSION_LIQUIDATIONS (Liquidación de un plan)
@@ -320,6 +354,8 @@ export const commissionLiquidationLines = pgTable('commission_liquidation_lines'
   entra_por_matriculacion: boolean('entra_por_matriculacion').notNull().default(false),
   valor_para_objetivo: integer('valor_para_objetivo').notNull().default(0),
   comision_base: integer('comision_base').notNull().default(0),
+  comision_base_vn: integer('comision_base_vn').notNull().default(0),
+  comision_usado: integer('comision_usado').notNull().default(0),
   comision_financiacion: integer('comision_financiacion').notNull().default(0),
   comision_preference: integer('comision_preference').notNull().default(0),
   bonus_acumulado: integer('bonus_acumulado').notNull().default(0),
@@ -348,6 +384,9 @@ export const commissionPlansRelations = relations(commissionPlans, ({ many, one 
     fields: [commissionPlans.id_plan],
     references: [commissionFinanceRules.id_plan]
   }),
+  usedRates: many(commissionUsedRates),
+  financeRates: many(commissionFinanceRates),
+  preferenceRules: many(commissionPreferenceRules),
   liquidations: many(commissionLiquidations),
 }));
 
@@ -423,6 +462,39 @@ export const commissionLiquidationLineItemsRelations = relations(commissionLiqui
   line: one(commissionLiquidationLines, {
     fields: [commissionLiquidationLineItems.id_line],
     references: [commissionLiquidationLines.id_line],
+  }),
+}));
+
+export const commissionUsedRatesRelations = relations(commissionUsedRates, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionUsedRates.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+}));
+
+export const commissionFinanceRatesRelations = relations(commissionFinanceRates, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionFinanceRates.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  marca: one(marcas, {
+    fields: [commissionFinanceRates.id_marca],
+    references: [marcas.id_marca],
+  }),
+}));
+
+export const commissionPreferenceRulesRelations = relations(commissionPreferenceRules, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionPreferenceRules.id_plan],
+    references: [commissionPlans.id_plan],
+  }),
+  marca: one(marcas, {
+    fields: [commissionPreferenceRules.id_marca],
+    references: [marcas.id_marca],
+  }),
+  modelo: one(modelos, {
+    fields: [commissionPreferenceRules.id_modelo],
+    references: [modelos.id_modelo],
   }),
 }));
 

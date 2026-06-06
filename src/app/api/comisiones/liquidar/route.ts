@@ -7,6 +7,10 @@ import {
   commissionRules,
   commissionBonusRules,
   commissionFinanceRules,
+  commissionUsedRates,
+  commissionFinanceRates,
+  commissionPreferenceRules,
+  marcas,
   commissionLiquidations,
   commissionLiquidationLines,
   commissionLiquidationLineItems,
@@ -80,6 +84,9 @@ export async function POST(req: NextRequest) {
         rules: true,
         bonusRules: true,
         financeRules: true,
+        usedRates: true,
+        financeRates: true,
+        preferenceRules: true,
         liquidations: true
       }
     });
@@ -147,13 +154,13 @@ export async function POST(req: NextRequest) {
     // 6. Realizar cálculos para cada vendedor
     for (const [idVendedorStr, vendedorExps] of Object.entries(expedientesByVendedor)) {
       const idVendedor = Number(idVendedorStr);
-      
-      // Contar unidades computables para objetivo del vendedor
+
+      // --- Primera Pasada: Identificar tipos, calcular totalComputablesVendedor y matriculacionesRealesVendedor ---
       let totalComputablesVendedor = 0;
       let matriculacionesRealesVendedor = 0;
 
-      // Calcular unidades de objetivo del vendedor en primera pasada
-      const expsCalculadosVendedor = vendedorExps.map((exp) => {
+      // Estructura para registrar los datos clasificados por expediente
+      const expsClasificados = vendedorExps.map((exp) => {
         const entraPedido = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
         const entraAfectacion = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
         const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
@@ -162,26 +169,55 @@ export async function POST(req: NextRequest) {
           matriculacionesRealesVendedor++;
         }
 
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+
+        let tipoUsado: "VO" | "KM0" | "BB" | "Usado" | null = null;
+        if (!isVN) {
+          if (stateName === "km0") tipoUsado = "KM0";
+          else if (stateName === "buyback" || stateName === "bb") tipoUsado = "BB";
+          else if (stateName === "seminuevo" || stateName === "vo") tipoUsado = "VO";
+          else tipoUsado = "Usado";
+        }
+
         let objValorExpediente = 0;
         const itemsDetalle: { concepto: string; importe: number; afecta_objetivo: boolean; valor_objetivo: number }[] = [];
 
-        // A. Cómputo por tarifa del modelo
-        const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
-        if (modelRate && entraMatriculacion) {
-          objValorExpediente += modelRate.valor_objetivo;
-          itemsDetalle.push({
-            concepto: `Cómputo Base Modelo (${exp.modelo?.nombre_modelo})`,
-            importe: 0,
-            afecta_objetivo: true,
-            valor_objetivo: modelRate.valor_objetivo
-          });
+        // A. Cómputo objetivo base VN o VO
+        if (entraMatriculacion) {
+          if (isVN) {
+            const brandName = exp.modelo?.marca?.nombre?.toLowerCase() || "";
+            const isRenDac = brandName.includes("renault") || brandName.includes("dacia");
+            if (isRenDac) {
+              const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
+              if (modelRate) {
+                objValorExpediente += modelRate.valor_objetivo;
+                itemsDetalle.push({
+                  concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo})`,
+                  importe: 0,
+                  afecta_objetivo: true,
+                  valor_objetivo: modelRate.valor_objetivo
+                });
+              }
+            }
+          } else if (tipoUsado) {
+            const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
+            if (usedRate) {
+              objValorExpediente += usedRate.valor_objetivo;
+              itemsDetalle.push({
+                concepto: `Cómputo Base VO Tipo (${tipoUsado})`,
+                importe: 0,
+                afecta_objetivo: true,
+                valor_objetivo: usedRate.valor_objetivo
+              });
+            }
+          }
         }
 
-        // B. Cómputo por reglas generales
+        // B. Cómputo por reglas generales (commissionRules)
         plan.rules.forEach((rule) => {
           if (!rule.activa) return;
 
-          // Verificar si coincide el evento y los filtros
           const eventMatches = 
             (rule.tipo_evento === "pedido" && entraPedido) ||
             (rule.tipo_evento === "afectacion" && entraAfectacion) ||
@@ -198,7 +234,7 @@ export async function POST(req: NextRequest) {
             if (rule.afecta_objetivo) {
               objValorExpediente += rule.valor_objetivo;
               itemsDetalle.push({
-                concepto: `Regla: ${rule.nombre}`,
+                concepto: `Regla Objetivo: ${rule.nombre}`,
                 importe: 0,
                 afecta_objetivo: true,
                 valor_objetivo: rule.valor_objetivo
@@ -207,7 +243,7 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        // C. Cómputo por bonus personalizados
+        // C. Cómputo por bonus personalizados (commissionBonusRules)
         plan.bonusRules.forEach((bonus) => {
           if (!bonus.activo) return;
 
@@ -220,7 +256,11 @@ export async function POST(req: NextRequest) {
 
           if (!eventMatches) return;
 
-          // Filtro de fechas específicas del bonus
+          // Filtro tipo_vehiculo del bonus (nuevo, usado, cualquiera)
+          if (bonus.tipo_vehiculo === "nuevo" && !isVN) return;
+          if (bonus.tipo_vehiculo === "usado" && isVN) return;
+
+          // Filtro de fechas
           if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
           if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
 
@@ -231,7 +271,7 @@ export async function POST(req: NextRequest) {
             if (bonus.afecta_objetivo) {
               objValorExpediente += bonus.valor_objetivo;
               itemsDetalle.push({
-                concepto: `Bonus: ${bonus.nombre}`,
+                concepto: `Bonus Objetivo: ${bonus.nombre}`,
                 importe: 0,
                 afecta_objetivo: true,
                 valor_objetivo: bonus.valor_objetivo
@@ -247,14 +287,15 @@ export async function POST(req: NextRequest) {
           entraPedido,
           entraAfectacion,
           entraMatriculacion,
+          isVN,
+          tipoUsado,
           valorObjetivoCalculado: objValorExpediente,
           itemsDetalleInitial: itemsDetalle
         };
       });
 
-      // Determinar tramo del vendedor (basado en X y totalComputablesVendedor)
+      // Determinar tramo
       let tramoAlcanzado: "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" = "X-3";
-      
       const diff = totalComputablesVendedor - X;
       if (diff >= 2) tramoAlcanzado = "X+2";
       else if (diff === 1) tramoAlcanzado = "X+1";
@@ -263,63 +304,142 @@ export async function POST(req: NextRequest) {
       else if (diff === -2) tramoAlcanzado = "X-2";
       else tramoAlcanzado = "X-3";
 
-      // Verificar si el vendedor cumple el mínimo de matriculaciones reales configurado
       const cumpleMinimo = matriculacionesRealesVendedor >= plan.min_matriculaciones;
 
-      // Calcular comisiones económicas para cada expediente
-      expsCalculadosVendedor.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, valorObjetivoCalculado, itemsDetalleInitial }) => {
-        let comisionBase = 0;
+      // --- Contar y preparar para el pago de Usados/VO ---
+      // Necesitamos saber cuántos usados de cada tipo tiene matriculados el vendedor
+      const matriculatedUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+      expsClasificados.forEach((c) => {
+        if (c.entraMatriculacion && !c.isVN && c.tipoUsado) {
+          matriculatedUsedCounts[c.tipoUsado] = (matriculatedUsedCounts[c.tipoUsado] || 0) + 1;
+        }
+      });
+
+      // Mapear un contador acumulativo para saber el índice de la unidad VO de cada tipo
+      const currentUsedProcessedIndex: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+
+      // --- Segunda Pasada: Calcular comisiones económicas ---
+      expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, isVN, tipoUsado, valorObjetivoCalculado, itemsDetalleInitial }) => {
+        let comisionBaseVN = 0;
+        let comisionUsado = 0;
         let comisionFinanciacion = 0;
         let comisionPreference = 0;
         let bonusAcumulado = 0;
 
         const finalItems = [...itemsDetalleInitial];
 
-        // 1. Comisión Base por modelo (si está matriculado)
         if (entraMatriculacion) {
-          const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
-          if (modelRate) {
-            let rateImporte = modelRate.rate_x_minus_3; // valor por defecto
-            if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
-            else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
-            else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
-            else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
-            else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
+          // 1. Comisión Base VN o VO/Usado
+          if (isVN) {
+            // VN
+            const brandName = exp.modelo?.marca?.nombre?.toLowerCase() || "";
+            const isRenDac = brandName.includes("renault") || brandName.includes("dacia");
+            if (isRenDac) {
+              const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
+              if (modelRate) {
+                let rateImporte = modelRate.rate_x_minus_3;
+                if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
+                else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
+                else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
+                else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
+                else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
 
-            comisionBase = rateImporte;
-            finalItems.push({
-              concepto: `Comisión Base Modelo (${exp.modelo?.nombre_modelo}) - Tramo ${tramoAlcanzado}`,
-              importe: rateImporte,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
+                comisionBaseVN = rateImporte;
+                finalItems.push({
+                  concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Tramo ${tramoAlcanzado}`,
+                  importe: rateImporte,
+                  afecta_objetivo: false,
+                  valor_objetivo: 0
+                });
+              }
+            }
+          } else if (tipoUsado) {
+            // VO/Usado
+            const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
+            if (usedRate) {
+              const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
+              const currentIdx = currentUsedProcessedIndex[tipoUsado]++; // 0, 1, 2...
+
+              if (totalUnitsOfType >= usedRate.min_aplicar) {
+                const isFirst = currentIdx === 0;
+                const rateImporte = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
+                comisionUsado = rateImporte;
+
+                finalItems.push({
+                  concepto: `Comisión VO (${tipoUsado}) - Unidad ${currentIdx + 1} de ${totalUnitsOfType}`,
+                  importe: rateImporte,
+                  afecta_objetivo: false,
+                  valor_objetivo: 0
+                });
+              } else {
+                finalItems.push({
+                  concepto: `Comisión VO (${tipoUsado}) - No aplica (mínimo no alcanzado: ${totalUnitsOfType}/${usedRate.min_aplicar})`,
+                  importe: 0,
+                  afecta_objetivo: false,
+                  valor_objetivo: 0
+                });
+              }
+            }
           }
+
+          // 2. Comisión por Financiación (configurable por Marca y Tipo Financiación)
+          if (exp.id_tipo_de_venta) {
+            const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+            let matchedFinanceType = "";
+            if (salesTypeName.includes("preference")) {
+              matchedFinanceType = "Preference";
+            } else if (salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("financiado")) {
+              matchedFinanceType = "Crédito";
+            } else if (salesTypeName.includes("renting")) {
+              matchedFinanceType = "Renting";
+            } else if (salesTypeName.includes("contado")) {
+              matchedFinanceType = "Contado";
+            }
+
+            if (matchedFinanceType && exp.modelo?.marca_id) {
+              const finRate = plan.financeRates.find(
+                r => r.id_marca === exp.modelo?.marca_id && r.tipo_financiacion === matchedFinanceType
+              );
+              if (finRate) {
+                comisionFinanciacion = finRate.importe;
+                finalItems.push({
+                  concepto: `Incentivo Financiación (${exp.modelo?.marca?.nombre} - ${matchedFinanceType})`,
+                  importe: finRate.importe,
+                  afecta_objetivo: false,
+                  valor_objetivo: 0
+                });
+              }
+            }
+          }
+
+          // 3. Reglas Preference / BOX3 (commissionPreferenceRules)
+          plan.preferenceRules.forEach((rule) => {
+            if (!rule.activa) return;
+
+            // Filtros de regla
+            const filterMarcaMatches = !rule.id_marca || exp.modelo?.marca_id === rule.id_marca;
+            const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+            let finMatches = true;
+            if (rule.tipo_financiacion) {
+              const ruleFin = rule.tipo_financiacion.toLowerCase();
+              const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+              finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
+            }
+
+            if (filterMarcaMatches && filterModeloMatches && finMatches) {
+              comisionPreference += rule.importe;
+              finalItems.push({
+                concepto: `Regla Preference/BOX3: ${rule.nombre}`,
+                importe: rule.importe,
+                afecta_objetivo: false,
+                valor_objetivo: 0
+              });
+            }
+          });
         }
 
-        // 2. Comisión por Financiación / Preference (si está matriculado y financiado)
-        if (entraMatriculacion && exp.id_tipo_de_venta && plan.financeRules) {
-          const nombreTipoVenta = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-          
-          if (nombreTipoVenta === "preference") {
-            comisionPreference = plan.financeRules.importe_preference;
-            finalItems.push({
-              concepto: "Incentivo Financiación Preference",
-              importe: plan.financeRules.importe_preference,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
-          } else if (nombreTipoVenta === "financiado" || nombreTipoVenta === "renting") {
-            comisionFinanciacion = plan.financeRules.importe_normal;
-            finalItems.push({
-              concepto: `Incentivo Financiación Normal (${exp.tipoDeVenta?.nombre_tipo_venta})`,
-              importe: plan.financeRules.importe_normal,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
-          }
-        }
-
-        // 3. Evaluar reglas generales de comisión (para dinero)
+        // 4. Evaluar reglas generales de comisión (para dinero)
         plan.rules.forEach((rule) => {
           if (!rule.activa || !rule.afecta_comision) return;
 
@@ -336,7 +456,7 @@ export async function POST(req: NextRequest) {
           if (filterMarcaMatches && filterModeloMatches) {
             bonusAcumulado += rule.importe;
             finalItems.push({
-              concepto: `Regla de Comisión: ${rule.nombre}`,
+              concepto: `Regla Comisión: ${rule.nombre}`,
               importe: rule.importe,
               afecta_objetivo: false,
               valor_objetivo: 0
@@ -344,7 +464,7 @@ export async function POST(req: NextRequest) {
           }
         });
 
-        // 4. Evaluar bonus personalizados (para dinero)
+        // 5. Evaluar bonus personalizados (para dinero)
         plan.bonusRules.forEach((bonus) => {
           if (!bonus.activo || bonus.importe <= 0) return;
 
@@ -355,6 +475,11 @@ export async function POST(req: NextRequest) {
 
           if (!eventMatches) return;
 
+          // Filtro tipo_vehiculo del bonus
+          if (bonus.tipo_vehiculo === "nuevo" && !isVN) return;
+          if (bonus.tipo_vehiculo === "usado" && isVN) return;
+
+          // Filtro de fechas
           if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
           if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
 
@@ -373,22 +498,17 @@ export async function POST(req: NextRequest) {
         });
 
         // Sumar todos los componentes para calcular la comisión económica teórica
-        const totalTeoricoExpediente = comisionBase + comisionFinanciacion + comisionPreference + bonusAcumulado;
+        const totalTeoricoExpediente = comisionBaseVN + comisionUsado + comisionFinanciacion + comisionPreference + bonusAcumulado;
 
         // Si no se cumple con el mínimo de matriculaciones reales del periodo, se penaliza a 0 la comisión final.
-        // Pero se conserva el desglose e ítems para auditoría y visualización de lo que habría cobrado.
         const totalGeneradoFinal = cumpleMinimo ? totalTeoricoExpediente : 0;
         
         totalLiquidacionGlobal += totalGeneradoFinal;
 
-        // Determinar mes de generación y mes de pago (siguiente mes)
-        // Usamos la fecha de matriculación si existe, de afectación o de expediente.
         const referenceDateStr = exp.fecha_matriculacion || exp.fecha_afectacion || exp.fecha_expediente || startDate;
         const refDate = new Date(referenceDateStr);
-        
         const mesGeneracion = refDate.toLocaleString("es-ES", { month: "long", year: "numeric" });
         
-        // Calcular mes de pago sumando 1 mes
         const payDate = new Date(refDate);
         payDate.setMonth(payDate.getMonth() + 1);
         const mesPagoEstimado = payDate.toLocaleString("es-ES", { month: "long", year: "numeric" });
@@ -399,7 +519,7 @@ export async function POST(req: NextRequest) {
           id_expediente: exp.id_expediente,
           vendedor_nombre: exp.usuario?.nombre || "Desconocido",
           cliente_nombre: exp.cliente?.nombre || "Sin Cliente",
-          marca_nombre: exp.modelo?.marca?.nombre || "VO",
+          marca_nombre: exp.modelo?.marca?.nombre || (isVN ? "VN" : "VO"),
           modelo_nombre: exp.modelo?.nombre_modelo || "Sin Modelo",
           fecha_pedido: exp.fecha_expediente,
           fecha_afectacion: exp.fecha_afectacion,
@@ -408,7 +528,10 @@ export async function POST(req: NextRequest) {
           entra_por_afectacion: !!entraAfectacion,
           entra_por_matriculacion: !!entraMatriculacion,
           valor_para_objetivo: valorObjetivoCalculado,
-          comision_base: comisionBase,
+          // comision_base is the sum of VN and VO/Usado for backwards compatibility
+          comision_base: comisionBaseVN + comisionUsado,
+          comision_base_vn: comisionBaseVN,
+          comision_usado: comisionUsado,
           comision_financiacion: comisionFinanciacion,
           comision_preference: comisionPreference,
           bonus_acumulado: bonusAcumulado,
@@ -469,6 +592,8 @@ export async function POST(req: NextRequest) {
         entra_por_matriculacion: lineData.entra_por_matriculacion,
         valor_para_objetivo: lineData.valor_para_objetivo,
         comision_base: lineData.comision_base,
+        comision_base_vn: lineData.comision_base_vn,
+        comision_usado: lineData.comision_usado,
         comision_financiacion: lineData.comision_financiacion,
         comision_preference: lineData.comision_preference,
         bonus_acumulado: lineData.bonus_acumulado,

@@ -7,10 +7,14 @@ import {
   commissionRules,
   commissionBonusRules,
   commissionFinanceRules,
+  commissionUsedRates,
+  commissionFinanceRates,
+  commissionPreferenceRules,
+  marcas,
   modelos,
   usuarios
 } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike } from "drizzle-orm";
 
 // Ayudante para verificar autorización de Administrador
 async function checkAdminAuth() {
@@ -64,6 +68,18 @@ export async function GET(req: NextRequest) {
             }
           },
           financeRules: true,
+          usedRates: true,
+          financeRates: {
+            with: {
+              marca: true
+            }
+          },
+          preferenceRules: {
+            with: {
+              marca: true,
+              modelo: true
+            }
+          },
           liquidations: {
             with: {
               lines: true
@@ -188,6 +204,7 @@ export async function POST(req: NextRequest) {
             fecha_inicio: b.fecha_inicio,
             fecha_fin: b.fecha_fin,
             activo: b.activo,
+            tipo_vehiculo: b.tipo_vehiculo,
           }))
         );
       }
@@ -196,12 +213,62 @@ export async function POST(req: NextRequest) {
       const sourceFinance = await db.query.commissionFinanceRules.findFirst({
         where: eq(commissionFinanceRules.id_plan, sourcePlanId)
       });
-      
       await db.insert(commissionFinanceRules).values({
         id_plan: newId,
-        importe_normal: sourceFinance ? sourceFinance.importe_normal : 0,
-        importe_preference: sourceFinance ? sourceFinance.importe_preference : 0,
+        importe_normal: sourceFinance ? sourceFinance.importe_normal : 80,
+        importe_preference: sourceFinance ? sourceFinance.importe_preference : 120,
       });
+
+      // 6. Clonar tarifas de usados (usedRates)
+      const sourceUsedRates = await db.query.commissionUsedRates.findMany({
+        where: eq(commissionUsedRates.id_plan, sourcePlanId)
+      });
+      if (sourceUsedRates.length > 0) {
+        await db.insert(commissionUsedRates).values(
+          sourceUsedRates.map(u => ({
+            id_plan: newId,
+            tipo_usado: u.tipo_usado,
+            importe_primera: u.importe_primera,
+            importe_resto: u.importe_resto,
+            valor_objetivo: u.valor_objetivo,
+            min_aplicar: u.min_aplicar,
+            activo: u.activo,
+          }))
+        );
+      }
+
+      // 7. Clonar tarifas de financiación por marca (financeRates)
+      const sourceFinanceRates = await db.query.commissionFinanceRates.findMany({
+        where: eq(commissionFinanceRates.id_plan, sourcePlanId)
+      });
+      if (sourceFinanceRates.length > 0) {
+        await db.insert(commissionFinanceRates).values(
+          sourceFinanceRates.map(f => ({
+            id_plan: newId,
+            id_marca: f.id_marca,
+            tipo_financiacion: f.tipo_financiacion,
+            importe: f.importe,
+          }))
+        );
+      }
+
+      // 8. Clonar reglas de preference/box3
+      const sourcePrefRules = await db.query.commissionPreferenceRules.findMany({
+        where: eq(commissionPreferenceRules.id_plan, sourcePlanId)
+      });
+      if (sourcePrefRules.length > 0) {
+        await db.insert(commissionPreferenceRules).values(
+          sourcePrefRules.map(p => ({
+            id_plan: newId,
+            nombre: p.nombre,
+            id_marca: p.id_marca,
+            id_modelo: p.id_modelo,
+            tipo_financiacion: p.tipo_financiacion,
+            importe: p.importe,
+            activa: p.activa,
+          }))
+        );
+      }
 
       nuevoPlanId = newId;
     } else {
@@ -218,8 +285,23 @@ export async function POST(req: NextRequest) {
 
       const newId = insertedPlan.id_plan;
 
-      // Cargar todos los modelos activos del sistema
-      const systemModels = await db.query.modelos.findMany();
+      // Obtener marcas Renault y Dacia
+      const dbBrands = await db.query.marcas.findMany({
+        where: (m, { or, ilike }) => or(
+          ilike(m.nombre, "renault"),
+          ilike(m.nombre, "dacia")
+        )
+      });
+      const renDacIds = dbBrands.map(b => b.id_marca);
+
+      // Cargar modelos de Renault y Dacia activos del sistema
+      let systemModels: any[] = [];
+      if (renDacIds.length > 0) {
+        systemModels = await db.query.modelos.findMany({
+          where: (mod, { inArray }) => inArray(mod.marca_id, renDacIds)
+        });
+      }
+
       if (systemModels.length > 0) {
         await db.insert(commissionPlanModelRates).values(
           systemModels.map(m => ({
@@ -237,12 +319,34 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Inicializar regla de financiación vacía
+      // Inicializar regla de financiación plana vacía (compatibilidad)
       await db.insert(commissionFinanceRules).values({
         id_plan: newId,
         importe_normal: 80,
         importe_preference: 120,
       });
+
+      // Inicializar tarifas de usados por defecto (VO, KM0, BB, Usado)
+      await db.insert(commissionUsedRates).values([
+        { id_plan: newId, tipo_usado: "VO", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
+        { id_plan: newId, tipo_usado: "KM0", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
+        { id_plan: newId, tipo_usado: "BB", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
+        { id_plan: newId, tipo_usado: "Usado", importe_primera: 120, importe_resto: 50, valor_objetivo: 1, min_aplicar: 1, activo: true }
+      ]);
+
+      // Inicializar financiación por marca para Renault y Dacia
+      const financeRatesToInsert: any[] = [];
+      for (const bId of renDacIds) {
+        financeRatesToInsert.push(
+          { id_plan: newId, id_marca: bId, tipo_financiacion: "Crédito", importe: 80 },
+          { id_plan: newId, id_marca: bId, tipo_financiacion: "Preference", importe: 120 },
+          { id_plan: newId, id_marca: bId, tipo_financiacion: "Renting", importe: 80 },
+          { id_plan: newId, id_marca: bId, tipo_financiacion: "Contado", importe: 0 }
+        );
+      }
+      if (financeRatesToInsert.length > 0) {
+        await db.insert(commissionFinanceRates).values(financeRatesToInsert);
+      }
 
       nuevoPlanId = newId;
     }
@@ -275,7 +379,10 @@ export async function PUT(req: NextRequest) {
       rates,
       financeRules,
       rules,
-      bonusRules
+      bonusRules,
+      usedRates,
+      financeRates,
+      preferenceRules
     } = body;
 
     if (!id_plan) {
@@ -367,6 +474,54 @@ export async function PUT(req: NextRequest) {
             fecha_inicio: b.fecha_inicio || null,
             fecha_fin: b.fecha_fin || null,
             activo: b.activo !== undefined ? !!b.activo : true,
+            tipo_vehiculo: b.tipo_vehiculo || 'cualquiera',
+          }))
+        );
+      }
+    }
+
+    // 6. Actualizar tarifas de usados (usedRates)
+    if (usedRates && Array.isArray(usedRates)) {
+      for (const u of usedRates) {
+        if (u.id_used_rate) {
+          await db.update(commissionUsedRates).set({
+            importe_primera: Number(u.importe_primera || 0),
+            importe_resto: Number(u.importe_resto || 0),
+            valor_objetivo: Number(u.valor_objetivo || 0),
+            min_aplicar: Number(u.min_aplicar || 0),
+            activo: u.activo !== undefined ? !!u.activo : true,
+          }).where(eq(commissionUsedRates.id_used_rate, Number(u.id_used_rate)));
+        }
+      }
+    }
+
+    // 7. Actualizar tarifas de financiación (financeRates)
+    if (financeRates && Array.isArray(financeRates)) {
+      for (const f of financeRates) {
+        if (f.id_finance_rate) {
+          await db.update(commissionFinanceRates).set({
+            importe: Number(f.importe || 0)
+          }).where(eq(commissionFinanceRates.id_finance_rate, Number(f.id_finance_rate)));
+        }
+      }
+    }
+
+    // 8. Actualizar reglas preference/box3 (preferenceRules)
+    if (preferenceRules && Array.isArray(preferenceRules)) {
+      // Eliminar reglas anteriores de este plan para simplificar sincronización
+      await db.delete(commissionPreferenceRules).where(eq(commissionPreferenceRules.id_plan, Number(id_plan)));
+      // Insertar las reglas vigentes
+      const activePref = preferenceRules.filter((p: any) => p.nombre);
+      if (activePref.length > 0) {
+        await db.insert(commissionPreferenceRules).values(
+          activePref.map((p: any) => ({
+            id_plan: Number(id_plan),
+            nombre: p.nombre,
+            id_marca: p.id_marca ? Number(p.id_marca) : null,
+            id_modelo: p.id_modelo ? Number(p.id_modelo) : null,
+            tipo_financiacion: p.tipo_financiacion || null,
+            importe: Number(p.importe || 0),
+            activa: p.activa !== undefined ? !!p.activa : true,
           }))
         );
       }
