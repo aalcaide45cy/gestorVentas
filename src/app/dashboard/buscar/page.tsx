@@ -5,6 +5,7 @@ import { clientes, expedientes } from "@/db/schema";
 import { desc, or, ilike } from "drizzle-orm";
 import Link from "next/link";
 import { formatDate } from "@/lib/date-utils";
+import ExpedientesList from "@/components/ExpedientesList";
 
 interface SearchPageProps {
   searchParams: Promise<{ q?: string }>;
@@ -110,56 +111,11 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
         <>
           {/* SECCIÓN 1: EXPEDIENTES COINCIDENTES */}
           {matchedExpedientes.length > 0 && (
-            <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
-              <h2 style={{ fontSize: "1.2rem", color: "var(--text-primary)" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              <h2 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
                 📄 Expedientes Encontrados ({matchedExpedientes.length})
               </h2>
-              <div className="table-container">
-                <table className="table-premium">
-                  <thead>
-                    <tr>
-                      <th>Expediente</th>
-                      <th>Cliente</th>
-                      <th>Vehículo</th>
-                      <th>Vendedor</th>
-                      <th>Estado</th>
-                      <th>Fechas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {matchedExpedientes.map(exp => (
-                      <tr key={exp.id_expediente}>
-                        <td style={{ fontWeight: "bold", color: "var(--primary)" }}>
-                          #EXP-{String(exp.id_expediente).padStart(4, "0")}
-                          {exp.matricula && (
-                            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                              Matrícula: {exp.matricula}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{exp.cliente?.nombre}</div>
-                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.cliente?.dni}</div>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo?.nombre_modelo}</div>
-                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.modelo?.marca?.nombre}</div>
-                        </td>
-                        <td>{exp.usuario?.nombre}</td>
-                        <td>
-                          <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`}>
-                            {exp.estadoVehiculo?.nombre_estado_vehiculo}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
-                          {exp.fecha_expediente && <div>📄 Exp: {formatDate(exp.fecha_expediente)}</div>}
-                          {exp.fecha_entrega && <div>📦 Entr: {formatDate(exp.fecha_entrega)}</div>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ExpedientesList expedientesIniciales={matchedExpedientes} />
             </div>
           )}
 
