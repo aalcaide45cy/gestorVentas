@@ -58,6 +58,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // Modelos y tarifas
   const [rates, setRates] = useState<any[]>([]);
+  const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
+  const [modalBrandId, setModalBrandId] = useState<number | "">("");
+  const [modalModelId, setModalModelId] = useState<number | "">("");
 
   // Reglas generales
   const [rules, setRules] = useState<any[]>([]);
@@ -224,6 +227,121 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     } finally {
       setLoadingPlan(false);
     }
+  };
+
+  // Funciones para gestión de Modelos VN
+  const handleModalAddModel = () => {
+    if (!modalBrandId || !modalModelId) return;
+
+    const exists = rates.some(r => r.id_modelo === Number(modalModelId));
+    if (exists) {
+      showNotification("Ya existen tarifas para este modelo en este plan.", "error");
+      return;
+    }
+
+    const rateLess = {
+      id_modelo: Number(modalModelId),
+      tasa_intervencion_cumplida: false,
+      rate_x_minus_3: 80,
+      rate_x_minus_2: 90,
+      rate_x_minus_1: 100,
+      rate_x: 120,
+      rate_x_plus_1: 140,
+      rate_x_plus_2: 160,
+      valor_objetivo: 1,
+      activo: true,
+    };
+
+    const rateMore = {
+      id_modelo: Number(modalModelId),
+      tasa_intervencion_cumplida: true,
+      rate_x_minus_3: 100,
+      rate_x_minus_2: 110,
+      rate_x_minus_1: 120,
+      rate_x: 140,
+      rate_x_plus_1: 160,
+      rate_x_plus_2: 180,
+      valor_objetivo: 1,
+      activo: true,
+    };
+
+    setRates([...rates, rateLess, rateMore]);
+    setModalModelId("");
+    setIsAddModelModalOpen(false);
+    showNotification("Modelo y sus tarifas añadidos con éxito. Guarda el plan para persistir.", "success");
+  };
+
+  const handleCloneModel = (modelId: number) => {
+    const modelRates = rates.filter(r => r.id_modelo === modelId);
+    const clonedRates = modelRates.map(r => ({
+      ...r,
+      id_rate: undefined, // Clear primary key
+    }));
+    setRates([...rates, ...clonedRates]);
+    showNotification("Modelo clonado. Modifica el modelo en el desplegable si es necesario.", "success");
+  };
+
+  const handleModelChange = (oldModelId: number, newModelId: number) => {
+    const exists = rates.some(r => r.id_modelo === newModelId);
+    if (exists) {
+      showNotification("Ya existe una configuración de tarifas para el modelo seleccionado.", "error");
+      return;
+    }
+
+    const updated = rates.map(item => {
+      if (item.id_modelo === oldModelId) {
+        return { ...item, id_modelo: newModelId };
+      }
+      return item;
+    });
+    setRates(updated);
+    showNotification("Modelo actualizado correctamente.", "success");
+  };
+
+  const handleMoveModel = (modelId: number, brandId: number, direction: "up" | "down") => {
+    // Get unique model IDs for this brand in the order they currently appear in `rates`
+    const brandModelIds: number[] = [];
+    rates.forEach(r => {
+      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
+      if (mId === brandId && r.id_modelo && !brandModelIds.includes(r.id_modelo)) {
+        brandModelIds.push(r.id_modelo);
+      }
+    });
+
+    const index = brandModelIds.indexOf(modelId);
+    if (index === -1) return;
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === brandModelIds.length - 1) return;
+
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+
+    // Swap in the temp array
+    const newBrandModelIds = [...brandModelIds];
+    const temp = newBrandModelIds[index];
+    newBrandModelIds[index] = newBrandModelIds[targetIndex];
+    newBrandModelIds[targetIndex] = temp;
+
+    // Reconstruct the main rates array
+    const otherRates = rates.filter(r => {
+      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
+      return mId !== brandId;
+    });
+
+    const thisBrandRates = rates.filter(r => {
+      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
+      return mId === brandId;
+    });
+
+    thisBrandRates.sort((a, b) => {
+      const idxA = newBrandModelIds.indexOf(a.id_modelo);
+      const idxB = newBrandModelIds.indexOf(b.id_modelo);
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      if (idxA !== idxB) return idxA - idxB;
+      return (a.tasa_intervencion_cumplida ? 1 : 0) - (b.tasa_intervencion_cumplida ? 1 : 0);
+    });
+
+    setRates([...otherRates, ...thisBrandRates]);
   };
 
   // Guardar Plan
@@ -931,7 +1049,18 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           </h4>
                           
                           {isAdmin && planEstado !== "cerrado" && (
-                            <BrandModelAdder brandId={brand.id} rates={rates} setRates={setRates} modelos={modelos} showNotification={showNotification} />
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                setModalBrandId(brand.id);
+                                setModalModelId("");
+                                setIsAddModelModalOpen(true);
+                              }}
+                              style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                            >
+                              ➕ Añadir Modelo
+                            </button>
                           )}
                         </div>
 
@@ -954,14 +1083,12 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             </thead>
                             <tbody>
                               {(() => {
-                                // Get all unique model IDs for this brand in the rates
-                                const modelIds = Array.from(new Set(brandRates.map(r => r.id_modelo).filter(Boolean)));
-                                
-                                // Sort models alphabetically by name
-                                modelIds.sort((idA, idB) => {
-                                  const nameA = modelos.find(m => m.id === idA)?.nombre || "";
-                                  const nameB = modelos.find(m => m.id === idB)?.nombre || "";
-                                  return nameA.localeCompare(nameB);
+                                // Get all unique model IDs for this brand in their current array order in rates
+                                const modelIds: number[] = [];
+                                brandRates.forEach(r => {
+                                  if (r.id_modelo && !modelIds.includes(r.id_modelo)) {
+                                    modelIds.push(r.id_modelo);
+                                  }
                                 });
 
                                 if (modelIds.length === 0) {
@@ -1035,7 +1162,52 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                       {/* Fila 1: Tasa < Target */}
                                       <tr style={{ borderBottom: "none" }}>
                                         <td rowSpan={2} style={{ fontWeight: 600, color: "var(--text-primary)", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                          {modelName}
+                                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                            {/* Reorder Arrows */}
+                                            {isAdmin && planEstado !== "cerrado" && (
+                                              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleMoveModel(modelId, brand.id, "up")}
+                                                  style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1 }}
+                                                  title="Subir orden"
+                                                >
+                                                  ▲
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleMoveModel(modelId, brand.id, "down")}
+                                                  style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1 }}
+                                                  title="Bajar orden"
+                                                >
+                                                  ▼
+                                                </button>
+                                              </div>
+                                            )}
+                                            
+                                            {/* Model Select Dropdown */}
+                                            <select
+                                              className="form-select"
+                                              value={modelId}
+                                              onChange={(e) => handleModelChange(modelId, Number(e.target.value))}
+                                              disabled={planEstado === "cerrado" || !isAdmin}
+                                              style={{ padding: "4px 8px", fontSize: "0.88rem", fontWeight: 600, width: "135px" }}
+                                            >
+                                              {modelos.filter(m => m.marca_id === brand.id).map(m => {
+                                                const isCurrent = m.id === modelId;
+                                                const isAlreadyUsed = modelIds.includes(m.id);
+                                                return (
+                                                  <option 
+                                                    key={m.id} 
+                                                    value={m.id} 
+                                                    disabled={isAlreadyUsed && !isCurrent}
+                                                  >
+                                                    {m.nombre}
+                                                  </option>
+                                                );
+                                              })}
+                                            </select>
+                                          </div>
                                         </td>
                                         <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle" }}>
                                           Tasa {"<"} {targetIntervention}%
@@ -1075,19 +1247,30 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         </td>
                                         {isAdmin && planEstado !== "cerrado" && (
                                           <td rowSpan={2} style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                            <button
-                                              type="button"
-                                              className="btn"
-                                              onClick={handleDeleteModel}
-                                              style={{
-                                                padding: "6px 12px", fontSize: "0.75rem", color: "var(--danger)",
-                                                background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                                borderRadius: "var(--radius-sm)", cursor: "pointer", width: "100%"
-                                              }}
-                                              title="Eliminar este modelo y sus tarifas"
-                                            >
-                                              🗑️ Quitar
-                                            </button>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                              <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                onClick={() => handleCloneModel(modelId)}
+                                                style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%" }}
+                                                title="Clonar este modelo"
+                                              >
+                                                📋 Clonar
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="btn"
+                                                onClick={handleDeleteModel}
+                                                style={{
+                                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                                  borderRadius: "var(--radius-sm)", cursor: "pointer", width: "100%"
+                                                }}
+                                                title="Eliminar este modelo"
+                                              >
+                                                🗑️ Quitar
+                                              </button>
+                                            </div>
                                           </td>
                                         )}
                                       </tr>
@@ -2269,6 +2452,77 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             >
               Cerrar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AÑADIR MODELO VN */}
+      {isAddModelModalOpen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "420px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              ➕ Añadir Modelo al Plan
+            </h3>
+
+            <div className="form-group">
+              <label className="form-label">Marca</label>
+              <select
+                className="form-select"
+                value={modalBrandId}
+                onChange={(e) => {
+                  setModalBrandId(e.target.value ? Number(e.target.value) : "");
+                  setModalModelId("");
+                }}
+                style={{ width: "100%" }}
+              >
+                <option value="">-- Seleccionar Marca --</option>
+                {marcas.filter(m => !!m.sistema_comisiones).map(m => (
+                  <option key={m.id} value={m.id}>{m.nombre}</option>
+                ))}
+              </select>
+            </div>
+
+            {modalBrandId && (
+              <div className="form-group">
+                <label className="form-label">Modelo</label>
+                <select
+                  className="form-select"
+                  value={modalModelId}
+                  onChange={(e) => setModalModelId(e.target.value ? Number(e.target.value) : "")}
+                  style={{ width: "100%" }}
+                >
+                  <option value="">-- Seleccionar Modelo --</option>
+                  {modelos
+                    .filter(m => m.marca_id === Number(modalBrandId))
+                    .filter(m => !rates.some(r => r.id_modelo === m.id))
+                    .map(m => (
+                      <option key={m.id} value={m.id}>{m.nombre}</option>
+                    ))}
+                </select>
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setIsAddModelModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleModalAddModel}
+                disabled={!modalBrandId || !modalModelId}
+              >
+                Añadir Modelo
+              </button>
+            </div>
           </div>
         </div>
       )}
