@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { clientes, emailsClientes, telefonosClientes, usuarios } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { clientes, emailsClientes, telefonosClientes, usuarios, expedientes } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -158,6 +158,69 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: true, message: "Cliente actualizado correctamente" }, { status: 200 });
   } catch (error: any) {
     console.error("Error al editar cliente:", error);
+    return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 401 });
+    }
+
+    const localUser = await db.query.usuarios.findFirst({
+      where: eq(usuarios.clerk_id, userId),
+    });
+
+    if (!localUser || localUser.rol === "invitado") {
+      return NextResponse.json({ message: "No autorizado" }, { status: 403 });
+    }
+
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+
+    let idsToDelete: number[] = [];
+
+    if (id) {
+      idsToDelete = [Number(id)];
+    } else {
+      try {
+        const body = await req.json();
+        if (body.ids && Array.isArray(body.ids)) {
+          idsToDelete = body.ids.map(Number);
+        }
+      } catch (e) {
+        // Ignorar error de lectura de body
+      }
+    }
+
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({ message: "Faltan los IDs de los clientes a eliminar" }, { status: 400 });
+    }
+
+    // Ejecutar transaccionalmente: actualizar expedientes para desligar el cliente
+    await db.transaction(async (tx) => {
+      // 1. Poner a null el id_cliente en los expedientes correspondientes
+      await tx.update(expedientes)
+        .set({ id_cliente: null })
+        .where(inArray(expedientes.id_cliente, idsToDelete));
+
+      // 2. Eliminar los clientes (los correos y teléfonos se borran por cascade en FK)
+      await tx.delete(clientes)
+        .where(inArray(clientes.id, idsToDelete));
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: idsToDelete.length === 1
+        ? "Cliente eliminado correctamente"
+        : `${idsToDelete.length} clientes eliminados correctamente`
+    }, { status: 200 });
+
+  } catch (error: any) {
+    console.error("Error al eliminar clientes:", error);
     return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
   }
 }
