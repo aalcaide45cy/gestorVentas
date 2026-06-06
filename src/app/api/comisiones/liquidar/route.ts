@@ -426,75 +426,72 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 7. Guardar todo en la base de datos de manera transaccional
-    await db.transaction(async (tx) => {
-      // Determinar tramo global (el tramo predominante, o el del primer vendedor,
-      // para rellenar la cabecera de la liquidación global, o simplemente ponemos "Calculado")
-      let tramoPredominante = "X-3";
-      if (linesToInsert.length > 0) {
-        tramoPredominante = linesToInsert[0].tramo_vendedor;
-      }
+    // Determinar tramo global (el tramo predominante, o el del primer vendedor,
+    // para rellenar la cabecera de la liquidación global, o simplemente ponemos "Calculado")
+    let tramoPredominante = "X-3";
+    if (linesToInsert.length > 0) {
+      tramoPredominante = linesToInsert[0].tramo_vendedor;
+    }
 
-      // A. Insertar cabecera de liquidación
-      const [insertedLiq] = await tx.insert(commissionLiquidations).values({
-        id_plan: planId,
-        estado: "calculada",
-        fecha_calculo: new Date().toISOString().split("T")[0],
-        objetivo_base_snapshot: plan.objetivo_base,
-        arrastre_snapshot: plan.arrastre,
-        x_calculado_snapshot: X,
-        total_computables_snapshot: linesToInsert.reduce((sum, l) => sum + l.valor_para_objetivo, 0),
-        tramo_alcanzado_snapshot: tramoPredominante,
-        matriculaciones_reales_snapshot: linesToInsert.filter(l => l.entra_por_matriculacion).length,
-        cumple_minimo_snapshot: linesToInsert.every(l => l.cumple_minimo_vendedor),
-        total_comision_economica: totalLiquidacionGlobal,
+    // A. Insertar cabecera de liquidación
+    const [insertedLiq] = await db.insert(commissionLiquidations).values({
+      id_plan: planId,
+      estado: "calculada",
+      fecha_calculo: new Date().toISOString().split("T")[0],
+      objetivo_base_snapshot: plan.objetivo_base,
+      arrastre_snapshot: plan.arrastre,
+      x_calculado_snapshot: X,
+      total_computables_snapshot: linesToInsert.reduce((sum, l) => sum + l.valor_para_objetivo, 0),
+      tramo_alcanzado_snapshot: tramoPredominante,
+      matriculaciones_reales_snapshot: linesToInsert.filter(l => l.entra_por_matriculacion).length,
+      cumple_minimo_snapshot: linesToInsert.every(l => l.cumple_minimo_vendedor),
+      total_comision_economica: totalLiquidacionGlobal,
+    }).returning();
+
+    const newLiquidationId = insertedLiq.id_liquidation;
+
+    // B. Insertar líneas e ítems de desglose
+    for (let i = 0; i < linesToInsert.length; i++) {
+      const lineData = linesToInsert[i];
+      
+      const [insertedLine] = await db.insert(commissionLiquidationLines).values({
+        id_liquidation: newLiquidationId,
+        id_expediente: lineData.id_expediente,
+        vendedor_nombre: lineData.vendedor_nombre,
+        cliente_nombre: lineData.cliente_nombre,
+        marca_nombre: lineData.marca_nombre,
+        modelo_nombre: lineData.modelo_nombre,
+        fecha_pedido: lineData.fecha_pedido,
+        fecha_afectacion: lineData.fecha_afectacion,
+        fecha_matriculacion: lineData.fecha_matriculacion,
+        entra_por_pedido: lineData.entra_por_pedido,
+        entra_por_afectacion: lineData.entra_por_afectacion,
+        entra_por_matriculacion: lineData.entra_por_matriculacion,
+        valor_para_objetivo: lineData.valor_para_objetivo,
+        comision_base: lineData.comision_base,
+        comision_financiacion: lineData.comision_financiacion,
+        comision_preference: lineData.comision_preference,
+        bonus_acumulado: lineData.bonus_acumulado,
+        total_generado: lineData.total_generado,
+        mes_generacion: lineData.mes_generacion,
+        mes_pago_estimado: lineData.mes_pago_estimado,
       }).returning();
 
-      const newLiquidationId = insertedLiq.id_liquidation;
-
-      // B. Insertar líneas e ítems de desglose
-      for (let i = 0; i < linesToInsert.length; i++) {
-        const lineData = linesToInsert[i];
-        
-        const [insertedLine] = await tx.insert(commissionLiquidationLines).values({
-          id_liquidation: newLiquidationId,
-          id_expediente: lineData.id_expediente,
-          vendedor_nombre: lineData.vendedor_nombre,
-          cliente_nombre: lineData.cliente_nombre,
-          marca_nombre: lineData.marca_nombre,
-          modelo_nombre: lineData.modelo_nombre,
-          fecha_pedido: lineData.fecha_pedido,
-          fecha_afectacion: lineData.fecha_afectacion,
-          fecha_matriculacion: lineData.fecha_matriculacion,
-          entra_por_pedido: lineData.entra_por_pedido,
-          entra_por_afectacion: lineData.entra_por_afectacion,
-          entra_por_matriculacion: lineData.entra_por_matriculacion,
-          valor_para_objetivo: lineData.valor_para_objetivo,
-          comision_base: lineData.comision_base,
-          comision_financiacion: lineData.comision_financiacion,
-          comision_preference: lineData.comision_preference,
-          bonus_acumulado: lineData.bonus_acumulado,
-          total_generado: lineData.total_generado,
-          mes_generacion: lineData.mes_generacion,
-          mes_pago_estimado: lineData.mes_pago_estimado,
-        }).returning();
-
-        const lineKey = `line_${i}`;
-        const items = lineItemsToInsertMap[lineKey] || [];
-        
-        if (items.length > 0) {
-          await tx.insert(commissionLiquidationLineItems).values(
-            items.map(it => ({
-              id_line: insertedLine.id_line,
-              concepto: it.concepto,
-              importe: it.importe,
-              afecta_objetivo: it.afecta_objetivo,
-              valor_objetivo: it.valor_objetivo
-            }))
-          );
-        }
+      const lineKey = `line_${i}`;
+      const items = lineItemsToInsertMap[lineKey] || [];
+      
+      if (items.length > 0) {
+        await db.insert(commissionLiquidationLineItems).values(
+          items.map(it => ({
+            id_line: insertedLine.id_line,
+            concepto: it.concepto,
+            importe: it.importe,
+            afecta_objetivo: it.afecta_objetivo,
+            valor_objetivo: it.valor_objetivo
+          }))
+        );
       }
-    });
+    }
 
     return NextResponse.json({ success: true, message: "Liquidación calculada con éxito" });
   } catch (error: any) {
@@ -517,21 +514,19 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ message: "Falta el ID del plan de comisión" }, { status: 400 });
     }
 
-    await db.transaction(async (tx) => {
-      // Actualizar estado del plan (borrador, activo, cerrado)
-      if (estado_plan !== undefined) {
-        await tx.update(commissionPlans).set({
-          estado: estado_plan
-        }).where(eq(commissionPlans.id_plan, Number(id_plan)));
-      }
+    // Actualizar estado del plan (borrador, activo, cerrado)
+    if (estado_plan !== undefined) {
+      await db.update(commissionPlans).set({
+        estado: estado_plan
+      }).where(eq(commissionPlans.id_plan, Number(id_plan)));
+    }
 
-      // Actualizar estado de la liquidación
-      if (id_liquidation !== undefined && estado_liquidation !== undefined) {
-        await tx.update(commissionLiquidations).set({
-          estado: estado_liquidation
-        }).where(eq(commissionLiquidations.id_liquidation, Number(id_liquidation)));
-      }
-    });
+    // Actualizar estado de la liquidación
+    if (id_liquidation !== undefined && estado_liquidation !== undefined) {
+      await db.update(commissionLiquidations).set({
+        estado: estado_liquidation
+      }).where(eq(commissionLiquidations.id_liquidation, Number(id_liquidation)));
+    }
 
     return NextResponse.json({ success: true, message: "Estado de liquidación actualizado correctamente" });
   } catch (error: any) {

@@ -111,148 +111,140 @@ export async function POST(req: NextRequest) {
     let nuevoPlanId: number;
 
     if (cloneFromId) {
-      // --- PROCESO DE CLONADO EN TRANSACCIÓN ---
+      // --- PROCESO DE CLONADO ---
       const sourcePlanId = Number(cloneFromId);
       
-      const result = await db.transaction(async (tx) => {
-        // 1. Insertar el nuevo plan copiando campos básicos
-        const [insertedPlan] = await tx.insert(commissionPlans).values({
-          nombre,
-          fecha_inicio,
-          fecha_fin,
-          objetivo_base: objetivo_base !== undefined ? Number(objetivo_base) : 0,
-          arrastre: arrastre !== undefined ? Number(arrastre) : 0,
-          min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
-          estado: "borrador",
-        }).returning();
+      // 1. Insertar el nuevo plan copiando campos básicos
+      const [insertedPlan] = await db.insert(commissionPlans).values({
+        nombre,
+        fecha_inicio,
+        fecha_fin,
+        objetivo_base: objetivo_base !== undefined ? Number(objetivo_base) : 0,
+        arrastre: arrastre !== undefined ? Number(arrastre) : 0,
+        min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
+        estado: "borrador",
+      }).returning();
 
-        const newId = insertedPlan.id_plan;
+      const newId = insertedPlan.id_plan;
 
-        // 2. Clonar tarifas de modelos (rates)
-        const sourceRates = await tx.query.commissionPlanModelRates.findMany({
-          where: eq(commissionPlanModelRates.id_plan, sourcePlanId)
-        });
-        if (sourceRates.length > 0) {
-          await tx.insert(commissionPlanModelRates).values(
-            sourceRates.map(r => ({
-              id_plan: newId,
-              id_modelo: r.id_modelo,
-              rate_x_minus_3: r.rate_x_minus_3,
-              rate_x_minus_2: r.rate_x_minus_2,
-              rate_x_minus_1: r.rate_x_minus_1,
-              rate_x: r.rate_x,
-              rate_x_plus_1: r.rate_x_plus_1,
-              rate_x_plus_2: r.rate_x_plus_2,
-              valor_objetivo: r.valor_objetivo,
-              activo: r.activo,
-            }))
-          );
-        }
+      // 2. Clonar tarifas de modelos (rates)
+      const sourceRates = await db.query.commissionPlanModelRates.findMany({
+        where: eq(commissionPlanModelRates.id_plan, sourcePlanId)
+      });
+      if (sourceRates.length > 0) {
+        await db.insert(commissionPlanModelRates).values(
+          sourceRates.map(r => ({
+            id_plan: newId,
+            id_modelo: r.id_modelo,
+            rate_x_minus_3: r.rate_x_minus_3,
+            rate_x_minus_2: r.rate_x_minus_2,
+            rate_x_minus_1: r.rate_x_minus_1,
+            rate_x: r.rate_x,
+            rate_x_plus_1: r.rate_x_plus_1,
+            rate_x_plus_2: r.rate_x_plus_2,
+            valor_objetivo: r.valor_objetivo,
+            activo: r.activo,
+          }))
+        );
+      }
 
-        // 3. Clonar reglas generales (rules)
-        const sourceRules = await tx.query.commissionRules.findMany({
-          where: eq(commissionRules.id_plan, sourcePlanId)
-        });
-        if (sourceRules.length > 0) {
-          await tx.insert(commissionRules).values(
-            sourceRules.map(r => ({
-              id_plan: newId,
-              nombre: r.nombre,
-              tipo_evento: r.tipo_evento,
-              id_marca: r.id_marca,
-              id_modelo: r.id_modelo,
-              afecta_objetivo: r.afecta_objetivo,
-              valor_objetivo: r.valor_objetivo,
-              afecta_comision: r.afecta_comision,
-              importe: r.importe,
-              activa: r.activa,
-            }))
-          );
-        }
+      // 3. Clonar reglas generales (rules)
+      const sourceRules = await db.query.commissionRules.findMany({
+        where: eq(commissionRules.id_plan, sourcePlanId)
+      });
+      if (sourceRules.length > 0) {
+        await db.insert(commissionRules).values(
+          sourceRules.map(r => ({
+            id_plan: newId,
+            nombre: r.nombre,
+            tipo_evento: r.tipo_evento,
+            id_marca: r.id_marca,
+            id_modelo: r.id_modelo,
+            afecta_objetivo: r.afecta_objetivo,
+            valor_objetivo: r.valor_objetivo,
+            afecta_comision: r.afecta_comision,
+            importe: r.importe,
+            activa: r.activa,
+          }))
+        );
+      }
 
-        // 4. Clonar reglas de bonus (bonusRules)
-        const sourceBonus = await tx.query.commissionBonusRules.findMany({
-          where: eq(commissionBonusRules.id_plan, sourcePlanId)
-        });
-        if (sourceBonus.length > 0) {
-          await tx.insert(commissionBonusRules).values(
-            sourceBonus.map(b => ({
-              id_plan: newId,
-              nombre: b.nombre,
-              descripcion: b.descripcion,
-              tipo_evento: b.tipo_evento,
-              id_marca: b.id_marca,
-              id_modelo: b.id_modelo,
-              importe: b.importe,
-              afecta_objetivo: b.afecta_objetivo,
-              valor_objetivo: b.valor_objetivo,
-              fecha_inicio: b.fecha_inicio,
-              fecha_fin: b.fecha_fin,
-              activo: b.activo,
-            }))
-          );
-        }
+      // 4. Clonar reglas de bonus (bonusRules)
+      const sourceBonus = await db.query.commissionBonusRules.findMany({
+        where: eq(commissionBonusRules.id_plan, sourcePlanId)
+      });
+      if (sourceBonus.length > 0) {
+        await db.insert(commissionBonusRules).values(
+          sourceBonus.map(b => ({
+            id_plan: newId,
+            nombre: b.nombre,
+            descripcion: b.descripcion,
+            tipo_evento: b.tipo_evento,
+            id_marca: b.id_marca,
+            id_modelo: b.id_modelo,
+            importe: b.importe,
+            afecta_objetivo: b.afecta_objetivo,
+            valor_objetivo: b.valor_objetivo,
+            fecha_inicio: b.fecha_inicio,
+            fecha_fin: b.fecha_fin,
+            activo: b.activo,
+          }))
+        );
+      }
 
-        // 5. Clonar reglas de financiación (financeRules)
-        const sourceFinance = await tx.query.commissionFinanceRules.findFirst({
-          where: eq(commissionFinanceRules.id_plan, sourcePlanId)
-        });
-        
-        await tx.insert(commissionFinanceRules).values({
-          id_plan: newId,
-          importe_normal: sourceFinance ? sourceFinance.importe_normal : 0,
-          importe_preference: sourceFinance ? sourceFinance.importe_preference : 0,
-        });
-
-        return newId;
+      // 5. Clonar reglas de financiación (financeRules)
+      const sourceFinance = await db.query.commissionFinanceRules.findFirst({
+        where: eq(commissionFinanceRules.id_plan, sourcePlanId)
+      });
+      
+      await db.insert(commissionFinanceRules).values({
+        id_plan: newId,
+        importe_normal: sourceFinance ? sourceFinance.importe_normal : 0,
+        importe_preference: sourceFinance ? sourceFinance.importe_preference : 0,
       });
 
-      nuevoPlanId = result;
+      nuevoPlanId = newId;
     } else {
       // --- CREAR NUEVO PLAN VACÍO CON VALORES POR DEFECTO ---
-      const result = await db.transaction(async (tx) => {
-        const [insertedPlan] = await tx.insert(commissionPlans).values({
-          nombre,
-          fecha_inicio,
-          fecha_fin,
-          objetivo_base: objetivo_base ? Number(objetivo_base) : 12,
-          arrastre: arrastre ? Number(arrastre) : 0,
-          min_matriculaciones: min_matriculaciones ? Number(min_matriculaciones) : 6,
-          estado: "borrador",
-        }).returning();
+      const [insertedPlan] = await db.insert(commissionPlans).values({
+        nombre,
+        fecha_inicio,
+        fecha_fin,
+        objetivo_base: objetivo_base ? Number(objetivo_base) : 12,
+        arrastre: arrastre ? Number(arrastre) : 0,
+        min_matriculaciones: min_matriculaciones ? Number(min_matriculaciones) : 6,
+        estado: "borrador",
+      }).returning();
 
-        const newId = insertedPlan.id_plan;
+      const newId = insertedPlan.id_plan;
 
-        // Cargar todos los modelos activos del sistema
-        const systemModels = await tx.query.modelos.findMany();
-        if (systemModels.length > 0) {
-          await tx.insert(commissionPlanModelRates).values(
-            systemModels.map(m => ({
-              id_plan: newId,
-              id_modelo: m.id_modelo,
-              rate_x_minus_3: 80, // valores semilla razonables
-              rate_x_minus_2: 90,
-              rate_x_minus_1: 100,
-              rate_x: 120,
-              rate_x_plus_1: 140,
-              rate_x_plus_2: 160,
-              valor_objetivo: 1,
-              activo: true,
-            }))
-          );
-        }
+      // Cargar todos los modelos activos del sistema
+      const systemModels = await db.query.modelos.findMany();
+      if (systemModels.length > 0) {
+        await db.insert(commissionPlanModelRates).values(
+          systemModels.map(m => ({
+            id_plan: newId,
+            id_modelo: m.id_modelo,
+            rate_x_minus_3: 80, // valores semilla razonables
+            rate_x_minus_2: 90,
+            rate_x_minus_1: 100,
+            rate_x: 120,
+            rate_x_plus_1: 140,
+            rate_x_plus_2: 160,
+            valor_objetivo: 1,
+            activo: true,
+          }))
+        );
+      }
 
-        // Inicializar regla de financiación vacía
-        await tx.insert(commissionFinanceRules).values({
-          id_plan: newId,
-          importe_normal: 80,
-          importe_preference: 120,
-        });
-
-        return newId;
+      // Inicializar regla de financiación vacía
+      await db.insert(commissionFinanceRules).values({
+        id_plan: newId,
+        importe_normal: 80,
+        importe_preference: 120,
       });
 
-      nuevoPlanId = result;
+      nuevoPlanId = newId;
     }
 
     return NextResponse.json({ success: true, message: "Plan creado con éxito", data: { id_plan: nuevoPlanId } }, { status: 201 });
@@ -290,97 +282,95 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ message: "Falta el ID del plan" }, { status: 400 });
     }
 
-    await db.transaction(async (tx) => {
-      // 1. Campos generales del plan
-      const updateData: any = {};
-      if (nombre !== undefined) updateData.nombre = nombre;
-      if (fecha_inicio !== undefined) updateData.fecha_inicio = fecha_inicio;
-      if (fecha_fin !== undefined) updateData.fecha_fin = fecha_fin;
-      if (estado !== undefined) updateData.estado = estado;
-      if (objetivo_base !== undefined) updateData.objetivo_base = Number(objetivo_base);
-      if (arrastre !== undefined) updateData.arrastre = Number(arrastre);
-      if (min_matriculaciones !== undefined) updateData.min_matriculaciones = Number(min_matriculaciones);
+    // 1. Campos generales del plan
+    const updateData: any = {};
+    if (nombre !== undefined) updateData.nombre = nombre;
+    if (fecha_inicio !== undefined) updateData.fecha_inicio = fecha_inicio;
+    if (fecha_fin !== undefined) updateData.fecha_fin = fecha_fin;
+    if (estado !== undefined) updateData.estado = estado;
+    if (objetivo_base !== undefined) updateData.objetivo_base = Number(objetivo_base);
+    if (arrastre !== undefined) updateData.arrastre = Number(arrastre);
+    if (min_matriculaciones !== undefined) updateData.min_matriculaciones = Number(min_matriculaciones);
 
-      if (Object.keys(updateData).length > 0) {
-        await tx.update(commissionPlans).set(updateData).where(eq(commissionPlans.id_plan, Number(id_plan)));
-      }
+    if (Object.keys(updateData).length > 0) {
+      await db.update(commissionPlans).set(updateData).where(eq(commissionPlans.id_plan, Number(id_plan)));
+    }
 
-      // 2. Actualizar tarifas de modelos (rates)
-      if (rates && Array.isArray(rates)) {
-        for (const r of rates) {
-          if (r.id_rate) {
-            await tx.update(commissionPlanModelRates).set({
-              rate_x_minus_3: Number(r.rate_x_minus_3),
-              rate_x_minus_2: Number(r.rate_x_minus_2),
-              rate_x_minus_1: Number(r.rate_x_minus_1),
-              rate_x: Number(r.rate_x),
-              rate_x_plus_1: Number(r.rate_x_plus_1),
-              rate_x_plus_2: Number(r.rate_x_plus_2),
-              valor_objetivo: Number(r.valor_objetivo),
-              activo: r.activo,
-            }).where(eq(commissionPlanModelRates.id_rate, Number(r.id_rate)));
-          }
+    // 2. Actualizar tarifas de modelos (rates)
+    if (rates && Array.isArray(rates)) {
+      for (const r of rates) {
+        if (r.id_rate) {
+          await db.update(commissionPlanModelRates).set({
+            rate_x_minus_3: Number(r.rate_x_minus_3),
+            rate_x_minus_2: Number(r.rate_x_minus_2),
+            rate_x_minus_1: Number(r.rate_x_minus_1),
+            rate_x: Number(r.rate_x),
+            rate_x_plus_1: Number(r.rate_x_plus_1),
+            rate_x_plus_2: Number(r.rate_x_plus_2),
+            valor_objetivo: Number(r.valor_objetivo),
+            activo: r.activo,
+          }).where(eq(commissionPlanModelRates.id_rate, Number(r.id_rate)));
         }
       }
+    }
 
-      // 3. Actualizar financiación
-      if (financeRules) {
-        await tx.update(commissionFinanceRules).set({
-          importe_normal: Number(financeRules.importe_normal),
-          importe_preference: Number(financeRules.importe_preference),
-        }).where(eq(commissionFinanceRules.id_plan, Number(id_plan)));
-      }
+    // 3. Actualizar financiación
+    if (financeRules) {
+      await db.update(commissionFinanceRules).set({
+        importe_normal: Number(financeRules.importe_normal),
+        importe_preference: Number(financeRules.importe_preference),
+      }).where(eq(commissionFinanceRules.id_plan, Number(id_plan)));
+    }
 
-      // 4. Actualizar reglas generales
-      if (rules && Array.isArray(rules)) {
-        // Eliminar reglas anteriores de este plan para simplificar sincronización
-        await tx.delete(commissionRules).where(eq(commissionRules.id_plan, Number(id_plan)));
-        // Insertar las reglas vigentes
-        const activeRules = rules.filter((r: any) => r.nombre);
-        if (activeRules.length > 0) {
-          await tx.insert(commissionRules).values(
-            activeRules.map((r: any) => ({
-              id_plan: Number(id_plan),
-              nombre: r.nombre,
-              tipo_evento: r.tipo_evento,
-              id_marca: r.id_marca ? Number(r.id_marca) : null,
-              id_modelo: r.id_modelo ? Number(r.id_modelo) : null,
-              afecta_objetivo: !!r.afecta_objetivo,
-              valor_objetivo: Number(r.valor_objetivo || 0),
-              afecta_comision: !!r.afecta_comision,
-              importe: Number(r.importe || 0),
-              activa: r.activa !== undefined ? !!r.activa : true,
-            }))
-          );
-        }
+    // 4. Actualizar reglas generales
+    if (rules && Array.isArray(rules)) {
+      // Eliminar reglas anteriores de este plan para simplificar sincronización
+      await db.delete(commissionRules).where(eq(commissionRules.id_plan, Number(id_plan)));
+      // Insertar las reglas vigentes
+      const activeRules = rules.filter((r: any) => r.nombre);
+      if (activeRules.length > 0) {
+        await db.insert(commissionRules).values(
+          activeRules.map((r: any) => ({
+            id_plan: Number(id_plan),
+            nombre: r.nombre,
+            tipo_evento: r.tipo_evento,
+            id_marca: r.id_marca ? Number(r.id_marca) : null,
+            id_modelo: r.id_modelo ? Number(r.id_modelo) : null,
+            afecta_objetivo: !!r.afecta_objetivo,
+            valor_objetivo: Number(r.valor_objetivo || 0),
+            afecta_comision: !!r.afecta_comision,
+            importe: Number(r.importe || 0),
+            activa: r.activa !== undefined ? !!r.activa : true,
+          }))
+        );
       }
+    }
 
-      // 5. Actualizar reglas de bonus
-      if (bonusRules && Array.isArray(bonusRules)) {
-        // Eliminar bonus anteriores
-        await tx.delete(commissionBonusRules).where(eq(commissionBonusRules.id_plan, Number(id_plan)));
-        // Insertar los bonus vigentes
-        const activeBonus = bonusRules.filter((b: any) => b.nombre);
-        if (activeBonus.length > 0) {
-          await tx.insert(commissionBonusRules).values(
-            activeBonus.map((b: any) => ({
-              id_plan: Number(id_plan),
-              nombre: b.nombre,
-              descripcion: b.descripcion || null,
-              tipo_evento: b.tipo_evento,
-              id_marca: b.id_marca ? Number(b.id_marca) : null,
-              id_modelo: b.id_modelo ? Number(b.id_modelo) : null,
-              importe: Number(b.importe || 0),
-              afecta_objetivo: !!b.afecta_objetivo,
-              valor_objetivo: Number(b.valor_objetivo || 0),
-              fecha_inicio: b.fecha_inicio || null,
-              fecha_fin: b.fecha_fin || null,
-              activo: b.activo !== undefined ? !!b.activo : true,
-            }))
-          );
-        }
+    // 5. Actualizar reglas de bonus
+    if (bonusRules && Array.isArray(bonusRules)) {
+      // Eliminar bonus anteriores
+      await db.delete(commissionBonusRules).where(eq(commissionBonusRules.id_plan, Number(id_plan)));
+      // Insertar los bonus vigentes
+      const activeBonus = bonusRules.filter((b: any) => b.nombre);
+      if (activeBonus.length > 0) {
+        await db.insert(commissionBonusRules).values(
+          activeBonus.map((b: any) => ({
+            id_plan: Number(id_plan),
+            nombre: b.nombre,
+            descripcion: b.descripcion || null,
+            tipo_evento: b.tipo_evento,
+            id_marca: b.id_marca ? Number(b.id_marca) : null,
+            id_modelo: b.id_modelo ? Number(b.id_modelo) : null,
+            importe: Number(b.importe || 0),
+            afecta_objetivo: !!b.afecta_objetivo,
+            valor_objetivo: Number(b.valor_objetivo || 0),
+            fecha_inicio: b.fecha_inicio || null,
+            fecha_fin: b.fecha_fin || null,
+            activo: b.activo !== undefined ? !!b.activo : true,
+          }))
+        );
       }
-    });
+    }
 
     return NextResponse.json({ success: true, message: "Plan de comisión actualizado con éxito" });
   } catch (error: any) {
