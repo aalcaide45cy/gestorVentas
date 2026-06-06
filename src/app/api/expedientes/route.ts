@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo } from "@/db/schema";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, inArray } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -207,13 +207,24 @@ export async function DELETE(req: NextRequest) {
     const url = new URL(req.url);
     const id = url.searchParams.get("id");
 
-    if (!id) {
-      return NextResponse.json({ message: "Falta el ID del expediente a eliminar" }, { status: 400 });
+    if (id) {
+      await db.delete(expedientes).where(eq(expedientes.id_expediente, Number(id)));
+      return NextResponse.json({ success: true, message: "Expediente eliminado correctamente" }, { status: 200 });
     }
 
-    await db.delete(expedientes).where(eq(expedientes.id_expediente, Number(id)));
+    // Si no viene ID por query string, buscar IDs en el body para borrado masivo
+    try {
+      const body = await req.json();
+      const { ids } = body;
+      if (ids && Array.isArray(ids) && ids.length > 0) {
+        await db.delete(expedientes).where(inArray(expedientes.id_expediente, ids));
+        return NextResponse.json({ success: true, message: `${ids.length} expedientes eliminados correctamente` }, { status: 200 });
+      }
+    } catch (e) {
+      // Ignorar error al leer JSON si se envió una petición sin body
+    }
 
-    return NextResponse.json({ success: true, message: "Expediente eliminado correctamente" }, { status: 200 });
+    return NextResponse.json({ message: "Falta el ID del expediente a eliminar" }, { status: 400 });
   } catch (error: any) {
     console.error("Error al eliminar expediente:", error);
     return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });

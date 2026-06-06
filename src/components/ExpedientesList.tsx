@@ -71,6 +71,10 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
   const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Estados para selección masiva e Importación/Exportación
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   
   // Modales y estados para fechas inline
   const [editDateModal, setEditDateModal] = useState<{
@@ -100,6 +104,227 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
       setTimeout(() => setError(null), 4000);
     }
   };
+
+  // Manejo de Selección Masiva
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(expedientes.map(e => e.id_expediente));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(item => item !== id));
+    }
+  };
+
+  // Borrado Masivo
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/expedientes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedIds }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Error al eliminar los expedientes seleccionados");
+      }
+
+      setExpedientes(prev => prev.filter(e => !selectedIds.includes(e.id_expediente)));
+      showNotification(`${selectedIds.length} expedientes eliminados con éxito.`, "success");
+      setSelectedIds([]);
+      setConfirmBulkDelete(false);
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Ocurrió un error inesperado al eliminar los expedientes.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Exportar a CSV
+  const handleExportCSV = (onlySelected = false) => {
+    const listToExport = onlySelected 
+      ? expedientes.filter(e => selectedIds.includes(e.id_expediente))
+      : expedientes;
+
+    if (listToExport.length === 0) {
+      showNotification("No hay expedientes para exportar.", "error");
+      return;
+    }
+
+    // Cabeceras de las columnas del CSV
+    const headers = [
+      "ID Expediente", "Cliente Nombre", "Cliente DNI", "Marca", "Modelo", 
+      "Tipo Venta", "Estado Vehiculo", "Vendedor", "F. Expediente", 
+      "F. Afectacion", "F. RCI", "F. Matriculacion", "F. Entrega", "Matricula", "VIN"
+    ];
+
+    const rows = listToExport.map(e => [
+      e.id_expediente,
+      e.cliente?.nombre || "",
+      e.cliente?.dni || "",
+      e.modelo?.marca?.nombre || "",
+      e.modelo?.nombre_modelo || "",
+      e.tipoDeVenta?.nombre_tipo_venta || "",
+      e.estadoVehiculo?.nombre_estado_vehiculo || "",
+      e.usuario?.nombre || "",
+      e.fecha_expediente || "",
+      e.fecha_afectacion || "",
+      e.fecha_rci || "",
+      e.fecha_matriculacion || "",
+      e.fecha_entrega || "",
+      e.matricula || "",
+      e.vin || ""
+    ]);
+
+    // Añadir el BOM para asegurar compatibilidad de caracteres especiales (tildes, etc.) en Excel
+    const csvContent = "\uFEFF" + [
+      headers.join(";"),
+      ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(";"))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `expedientes_${onlySelected ? 'seleccionados_' : ''}export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification("Exportación CSV realizada con éxito.", "success");
+  };
+
+  // Importar desde CSV con prevención de duplicados
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setError(null);
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) throw new Error("Archivo vacío");
+
+        // Parsear líneas del CSV
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) {
+          throw new Error("El archivo CSV no contiene suficientes líneas (cabecera + datos).");
+        }
+
+        // Detectar delimitador (punto y coma o coma)
+        const headerLine = lines[0];
+        const delimiter = headerLine.includes(";") ? ";" : ",";
+        const rawHeaders = headerLine.split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, "").toLowerCase());
+
+        const getColIndex = (names: string[]) => {
+          return rawHeaders.findIndex(h => names.some(name => h.includes(name)));
+        };
+
+        const idxClienteNombre = getColIndex(["cliente nombre", "nombre cliente", "cliente", "name"]);
+        const idxClienteDni = getColIndex(["cliente dni", "dni cliente", "dni", "nif"]);
+        const idxMarca = getColIndex(["marca", "brand"]);
+        const idxModelo = getColIndex(["modelo", "model"]);
+        const idxTipoVenta = getColIndex(["tipo venta", "tipo de venta", "tipo_venta"]);
+        const idxEstadoVehiculo = getColIndex(["estado vehiculo", "estado de vehiculo", "estado_vehiculo", "estado"]);
+        const idxFechaExp = getColIndex(["f. expediente", "fecha expediente", "fecha_expediente", "fecha"]);
+        const idxFechaAfect = getColIndex(["f. afectacion", "fecha afectacion", "fecha_afectacion", "afectacion"]);
+        const idxFechaRci = getColIndex(["f. rci", "fecha rci", "fecha_rci", "rci"]);
+        const idxFechaMat = getColIndex(["f. matriculacion", "fecha matriculacion", "fecha_matriculacion", "matriculacion"]);
+        const idxFechaEntrega = getColIndex(["f. entrega", "fecha entrega", "fecha_entrega", "entrega"]);
+        const idxMatricula = getColIndex(["matricula", "license plate"]);
+        const idxVin = getColIndex(["vin", "bastidor"]);
+
+        const itemsToImport = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i];
+          // Regex robusto para separar valores respetando comillas
+          let parts = [];
+          let current = "";
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const char = line[c];
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === delimiter && !inQuotes) {
+              parts.push(current.trim().replace(/^["']|["']$/g, ""));
+              current = "";
+            } else {
+              current += char;
+            }
+          }
+          parts.push(current.trim().replace(/^["']|["']$/g, ""));
+
+          if (parts.length === 0 || (parts.length === 1 && parts[0] === "")) continue;
+
+          const getValue = (idx: number) => idx !== -1 && idx < parts.length ? parts[idx] : null;
+
+          itemsToImport.push({
+            cliente_nombre: getValue(idxClienteNombre),
+            cliente_dni: getValue(idxClienteDni),
+            marca_nombre: getValue(idxMarca),
+            modelo_nombre: getValue(idxModelo),
+            tipo_venta_nombre: getValue(idxTipoVenta),
+            estado_vehiculo_nombre: getValue(idxEstadoVehiculo),
+            fecha_expediente: getValue(idxFechaExp),
+            fecha_afectacion: getValue(idxFechaAfect),
+            fecha_rci: getValue(idxFechaRci),
+            fecha_matriculacion: getValue(idxFechaMat),
+            fecha_entrega: getValue(idxFechaEntrega),
+            matricula: getValue(idxMatricula),
+            vin: getValue(idxVin)
+          });
+        }
+
+        if (itemsToImport.length === 0) {
+          throw new Error("No se encontraron registros válidos de datos en el CSV.");
+        }
+
+        const response = await fetch("/api/expedientes/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: itemsToImport })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || "Error al procesar la importación en el servidor.");
+        }
+
+        showNotification(result.message, "success");
+        router.refresh();
+      } catch (err: any) {
+        showNotification(err.message || "Error al importar el archivo CSV.", "error");
+      } finally {
+        setLoading(false);
+        event.target.value = "";
+      }
+    };
+
+    reader.onerror = () => {
+      showNotification("Error de lectura del archivo.", "error");
+      setLoading(false);
+      event.target.value = "";
+    };
+
+    reader.readAsText(file);
+  };
+
 
   const handleOpenEditDate = (
     exp: Expediente,
@@ -358,12 +583,75 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
         </div>
       )}
 
+      {/* PANEL DE ACCIONES MASIVAS E IMPORT/EXPORT */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          {selectedIds.length > 0 ? (
+            <>
+              <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--primary)" }}>
+                {selectedIds.length} seleccionado(s):
+              </span>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setConfirmBulkDelete(true)}
+                style={{ padding: "6px 12px", fontSize: "0.8rem", backgroundColor: "var(--danger)", color: "white", border: "none", cursor: "pointer", borderRadius: "var(--radius-sm)", fontWeight: "600" }}
+              >
+                🗑️ Eliminar Seleccionados
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleExportCSV(true)}
+                style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+              >
+                📤 Exportar Seleccionados (CSV)
+              </button>
+            </>
+          ) : (
+            <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+              Selecciona expedientes de la lista para realizar acciones masivas
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => handleExportCSV(false)}
+            style={{ padding: "8px 14px", fontSize: "0.85rem" }}
+          >
+            📤 Exportar Todo (CSV)
+          </button>
+          
+          <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            📥 Importar CSV
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              style={{ display: "none" }}
+              disabled={loading}
+            />
+          </label>
+        </div>
+      </div>
+
       {/* TABLA DE EXPEDIENTES */}
       <div className="glass-panel" style={{ padding: "8px" }}>
         <div className="table-container">
           <table className="table-premium">
             <thead>
               <tr>
+                <th style={{ width: "40px", textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={expedientes.length > 0 && selectedIds.length === expedientes.length}
+                    onChange={e => handleSelectAll(e.target.checked)}
+                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                  />
+                </th>
                 <th>Cliente</th>
                 <th>Vehículo</th>
                 <th>Tipo Venta</th>
@@ -379,7 +667,15 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
             </thead>
             <tbody>
               {expedientes.map((exp) => (
-                <tr key={exp.id_expediente}>
+                <tr key={exp.id_expediente} style={{ background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined }}>
+                  <td style={{ textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(exp.id_expediente)}
+                      onChange={e => handleSelectOne(exp.id_expediente, e.target.checked)}
+                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                    />
+                  </td>
                   <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
                     {exp.cliente?.nombre || "Sin Cliente"}
                   </td>
@@ -461,7 +757,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               ))}
               {expedientes.length === 0 && (
                 <tr>
-                  <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                  <td colSpan={12} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                     No hay expedientes de venta registrados en la base de datos.
                   </td>
                 </tr>
@@ -659,6 +955,67 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                 }}
               >
                 {deleting ? "Eliminando..." : "Eliminar Expediente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DE BORRADO MASIVO */}
+      {confirmBulkDelete && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "450px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
+            borderLeft: "4px solid var(--danger)"
+          }}>
+            <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
+              Confirmar Borrado Masivo
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", margin: 0 }}>
+              ¿Estás seguro de que deseas eliminar permanentemente los <strong>{selectedIds.length}</strong> expedientes seleccionados? Esta acción no se podrá deshacer.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmBulkDelete(false)}
+                disabled={deleting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                style={{
+                  backgroundColor: "var(--danger)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "10px 20px",
+                  cursor: "pointer",
+                  fontWeight: 600
+                }}
+              >
+                {deleting ? "Eliminando..." : "Eliminar Expedientes"}
               </button>
             </div>
           </div>
