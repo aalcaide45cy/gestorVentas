@@ -59,6 +59,7 @@ export default function AdminCatalogosForm({
   // Estados de ordenación
   const [sortField, setSortField] = useState<string>("id");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [modelSearchQuery, setModelSearchQuery] = useState<string>("");
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -73,6 +74,7 @@ export default function AdminCatalogosForm({
     setActiveTab(tab);
     setSortField("id");
     setSortOrder("asc");
+    setModelSearchQuery("");
   };
 
   // Listados ordenados
@@ -107,28 +109,47 @@ export default function AdminCatalogosForm({
       nombre_modelo: mod.nombre_modelo,
       acceso_rapido: mod.acceso_rapido,
       id_marca: m.id_marca,
-      nombre_marca: m.nombre
+      nombre_marca: m.nombre,
+      sistema_comisiones: !!m.sistema_comisiones
     }))
   );
 
-  const sortedModelos = [...flatModelos].sort((a, b) => {
-    let aVal: any = a.id_modelo;
-    let bVal: any = b.id_modelo;
+  const filteredModelos = flatModelos.filter(mod => {
+    if (!modelSearchQuery) return true;
+    const query = modelSearchQuery.toLowerCase();
+    return mod.nombre_modelo.toLowerCase().includes(query) || mod.nombre_marca.toLowerCase().includes(query);
+  });
+
+  const sortedModelos = [...filteredModelos].sort((a, b) => {
+    let aVal: any = a.nombre_marca; // por defecto ordenar por marca
+    let bVal: any = b.nombre_marca;
+    
     if (sortField === "nombre") {
       aVal = a.nombre_modelo;
       bVal = b.nombre_modelo;
-    } else if (sortField === "marca") {
-      aVal = a.nombre_marca;
-      bVal = b.nombre_marca;
     } else if (sortField === "acceso_rapido") {
       aVal = a.acceso_rapido ? 1 : 0;
       bVal = b.acceso_rapido ? 1 : 0;
+    } else if (sortField === "marca") {
+      aVal = a.nombre_marca;
+      bVal = b.nombre_marca;
+    } else if (sortField === "id") {
+      // Por defecto ordenar por nombre de marca y luego por nombre de modelo
+      const brandCompare = a.nombre_marca.localeCompare(b.nombre_marca);
+      if (brandCompare !== 0) return sortOrder === "asc" ? brandCompare : -brandCompare;
+      return sortOrder === "asc" ? a.nombre_modelo.localeCompare(b.nombre_modelo) : -a.nombre_modelo.localeCompare(b.nombre_modelo);
     }
     
     if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
     if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+
+    // Sub-ordenar por nombre de modelo si las marcas son iguales
+    if (sortField === "marca" || sortField === "id") {
+      return sortOrder === "asc" ? a.nombre_modelo.localeCompare(b.nombre_modelo) : -a.nombre_modelo.localeCompare(b.nombre_modelo);
+    }
     return 0;
   });
+
 
   const sortedTiendas = [...tiendas].sort((a, b) => {
     let aVal: any = a.id_tienda;
@@ -1003,96 +1024,247 @@ export default function AdminCatalogosForm({
             </button>
           </form>
 
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    Marca{sortField === "marca" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
-                  <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    Nombre Modelo{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
-                  <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
-                    Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
-                  </th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedModelos.map(mod => {
-                  const isEditing = editingType === "modelos" && editingId === mod.id_modelo;
-                  return (
-                    <tr key={mod.id_modelo}>
-                      <td>
-                        <span style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase" }}>
-                          {mod.nombre_marca}
-                        </span>
-                      </td>
-                      <td>
-                        {isEditing ? (
-                          <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <input
-                              type="text"
-                              className="form-input"
-                              value={editingNombre}
-                              onChange={e => setEditingNombre(e.target.value)}
-                              style={{ padding: "4px 8px", fontSize: "0.85rem" }}
-                              required
-                              autoFocus
-                            />
-                            <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px" }} disabled={loading}>✓</button>
-                            <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px" }}>✗</button>
-                          </form>
-                        ) : (
-                          <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>{mod.nombre_modelo}</span>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className={`badge ${mod.acceso_rapido ? "badge-tienda" : "badge-admin"}`}
-                          onClick={() => handleToggleModeloAccesoRapido(mod.id_modelo, !!mod.acceso_rapido)}
-                          disabled={loading}
-                          style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
-                          title="Alternar Acceso Rápido"
-                        >
-                          {mod.acceso_rapido ? "⭐ Sí" : "✖ No"}
-                        </button>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", gap: "10px" }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => iniciarEdicion("modelos", mod.id_modelo, mod.nombre_modelo)}
-                            style={{ padding: "6px 10px", fontSize: "0.8rem" }}
-                          >
-                            ✏️ Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => handleEliminarModelo(mod.id_modelo, mod.id_marca)}
-                            style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
-                          >
-                            🗑️ Eliminar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {sortedModelos.length === 0 && (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}>
-                      No hay modelos registrados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          {/* BUSCADOR / FILTRO */}
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+            <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-secondary)" }}>🔎 Filtrar modelos:</span>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Buscar por modelo o marca..."
+              value={modelSearchQuery}
+              onChange={e => setModelSearchQuery(e.target.value)}
+              style={{ maxWidth: "300px", padding: "6px 12px" }}
+            />
+            {modelSearchQuery && (
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => setModelSearchQuery("")}
+                style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+              >
+                Limpiar
+              </button>
+            )}
           </div>
+
+          {/* BLOQUES DE MARCAS CON COMISIONES */}
+          {marcas.filter(m => m.sistema_comisiones).sort((a, b) => a.nombre.localeCompare(b.nombre)).map(marca => {
+            const modelosDeMarca = sortedModelos.filter(mod => mod.id_marca === marca.id_marca);
+            return (
+              <div key={marca.id_marca} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h4 style={{ fontSize: "1.05rem", fontWeight: "bold", display: "flex", alignItems: "center", gap: "8px", color: "var(--primary)" }}>
+                    📦 Modelos de {marca.nombre}
+                    <span style={{ fontSize: "0.75rem", background: "rgba(59, 130, 246, 0.15)", color: "#3b82f6", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                      Comisiones Activo
+                    </span>
+                  </h4>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                    {modelosDeMarca.length} modelo(s)
+                  </span>
+                </div>
+
+                <div className="table-container">
+                  <table className="table-premium">
+                    <thead>
+                      <tr>
+                        <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Marca{sortField === "marca" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Nombre Modelo{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modelosDeMarca.map(mod => {
+                        const isEditing = editingType === "modelos" && editingId === mod.id_modelo;
+                        return (
+                          <tr key={mod.id_modelo}>
+                            <td>
+                              <span style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase" }}>
+                                {mod.nombre_marca}
+                              </span>
+                            </td>
+                            <td>
+                              {isEditing ? (
+                                <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    value={editingNombre}
+                                    onChange={e => setEditingNombre(e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "0.85rem" }}
+                                    required
+                                    autoFocus
+                                  />
+                                  <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px" }} disabled={loading}>✓</button>
+                                  <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px" }}>✗</button>
+                                </form>
+                              ) : (
+                                <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>{mod.nombre_modelo}</span>
+                              )}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`badge ${mod.acceso_rapido ? "badge-tienda" : "badge-admin"}`}
+                                onClick={() => handleToggleModeloAccesoRapido(mod.id_modelo, !!mod.acceso_rapido)}
+                                disabled={loading}
+                                style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
+                                title="Alternar Acceso Rápido"
+                              >
+                                {mod.acceso_rapido ? "⭐ Sí" : "✖ No"}
+                              </button>
+                            </td>
+                            <td>
+                              <div style={{ display: "flex", gap: "10px" }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  onClick={() => iniciarEdicion("modelos", mod.id_modelo, mod.nombre_modelo)}
+                                  style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  onClick={() => handleEliminarModelo(mod.id_modelo, mod.id_marca)}
+                                  style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {modelosDeMarca.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
+                            No hay modelos registrados para esta marca.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* BLOQUE RESTO DE MARCAS */}
+          {(() => {
+            const modelosResto = sortedModelos.filter(mod => !mod.sistema_comisiones);
+            return (
+              <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "15px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h4 style={{ fontSize: "1.05rem", fontWeight: "bold", color: "var(--text-primary)" }}>
+                    💼 Resto de Marcas
+                  </h4>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                    {modelosResto.length} modelo(s)
+                  </span>
+                </div>
+
+                <div className="table-container">
+                  <table className="table-premium">
+                    <thead>
+                      <tr>
+                        <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Marca{sortField === "marca" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Nombre Modelo{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
+                          Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                        </th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {modelosResto.map(mod => {
+                        const isEditing = editingType === "modelos" && editingId === mod.id_modelo;
+                        return (
+                          <tr key={mod.id_modelo}>
+                            <td>
+                              <span style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: "bold", textTransform: "uppercase" }}>
+                                {mod.nombre_marca}
+                              </span>
+                            </td>
+                            <td>
+                              {isEditing ? (
+                                <form onSubmit={handleGuardarEdicion} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    value={editingNombre}
+                                    onChange={e => setEditingNombre(e.target.value)}
+                                    style={{ padding: "4px 8px", fontSize: "0.85rem" }}
+                                    required
+                                    autoFocus
+                                  />
+                                  <button type="submit" className="btn btn-primary" style={{ padding: "4px 8px" }} disabled={loading}>✓</button>
+                                  <button type="button" className="btn btn-secondary" onClick={cancelarEdicion} style={{ padding: "4px 8px" }}>✗</button>
+                                </form>
+                              ) : (
+                                <span style={{ fontSize: "0.95rem", fontWeight: 500 }}>{mod.nombre_modelo}</span>
+                              )}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`badge ${mod.acceso_rapido ? "badge-tienda" : "badge-admin"}`}
+                                onClick={() => handleToggleModeloAccesoRapido(mod.id_modelo, !!mod.acceso_rapido)}
+                                disabled={loading}
+                                style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
+                                title="Alternar Acceso Rápido"
+                              >
+                                {mod.acceso_rapido ? "⭐ Sí" : "✖ No"}
+                              </button>
+                            </td>
+                            <td>
+                              <div style={{ display: "flex", gap: "10px" }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  onClick={() => iniciarEdicion("modelos", mod.id_modelo, mod.nombre_modelo)}
+                                  style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  onClick={() => handleEliminarModelo(mod.id_modelo, mod.id_marca)}
+                                  style={{ padding: "6px 10px", color: "var(--danger)", border: "1px solid var(--border-light)" }}
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {modelosResto.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "15px" }}>
+                            No hay modelos para el resto de marcas.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
