@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/date-utils";
 interface DropdownItem {
   id: number;
   nombre: string;
+  sistema_comisiones?: boolean;
 }
 
 interface ModeloItem {
@@ -29,7 +30,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [planData, setPlanData] = useState<any>(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "resumen" | "objetivo" | "modelos" | "usados" | "financiacion" | "preference" | "reglas" | "bonus" | "liquidacion"
+    "resumen" | "objetivo" | "modelos" | "usados" | "preference" | "reglas" | "bonus" | "liquidacion"
   >("resumen");
 
   // Estados para creación/clonación de planes
@@ -88,6 +89,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // Usados / VO
   const [usedRates, setUsedRates] = useState<any[]>([]);
+  const [voPatterns, setVoPatterns] = useState<any[]>([]);
+  const [prefLocked, setPrefLocked] = useState(true);
 
   // Financiación por marca
   const [financeRates, setFinanceRates] = useState<any[]>([]);
@@ -156,6 +159,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setUsedRates(plan.usedRates || []);
         setFinanceRates(plan.financeRates || []);
         setPreferenceRules(plan.preferenceRules || []);
+        setVoPatterns(plan.voPatterns || []);
         
         if (plan.financeRules) {
           setFinanceNormal(plan.financeRules.importe_normal);
@@ -203,7 +207,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           bonusRules,
           usedRates,
           financeRates,
-          preferenceRules
+          preferenceRules,
+          voPatterns
         })
       });
 
@@ -637,10 +642,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             {[
               { id: "resumen", label: "📋 Resumen" },
               { id: "objetivo", label: "🎯 Objetivo" },
-              { id: "modelos", label: "🚗 VN Renault/Dacia" },
+              { id: "modelos", label: "🚗 VN" },
               { id: "usados", label: "🚙 Usados / VO" },
-              { id: "financiacion", label: "💳 Financiación" },
-              { id: "preference", label: "⭐ Preference / BOX3" },
+              { id: "preference", label: "💳 Financiación" },
               { id: "reglas", label: "⚙️ Reglas" },
               { id: "bonus", label: "🎁 Bonus" },
               { id: "liquidacion", label: "💰 Liquidación" }
@@ -762,86 +766,201 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
             )}
 
-            {/* TAB: VN RENAULT/DACIA */}
+            {/* TAB: VN MODEL RATES */}
             {activeTab === "modelos" && (() => {
-              const renDacMarcas = marcas.filter(m => {
-                const name = m.nombre.toLowerCase();
-                return name.includes("renault") || name.includes("dacia");
-              });
-              const renDacIds = renDacMarcas.map(m => m.id);
+              const activeBrands = marcas.filter(m => !!m.sistema_comisiones);
 
-              const filteredRates = rates.filter(r => {
-                const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
-                return mId && renDacIds.includes(mId);
-              });
+              if (activeBrands.length === 0) {
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                    <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Modelos VN por Tramo</h3>
+                    <div className="glass-panel" style={{ padding: "24px", textAlign: "center", color: "var(--text-secondary)" }}>
+                      ⚠️ No hay ninguna marca configurada en el sistema de comisionamiento. 
+                      Ve a <strong>Configuración &gt; Marcas</strong> para activar al menos una marca.
+                    </div>
+                  </div>
+                );
+              }
 
               return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+                  <div>
+                    <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Modelos VN por Tramo</h3>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
+                      Define el valor computable para el objetivo (ej: 2 para modelos dobles) y el importe económico a comisionar según el tramo de cumplimiento para coches nuevos.
+                    </p>
+                  </div>
+
+                  {activeBrands.map(brand => {
+                    const brandRates = rates.filter(r => {
+                      const mId = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.marca_id : null;
+                      return mId === brand.id;
+                    });
+
+                    return (
+                      <div key={brand.id} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.01)" }}>
+                        <h4 style={{ margin: 0, fontSize: "1.05rem", color: "var(--primary)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          📦 Modelos de {brand.nombre}
+                        </h4>
+
+                        <div className="table-container">
+                          <table className="table-premium" style={{ fontSize: "0.9rem" }}>
+                            <thead>
+                              <tr>
+                                <th>Modelo</th>
+                                <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
+                                <th style={{ width: "90px" }}>X - 3</th>
+                                <th style={{ width: "90px" }}>X - 2</th>
+                                <th style={{ width: "90px" }}>X - 1</th>
+                                <th style={{ width: "90px" }}>X</th>
+                                <th style={{ width: "90px" }}>X + 1</th>
+                                <th style={{ width: "90px" }}>X + 2</th>
+                                <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {brandRates.map((r, idx) => {
+                                const handleChange = (field: string, val: any) => {
+                                  const originalIdx = rates.findIndex(item => item.id_modelo === r.id_modelo);
+                                  if (originalIdx !== -1) {
+                                    const updated = [...rates];
+                                    updated[originalIdx] = { ...updated[originalIdx], [field]: val };
+                                    setRates(updated);
+                                  }
+                                };
+
+                                return (
+                                  <tr key={r.id_rate || idx}>
+                                    <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{r.modelo?.nombre_modelo || "Sin Nombre"}</td>
+                                    <td style={{ textAlign: "center" }}>
+                                      <select
+                                        className="form-select"
+                                        value={r.valor_objetivo}
+                                        onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
+                                        disabled={planEstado === "cerrado" || !isAdmin}
+                                        style={{ padding: "4px 8px", width: "60px" }}
+                                      >
+                                        <option value={0}>0</option>
+                                        <option value={1}>1</option>
+                                        <option value={2}>2</option>
+                                      </select>
+                                    </td>
+                                    {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                      <td key={col}>
+                                        <input
+                                          type="number"
+                                          className="form-input"
+                                          value={r[col]}
+                                          onChange={(e) => handleChange(col, Number(e.target.value))}
+                                          disabled={planEstado === "cerrado" || !isAdmin}
+                                          style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                        />
+                                      </td>
+                                    ))}
+                                    <td style={{ textAlign: "center" }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={r.activo}
+                                        onChange={(e) => handleChange("activo", e.target.checked)}
+                                        disabled={planEstado === "cerrado" || !isAdmin}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {brandRates.length === 0 && (
+                                <tr>
+                                  <td colSpan={9} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                                    No hay modelos de {brand.nombre} configurados en este plan.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* TAB: USADOS / VO */}
+            {activeTab === "usados" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                  <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Modelos VN Renault/Dacia por Tramo</h3>
+                  <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Vehículos Usados (BB / KM0 / etc.)</h3>
                   <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-                    Define el valor computable para el objetivo (ej: 2 para modelos dobles) y el importe económico a comisionar según el tramo de cumplimiento para coches nuevos.
+                    Parámetros generales de cobro para vehículos usados no progresivos (Buyback, KM0, etc.). Las comisiones se pagan de forma diferencial: primera unidad vs unidades siguientes (resto), si se cumple con el mínimo de unidades a aplicar en el mes.
                   </p>
 
                   <div className="table-container">
                     <table className="table-premium" style={{ fontSize: "0.9rem" }}>
                       <thead>
                         <tr>
-                          <th>Marca</th>
-                          <th>Modelo</th>
-                          <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
-                          <th style={{ width: "90px" }}>X - 3</th>
-                          <th style={{ width: "90px" }}>X - 2</th>
-                          <th style={{ width: "90px" }}>X - 1</th>
-                          <th style={{ width: "90px" }}>X</th>
-                          <th style={{ width: "90px" }}>X + 1</th>
-                          <th style={{ width: "90px" }}>X + 2</th>
-                          <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
+                          <th>Tipo de Usado</th>
+                          <th style={{ width: "120px", textAlign: "center" }}>Valor Objetivo</th>
+                          <th style={{ width: "150px" }}>1ª Unidad (€)</th>
+                          <th style={{ width: "150px" }}>Siguientes (€)</th>
+                          <th style={{ width: "120px", textAlign: "center" }}>Mín. Aplicar</th>
+                          <th style={{ width: "100px", textAlign: "center" }}>Activo</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRates.map((r, idx) => {
+                        {usedRates.map((u, idx) => {
                           const handleChange = (field: string, val: any) => {
-                            const originalIdx = rates.findIndex(item => item.id_modelo === r.id_modelo);
-                            if (originalIdx !== -1) {
-                              const updated = [...rates];
-                              updated[originalIdx] = { ...updated[originalIdx], [field]: val };
-                              setRates(updated);
-                            }
+                            const updated = [...usedRates];
+                            updated[idx] = { ...updated[idx], [field]: val };
+                            setUsedRates(updated);
                           };
 
                           return (
-                            <tr key={r.id_rate || idx}>
-                              <td style={{ fontWeight: 600 }}>{r.modelo?.marca?.nombre || "VN"}</td>
-                              <td style={{ color: "var(--text-primary)" }}>{r.modelo?.nombre_modelo || "Sin Modelo"}</td>
+                            <tr key={u.id_used_rate || idx}>
+                              <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.tipo_usado}</td>
                               <td style={{ textAlign: "center" }}>
-                                <select
-                                  className="form-select"
-                                  value={r.valor_objetivo}
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={u.valor_objetivo}
                                   onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
                                   disabled={planEstado === "cerrado" || !isAdmin}
-                                  style={{ padding: "4px 8px", width: "60px" }}
-                                >
-                                  <option value={0}>0</option>
-                                  <option value={1}>1</option>
-                                  <option value={2}>2</option>
-                                </select>
+                                  style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
+                                />
                               </td>
-                              {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
-                                <td key={col}>
-                                  <input
-                                    type="number"
-                                    className="form-input"
-                                    value={r[col]}
-                                    onChange={(e) => handleChange(col, Number(e.target.value))}
-                                    disabled={planEstado === "cerrado" || !isAdmin}
-                                    style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
-                                  />
-                                </td>
-                              ))}
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={u.importe_primera}
+                                  onChange={(e) => handleChange("importe_primera", Number(e.target.value))}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px", width: "120px" }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={u.importe_resto}
+                                  onChange={(e) => handleChange("importe_resto", Number(e.target.value))}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px", width: "120px" }}
+                                />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={u.min_aplicar}
+                                  onChange={(e) => handleChange("min_aplicar", Number(e.target.value))}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
+                                />
+                              </td>
                               <td style={{ textAlign: "center" }}>
                                 <input
                                   type="checkbox"
-                                  checked={r.activo}
+                                  checked={u.activo}
                                   onChange={(e) => handleChange("activo", e.target.checked)}
                                   disabled={planEstado === "cerrado" || !isAdmin}
                                 />
@@ -849,10 +968,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             </tr>
                           );
                         })}
-                        {filteredRates.length === 0 && (
+                        {usedRates.length === 0 && (
                           <tr>
-                            <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
-                              No hay modelos Renault/Dacia cargados en el plan.
+                            <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                              No hay tarifas de vehículos usados configuradas en el plan.
                             </td>
                           </tr>
                         )}
@@ -860,274 +979,257 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     </table>
                   </div>
                 </div>
-              );
-            })()}
 
-            {/* TAB: USADOS / VO */}
-            {activeTab === "usados" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Tarifas de Vehículos Usados / VO</h3>
-                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-                  Parámetros generales de cobro para vehículos usados. Las comisiones se pagan de forma diferencial: primera unidad vs unidades siguientes (resto), si se cumple con el mínimo de unidades a aplicar en el mes.
-                </p>
+                <div style={{ marginTop: "32px", borderTop: "1px solid var(--border-light)", paddingTop: "32px", display: "flex", flexDirection: "column", gap: "24px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+                    <div>
+                      <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Patrones de Comisionamiento Progresivos VO</h3>
+                      <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
+                        Define esquemas progresivos para vendedores de VO. Cada patrón indica cuánto se comisiona y cuántos puntos aporta cada unidad vendida en orden secuencial (unidad 1, unidad 2, etc.).
+                      </p>
+                    </div>
+                    {isAdmin && planEstado !== "cerrado" && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          const newPattern = {
+                            nombre: `Patrón VO ${voPatterns.length + 1}`,
+                            activo: true,
+                            tiers: [
+                              { unidad: 1, importe: 150, valor_objetivo: 1 },
+                              { unidad: 2, importe: 180, valor_objetivo: 1 },
+                              { unidad: 3, importe: 200, valor_objetivo: 1 }
+                            ]
+                          };
+                          setVoPatterns([...voPatterns, newPattern]);
+                        }}
+                      >
+                        ➕ Añadir Nuevo Patrón VO
+                      </button>
+                    )}
+                  </div>
 
-                <div className="table-container">
-                  <table className="table-premium" style={{ fontSize: "0.9rem" }}>
-                    <thead>
-                      <tr>
-                        <th>Tipo de Usado</th>
-                        <th style={{ width: "120px", textAlign: "center" }}>Valor Objetivo</th>
-                        <th style={{ width: "150px" }}>1ª Unidad (€)</th>
-                        <th style={{ width: "150px" }}>Siguientes (€)</th>
-                        <th style={{ width: "120px", textAlign: "center" }}>Mín. Aplicar</th>
-                        <th style={{ width: "100px", textAlign: "center" }}>Activo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {usedRates.map((u, idx) => {
-                        const handleChange = (field: string, val: any) => {
-                          const updated = [...usedRates];
-                          updated[idx] = { ...updated[idx], [field]: val };
-                          setUsedRates(updated);
-                        };
+                  <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                    {voPatterns.map((pat, pIdx) => {
+                      let tiersList: any[] = [];
+                      try {
+                        tiersList = typeof pat.tiers === "string" ? JSON.parse(pat.tiers) : (pat.tiers || []);
+                      } catch (e) {
+                        tiersList = [];
+                      }
 
-                        return (
-                          <tr key={u.id_used_rate || idx}>
-                            <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.tipo_usado}</td>
-                            <td style={{ textAlign: "center" }}>
+                      const updatePatternName = (newName: string) => {
+                        const updated = [...voPatterns];
+                        updated[pIdx] = { ...updated[pIdx], nombre: newName };
+                        setVoPatterns(updated);
+                      };
+
+                      const updateTiers = (newTiers: any[]) => {
+                        const updated = [...voPatterns];
+                        updated[pIdx] = { ...updated[pIdx], tiers: newTiers };
+                        setVoPatterns(updated);
+                      };
+
+                      const handleAddTier = () => {
+                        const nextUnit = tiersList.length + 1;
+                        const lastTier = tiersList[tiersList.length - 1] || { importe: 150, valor_objetivo: 1 };
+                        const newTiers = [...tiersList, { unidad: nextUnit, importe: lastTier.importe, valor_objetivo: lastTier.valor_objetivo }];
+                        updateTiers(newTiers);
+                      };
+
+                      const handleRemoveTier = (tIdx: number) => {
+                        const newTiers = tiersList.filter((_, i) => i !== tIdx).map((t, idx) => ({
+                          ...t,
+                          unidad: idx + 1
+                        }));
+                        updateTiers(newTiers);
+                      };
+
+                      const handleTierChange = (tIdx: number, field: string, val: any) => {
+                        const newTiers = [...tiersList];
+                        newTiers[tIdx] = { ...newTiers[tIdx], [field]: val };
+                        updateTiers(newTiers);
+                      };
+
+                      const handleRemovePattern = () => {
+                        if (!confirm(`¿Estás seguro de eliminar el patrón "${pat.nombre}"?`)) return;
+                        setVoPatterns(voPatterns.filter((_, i) => i !== pIdx));
+                      };
+
+                      return (
+                        <div key={pIdx} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "200px" }}>
+                              <span style={{ fontSize: "1.1rem" }}>📋</span>
                               <input
-                                type="number"
+                                type="text"
                                 className="form-input"
-                                value={u.valor_objetivo}
-                                onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
+                                value={pat.nombre}
+                                onChange={(e) => updatePatternName(e.target.value)}
                                 disabled={planEstado === "cerrado" || !isAdmin}
-                                style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
+                                style={{ fontWeight: 600, fontSize: "1rem", border: "none", background: "transparent", borderBottom: "1px dashed var(--border-light)", padding: "2px 6px", width: "250px" }}
                               />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                className="form-input"
-                                value={u.importe_primera}
-                                onChange={(e) => handleChange("importe_primera", Number(e.target.value))}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                                style={{ padding: "4px 8px", width: "120px" }}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                className="form-input"
-                                value={u.importe_resto}
-                                onChange={(e) => handleChange("importe_resto", Number(e.target.value))}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                                style={{ padding: "4px 8px", width: "120px" }}
-                              />
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <input
-                                type="number"
-                                className="form-input"
-                                value={u.min_aplicar}
-                                onChange={(e) => handleChange("min_aplicar", Number(e.target.value))}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                                style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
-                              />
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={u.activo}
-                                onChange={(e) => handleChange("activo", e.target.checked)}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {usedRates.length === 0 && (
-                        <tr>
-                          <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
-                            No hay tarifas de vehículos usados configuradas en el plan.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                            </div>
+                            {isAdmin && planEstado !== "cerrado" && (
+                              <button
+                                type="button"
+                                className="btn"
+                                onClick={handleRemovePattern}
+                                style={{
+                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                  borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                }}
+                              >
+                                🗑️ Eliminar Patrón
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="table-container">
+                            <table className="table-premium" style={{ fontSize: "0.85rem" }}>
+                              <thead>
+                                <tr>
+                                  <th style={{ width: "80px", textAlign: "center" }}>Secuencia</th>
+                                  <th>Unidad Vendida</th>
+                                  <th style={{ width: "150px" }}>Comisión (€)</th>
+                                  <th style={{ width: "150px", textAlign: "center" }}>Valor Objetivo (Puntos)</th>
+                                  {isAdmin && planEstado !== "cerrado" && <th style={{ width: "80px" }}>Acción</th>}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {tiersList.map((t, tIdx) => (
+                                  <tr key={tIdx}>
+                                    <td style={{ textAlign: "center", fontWeight: 600, color: "var(--text-secondary)" }}>#{tIdx + 1}</td>
+                                    <td style={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                                      {t.unidad === 1 ? "1ª Unidad de VO" : `${t.unidad}ª Unidad de VO`}
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        className="form-input"
+                                        value={t.importe}
+                                        onChange={(e) => handleTierChange(tIdx, "importe", Number(e.target.value))}
+                                        disabled={planEstado === "cerrado" || !isAdmin}
+                                        style={{ padding: "4px 8px", width: "100px" }}
+                                      />
+                                    </td>
+                                    <td style={{ textAlign: "center" }}>
+                                      <input
+                                        type="number"
+                                        className="form-input"
+                                        value={t.valor_objetivo}
+                                        onChange={(e) => handleTierChange(tIdx, "valor_objetivo", Number(e.target.value))}
+                                        disabled={planEstado === "cerrado" || !isAdmin}
+                                        style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
+                                      />
+                                    </td>
+                                    {isAdmin && planEstado !== "cerrado" && (
+                                      <td>
+                                        <button
+                                          type="button"
+                                          className="btn"
+                                          onClick={() => handleRemoveTier(tIdx)}
+                                          style={{
+                                            padding: "2px 6px", fontSize: "0.7rem", color: "var(--danger)",
+                                            background: "transparent", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                            borderRadius: "var(--radius-sm)"
+                                          }}
+                                        >
+                                          Quitar
+                                        </button>
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                                {tiersList.length === 0 && (
+                                  <tr>
+                                    <td colSpan={5} style={{ textAlign: "center", color: "var(--text-muted)", padding: "16px" }}>
+                                      No hay tramos configurados para este patrón. Añade el primer tramo.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {isAdmin && planEstado !== "cerrado" && (
+                            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={handleAddTier}
+                                style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+                              >
+                                ➕ Añadir Tramo (Unidad {tiersList.length + 1})
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {voPatterns.length === 0 && (
+                      <div className="glass-panel" style={{ padding: "24px", textAlign: "center", color: "var(--text-secondary)" }}>
+                        No hay patrones de comisionamiento de VO configurados. Haz clic en &quot;Añadir Nuevo Patrón VO&quot; para empezar.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* TAB: FINANCIACIÓN */}
-            {activeTab === "financiacion" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                <div>
-                  <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Importes de Financiación por Marca</h3>
-                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
-                    Configura la comisión de financiación que recibe el vendedor según la marca del vehículo y el tipo de producto financiero.
-                  </p>
-                </div>
-
-                <div className="table-premium-container">
-                  <table className="table-premium" style={{ fontSize: "0.9rem" }}>
-                    <thead>
-                      <tr>
-                        <th>Marca</th>
-                        <th>Tipo de Financiación</th>
-                        <th style={{ width: "180px" }}>Importe (€)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {financeRates.map((f, idx) => {
-                        const brandName = marcas.find(m => m.id === f.id_marca)?.nombre || `Marca #${f.id_marca}`;
-                        const handleChange = (val: number) => {
-                          const updated = [...financeRates];
-                          updated[idx] = { ...updated[idx], importe: val };
-                          setFinanceRates(updated);
-                        };
-
-                        return (
-                          <tr key={f.id_finance_rate || idx}>
-                            <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{brandName}</td>
-                            <td>
-                              <span className="badge badge-tienda" style={{ fontSize: "0.75rem" }}>
-                                {f.tipo_financiacion}
-                              </span>
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                className="form-input"
-                                value={f.importe}
-                                onChange={(e) => handleChange(Number(e.target.value))}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                                style={{ padding: "4px 8px", width: "120px" }}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {financeRates.length === 0 && (
-                        <tr>
-                          <td colSpan={3} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
-                            No hay incentivos de financiación por marca configurados en el plan.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "20px", display: "flex", flexDirection: "column", gap: "16px", maxWidth: "450px" }}>
-                  <h4 style={{ margin: 0, fontSize: "1rem" }}>Configuración Global (Compatibilidad)</h4>
-                  <div className="form-group">
-                    <label className="form-label">Financiación Normal Global (€)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={financeNormal}
-                      onChange={(e) => setFinanceNormal(Number(e.target.value))}
-                      disabled={planEstado === "cerrado" || !isAdmin}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Financiación Preference Global (€)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={financePref}
-                      onChange={(e) => setFinancePref(Number(e.target.value))}
-                      disabled={planEstado === "cerrado" || !isAdmin}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB: PREFERENCE / BOX3 */}
+            {/* TAB: FINANCIACIÓN (REPLACED FROM PREFERENCE) */}
             {activeTab === "preference" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Reglas Especiales de Preference / BOX3</h3>
-                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-                  Define reglas para incentivos de financiación específicos del plan de negocio (por ejemplo, financiación RCI para modelos dobles o BOX3).
-                </p>
-
-                {isAdmin && planEstado !== "cerrado" && (
-                  <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
-                    <h4 style={{ margin: 0, fontSize: "1rem" }}>Añadir Nueva Regla Preference / BOX3</h4>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-                      <div className="form-group">
-                        <label className="form-label">Nombre de la Regla</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={newPrefName}
-                          onChange={(e) => setNewPrefName(e.target.value)}
-                          placeholder="Ej. Campaña RCI Megane"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Filtrar por Marca (Opcional)</label>
-                        <select
-                          className="form-select"
-                          value={newPrefMarca}
-                          onChange={(e) => {
-                            setNewPrefMarca(e.target.value);
-                            setNewPrefModelo("");
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+                  <div>
+                    <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Reglas de Financiación</h3>
+                    <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
+                      Define reglas de comisionamiento para operaciones financiadas. Puedes asociar comisiones fijas por marca, modelo o tipo de financiación específico.
+                    </p>
+                  </div>
+                  {isAdmin && planEstado !== "cerrado" && (
+                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setPrefLocked(!prefLocked)}
+                        style={{
+                          padding: "8px 16px",
+                          fontSize: "0.85rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: prefLocked ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)",
+                          color: prefLocked ? "var(--danger)" : "var(--success)",
+                          border: `1px solid ${prefLocked ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)"}`
+                        }}
+                      >
+                        {prefLocked ? "🔒 Editar Tabla" : "🔓 Cerrar Edición"}
+                      </button>
+                      {!prefLocked && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => {
+                            const newRule = {
+                              nombre: "Nueva Regla Financiación",
+                              id_marca: null,
+                              id_modelo: null,
+                              tipo_financiacion: "Preference",
+                              importe: 100,
+                              activa: true
+                            };
+                            setPreferenceRules([...preferenceRules, newRule]);
                           }}
                         >
-                          <option value="">Todas las marcas</option>
-                          {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Filtrar por Modelo (Opcional)</label>
-                        <select
-                          className="form-select"
-                          value={newPrefModelo}
-                          onChange={(e) => setNewPrefModelo(e.target.value)}
-                          disabled={!newPrefMarca}
-                        >
-                          <option value="">Todos los modelos</option>
-                          {modelos.filter(m => m.marca_id === Number(newPrefMarca)).map(m => (
-                            <option key={m.id} value={m.id}>{m.nombre}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Filtrar por Tipo Financiación (Opcional)</label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={newPrefFinType}
-                          onChange={(e) => setNewPrefFinType(e.target.value)}
-                          placeholder="Ej. Preference, RCI, BOX3"
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="form-label">Importe Comisión (€)</label>
-                        <input
-                          type="number"
-                          className="form-input"
-                          value={newPrefImporte}
-                          onChange={(e) => setNewPrefImporte(e.target.value)}
-                        />
-                      </div>
+                          ➕ Añadir Regla
+                        </button>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleAddPrefRule}
-                      className="btn btn-secondary"
-                      style={{ alignSelf: "flex-end", padding: "10px 20px" }}
-                    >
-                      ➕ Añadir Regla Preference / BOX3
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="table-container">
                   <table className="table-premium" style={{ fontSize: "0.9rem" }}>
@@ -1137,61 +1239,168 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <th>Marca Filtro</th>
                         <th>Modelo Filtro</th>
                         <th>Financiación Filtro</th>
-                        <th style={{ textAlign: "right" }}>Importe (€)</th>
-                        <th style={{ textAlign: "center" }}>Activa</th>
-                        <th>Acción</th>
+                        <th style={{ width: "150px", textAlign: "right" }}>Importe (€)</th>
+                        <th style={{ width: "90px", textAlign: "center" }}>Activa</th>
+                        {isAdmin && planEstado !== "cerrado" && <th style={{ width: "180px" }}>Acciones</th>}
                       </tr>
                     </thead>
                     <tbody>
                       {preferenceRules.map((p, idx) => {
-                        const mName = p.id_marca ? marcas.find(m => m.id === p.id_marca)?.nombre : "Todas";
-                        const modName = p.id_modelo ? modelos.find(m => m.id === p.id_modelo)?.nombre : "Todos";
-                        const handleToggleActiva = () => {
+                        const handleChange = (field: string, value: any) => {
                           const updated = [...preferenceRules];
-                          updated[idx] = { ...updated[idx], activa: !updated[idx].activa };
+                          updated[idx] = { ...updated[idx], [field]: value };
+                          if (field === "id_marca") {
+                            updated[idx].id_modelo = null;
+                          }
                           setPreferenceRules(updated);
                         };
 
+                        const handleDuplicate = () => {
+                          const ruleToClone = preferenceRules[idx];
+                          const cloned = {
+                            ...ruleToClone,
+                            nombre: `${ruleToClone.nombre} (Copia)`,
+                            id_pref_rule: undefined
+                          };
+                          setPreferenceRules([...preferenceRules, cloned]);
+                          showNotification("Regla duplicada al final de la lista", "success");
+                        };
+
+                        const handleRemove = () => {
+                          setPreferenceRules(preferenceRules.filter((_, i) => i !== idx));
+                        };
+
+                        const brandName = p.id_marca ? marcas.find(m => m.id === p.id_marca)?.nombre : "Todas";
+                        const modName = p.id_modelo ? modelos.find(m => m.id === p.id_modelo)?.nombre : "Todos";
+
                         return (
                           <tr key={idx}>
-                            <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{p.nombre}</td>
-                            <td>{mName}</td>
-                            <td>{modName}</td>
                             <td>
-                              {p.tipo_financiacion ? (
-                                <span className="badge badge-tienda" style={{ fontSize: "0.7rem" }}>{p.tipo_financiacion}</span>
-                              ) : "Cualquiera"}
+                              {prefLocked ? (
+                                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{p.nombre}</span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={p.nombre}
+                                  onChange={(e) => handleChange("nombre", e.target.value)}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px" }}
+                                />
+                              )}
                             </td>
-                            <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{p.importe} €</td>
+                            <td>
+                              {prefLocked ? (
+                                <span>{brandName}</span>
+                              ) : (
+                                <select
+                                  className="form-select"
+                                  value={p.id_marca || ""}
+                                  onChange={(e) => handleChange("id_marca", e.target.value ? Number(e.target.value) : null)}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px" }}
+                                >
+                                  <option value="">Todas</option>
+                                  {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                                </select>
+                              )}
+                            </td>
+                            <td>
+                              {prefLocked ? (
+                                <span>{modName}</span>
+                              ) : (
+                                <select
+                                  className="form-select"
+                                  value={p.id_modelo || ""}
+                                  onChange={(e) => handleChange("id_modelo", e.target.value ? Number(e.target.value) : null)}
+                                  disabled={planEstado === "cerrado" || !isAdmin || !p.id_marca}
+                                  style={{ padding: "4px 8px" }}
+                                >
+                                  <option value="">Todos</option>
+                                  {modelos.filter(m => m.marca_id === p.id_marca).map(m => (
+                                    <option key={m.id} value={m.id}>{m.nombre}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                            <td>
+                              {prefLocked ? (
+                                p.tipo_financiacion ? (
+                                  <span className="badge badge-tienda" style={{ fontSize: "0.75rem" }}>{p.tipo_financiacion}</span>
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Cualquiera</span>
+                                )
+                              ) : (
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={p.tipo_financiacion || ""}
+                                  onChange={(e) => handleChange("tipo_financiacion", e.target.value || null)}
+                                  placeholder="Ej. Preference, BOX3"
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px" }}
+                                />
+                              )}
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              {prefLocked ? (
+                                <strong style={{ color: "var(--text-primary)" }}>{p.importe.toLocaleString()} €</strong>
+                              ) : (
+                                <input
+                                  type="number"
+                                  className="form-input"
+                                  value={p.importe}
+                                  onChange={(e) => handleChange("importe", Number(e.target.value))}
+                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  style={{ padding: "4px 8px", width: "100px", textAlign: "right" }}
+                                />
+                              )}
+                            </td>
                             <td style={{ textAlign: "center" }}>
                               <input
                                 type="checkbox"
                                 checked={p.activa}
-                                onChange={handleToggleActiva}
-                                disabled={planEstado === "cerrado" || !isAdmin}
+                                onChange={(e) => handleChange("activa", e.target.checked)}
+                                disabled={planEstado === "cerrado" || !isAdmin || prefLocked}
                               />
                             </td>
-                            <td>
-                              <button
-                                onClick={() => handleDeletePrefRule(idx)}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                                className="btn"
-                                style={{
-                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
-                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                  borderRadius: "var(--radius-sm)", cursor: "pointer"
-                                }}
-                              >
-                                Quitar
-                              </button>
-                            </td>
+                            {isAdmin && planEstado !== "cerrado" && (
+                              <td>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                  {!prefLocked && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        onClick={handleDuplicate}
+                                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                      >
+                                        📋 Duplicar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn"
+                                        onClick={handleRemove}
+                                        style={{
+                                          padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                          background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                          borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                        }}
+                                      >
+                                        Quitar
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
                       {preferenceRules.length === 0 && (
                         <tr>
                           <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
-                            No hay reglas de Preference / BOX3 configuradas en el plan.
+                            No hay reglas de financiación configuradas en el plan. Haz clic en &quot;🔒 Editar Tabla&quot; para añadir reglas.
                           </td>
                         </tr>
                       )}
@@ -1601,37 +1810,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
             )}
 
-            {/* TAB: FINANCIACIÓN */}
-            {activeTab === "financiacion" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px", maxWidth: "450px" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Importes de Financiación</h3>
-                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-                  Establece la comisión económica fija pagada al matriculado si la operación es financiada.
-                </p>
 
-                <div className="form-group">
-                  <label className="form-label">Financiación Normal (Renting / Financiado tradicional) (€)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={financeNormal}
-                    onChange={(e) => setFinanceNormal(Number(e.target.value))}
-                    disabled={planEstado === "cerrado" || !isAdmin}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Financiación Preference (Producto Estrella) (€)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={financePref}
-                    onChange={(e) => setFinancePref(Number(e.target.value))}
-                    disabled={planEstado === "cerrado" || !isAdmin}
-                  />
-                </div>
-              </div>
-            )}
 
             {/* TAB: LIQUIDACIÓN */}
             {activeTab === "liquidacion" && (

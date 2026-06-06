@@ -70,6 +70,7 @@ export default async function AdminPage() {
     nombre: m.nombre,
     activo: m.activo,
     acceso_rapido: m.acceso_rapido,
+    sistema_comisiones: m.sistema_comisiones,
     modelos: m.modelos.map(mod => ({
       id_modelo: mod.id_modelo,
       nombre_modelo: mod.nombre_modelo,

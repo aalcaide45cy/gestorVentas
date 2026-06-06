@@ -30,6 +30,7 @@ export default async function ComisionesPage() {
   const marcasMapped = dbMarcas.map((m) => ({
     id: m.id_marca,
     nombre: m.nombre,
+    sistema_comisiones: m.sistema_comisiones,
   }));
 
   const modelosMapped = dbModelos.map((m) => ({

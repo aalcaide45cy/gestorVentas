@@ -19,6 +19,8 @@ interface UserItem {
   rol: string | null;
   fecha_de_registro: string | null;
   bloqueado?: boolean | null;
+  tipo_vendedor?: string;
+  patron_vo?: string | null;
   emails: EmailContact[];
   telefonos: TelefonoContact[];
 }
@@ -50,6 +52,8 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
   const [telefono, setTelefono] = useState("");
   const [rol, setRol] = useState("invitado");
   const [bloqueado, setBloqueado] = useState(false);
+  const [tipoVendedor, setTipoVendedor] = useState("VN");
+  const [patronVo, setPatronVo] = useState("Estándar VO");
   const [loading, setLoading] = useState(false);
 
   const handleSort = (field: "nombre" | "fecha_de_registro" | "rol" | "bloqueado") => {
@@ -88,6 +92,8 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     setTelefono("");
     setRol("invitado");
     setBloqueado(false);
+    setTipoVendedor("VN");
+    setPatronVo("Estándar VO");
     setModalOpen("create");
   };
 
@@ -99,6 +105,8 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
     setTelefono(usr.telefonos?.[0]?.telefono || "");
     setRol(usr.rol || "invitado");
     setBloqueado(!!usr.bloqueado);
+    setTipoVendedor(usr.tipo_vendedor || "VN");
+    setPatronVo(usr.patron_vo || "Estándar VO");
     setModalOpen("edit");
   };
 
@@ -118,7 +126,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
         const res = await fetch("/api/admin/usuarios", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nombre, email, telefono, rol })
+          body: JSON.stringify({ nombre, email, telefono, rol, tipo_vendedor: tipoVendedor, patron_vo: patronVo })
         });
 
         const data = await res.json();
@@ -134,6 +142,8 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
             rol: data.data.rol,
             fecha_de_registro: data.data.fecha_de_registro,
             bloqueado: false,
+            tipo_vendedor: data.data.tipo_vendedor,
+            patron_vo: data.data.patron_vo,
             emails: email ? [{ email }] : [],
             telefonos: telefono ? [{ telefono }] : []
           }
@@ -154,7 +164,9 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
             rol,
             bloqueado,
             email,
-            telefono
+            telefono,
+            tipo_vendedor: tipoVendedor,
+            patron_vo: patronVo
           })
         });
 
@@ -167,6 +179,8 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
           nombre,
           rol,
           bloqueado,
+          tipo_vendedor: tipoVendedor,
+          patron_vo: patronVo,
           emails: email ? [{ email }] : [],
           telefonos: telefono ? [{ telefono }] : []
         } : u));
@@ -339,7 +353,14 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
             {sortedUsuarios.map((usr) => (
               <tr key={usr.id_usuario}>
                 <td>
-                  <div style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{usr.nombre}</div>
+                  <div style={{ fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+                    {usr.nombre}
+                    {usr.rol === "vendedor" && (
+                      <span className="badge badge-tienda" style={{ fontSize: "0.65rem", padding: "2px 6px" }}>
+                        {usr.tipo_vendedor === "VO" ? `VO (${usr.patron_vo})` : "VN"}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
                     ID Clerk: {usr.clerk_id.startsWith("pending_") ? "Pendiente Registro" : usr.clerk_id.substring(0, 12) + "..."}
                   </div>
@@ -494,6 +515,31 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                   <option value="invitado">Invitado</option>
                 </select>
               </div>
+
+              {rol === "vendedor" && (
+                <>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Tipo de Vendedor *</label>
+                    <select className="form-select" value={tipoVendedor} onChange={e => setTipoVendedor(e.target.value)} required>
+                      <option value="VN">Vehículo Nuevo (VN)</option>
+                      <option value="VO">Vehículo de Ocasión (VO)</option>
+                    </select>
+                  </div>
+                  {tipoVendedor === "VO" && (
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label">Patrón de Comisionamiento VO *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Ej. Estándar VO"
+                        value={patronVo || ""}
+                        onChange={e => setPatronVo(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+                </>
+              )}
 
                {modalOpen === "edit" && rol !== "administrador" && (
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px" }}>

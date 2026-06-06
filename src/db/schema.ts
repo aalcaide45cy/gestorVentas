@@ -16,6 +16,8 @@ export const usuarios = pgTable('usuarios', {
   rol: varchar('rol', { length: 50 }), // administrador, director, jefe_zona, jefe_tienda, vendedor, invitado
   fecha_de_registro: date('fecha_de_registro'),
   bloqueado: boolean('bloqueado').default(false),
+  tipo_vendedor: varchar('tipo_vendedor', { length: 50 }).notNull().default('VN'), // VN, VO
+  patron_vo: varchar('patron_vo', { length: 100 }).default('Estándar VO'),
 });
 
 // TABLA: USUARIOS_TIENDAS (Relación Muchos a Muchos N-a-N)
@@ -73,6 +75,7 @@ export const marcas = pgTable('marcas', {
   nombre: text('nombre').notNull(),
   activo: boolean('activo').default(true),
   acceso_rapido: boolean('acceso_rapido').default(false),
+  sistema_comisiones: boolean('sistema_comisiones').default(false).notNull(),
 });
 
 // TABLA: MODELOS
@@ -321,6 +324,15 @@ export const commissionPreferenceRules = pgTable('commission_preference_rules', 
   activa: boolean('activa').notNull().default(true),
 });
 
+// 5e. TABLA: COMMISSION_VO_PATTERNS (Patrones de comisionamiento de VO)
+export const commissionVoPatterns = pgTable('commission_vo_patterns', {
+  id_vo_pattern: serial('id_vo_pattern').primaryKey(),
+  id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
+  nombre: text('nombre').notNull(),
+  activo: boolean('activo').default(true).notNull(),
+  tiers: text('tiers').notNull().default('[]'), // JSON string: [{ unidad: 1, importe: 150, valor_objetivo: 1 }]
+});
+
 // 6. TABLA: COMMISSION_LIQUIDATIONS (Liquidación de un plan)
 export const commissionLiquidations = pgTable('commission_liquidations', {
   id_liquidation: serial('id_liquidation').primaryKey(),
@@ -387,6 +399,7 @@ export const commissionPlansRelations = relations(commissionPlans, ({ many, one 
   usedRates: many(commissionUsedRates),
   financeRates: many(commissionFinanceRates),
   preferenceRules: many(commissionPreferenceRules),
+  voPatterns: many(commissionVoPatterns),
   liquidations: many(commissionLiquidations),
 }));
 
@@ -495,6 +508,13 @@ export const commissionPreferenceRulesRelations = relations(commissionPreference
   modelo: one(modelos, {
     fields: [commissionPreferenceRules.id_modelo],
     references: [modelos.id_modelo],
+  }),
+}));
+
+export const commissionVoPatternsRelations = relations(commissionVoPatterns, ({ one }) => ({
+  plan: one(commissionPlans, {
+    fields: [commissionVoPatterns.id_plan],
+    references: [commissionPlans.id_plan],
   }),
 }));
 

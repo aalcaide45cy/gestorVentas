@@ -8,6 +8,7 @@ interface MarcaItem {
   nombre: string;
   activo: boolean | null;
   acceso_rapido?: boolean | null;
+  sistema_comisiones?: boolean | null;
   modelos: {
     id_modelo: number;
     nombre_modelo: string;
@@ -87,6 +88,9 @@ export default function AdminCatalogosForm({
     } else if (sortField === "acceso_rapido") {
       aVal = a.acceso_rapido ? 1 : 0;
       bVal = b.acceso_rapido ? 1 : 0;
+    } else if (sortField === "sistema_comisiones") {
+      aVal = a.sistema_comisiones ? 1 : 0;
+      bVal = b.sistema_comisiones ? 1 : 0;
     } else if (sortField === "modelos") {
       aVal = a.modelos.length;
       bVal = b.modelos.length;
@@ -171,6 +175,7 @@ export default function AdminCatalogosForm({
   // Estados de formularios
   const [nuevaMarcaNombre, setNuevaMarcaNombre] = useState("");
   const [nuevaMarcaAccesoRapido, setNuevaMarcaAccesoRapido] = useState(false);
+  const [nuevaMarcaSistemaComisiones, setNuevaMarcaSistemaComisiones] = useState(false);
   const [nuevoModeloMarcaId, setNuevoModeloMarcaId] = useState<number | "">("");
   const [nuevoModeloNombre, setNuevoModeloNombre] = useState("");
   const [nuevoModeloAccesoRapido, setNuevoModeloAccesoRapido] = useState(false);
@@ -291,6 +296,26 @@ export default function AdminCatalogosForm({
     }
   }
 
+  const handleToggleMarcaSistemaComisiones = async (idMarca: number, estadoActual: boolean) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/catalogos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "marca", id: idMarca, sistema_comisiones: !estadoActual, nombre: marcas.find(m => m.id_marca === idMarca)?.nombre })
+      });
+      if (!res.ok) throw new Error("Error al cambiar sistema de comisiones de la marca");
+      const result = await res.json();
+      setMarcas(marcas.map(m => m.id_marca === idMarca ? { ...m, sistema_comisiones: result.data.sistema_comisiones } : m));
+      showNotification("Sistema de comisiones de la marca actualizado", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggleMarcaAccesoRapido = async (idMarca: number, estadoActual: boolean) => {
     setLoading(true);
     try {
@@ -372,7 +397,7 @@ export default function AdminCatalogosForm({
       const res = await fetch("/api/admin/catalogos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "marca", nombre: nuevaMarcaNombre, acceso_rapido: nuevaMarcaAccesoRapido })
+        body: JSON.stringify({ tipo: "marca", nombre: nuevaMarcaNombre, acceso_rapido: nuevaMarcaAccesoRapido, sistema_comisiones: nuevaMarcaSistemaComisiones })
       });
 
       if (!res.ok) throw new Error("Error al crear la marca");
@@ -381,6 +406,7 @@ export default function AdminCatalogosForm({
       setMarcas([...marcas, { ...result.data, modelos: [] }]);
       setNuevaMarcaNombre("");
       setNuevaMarcaAccesoRapido(false);
+      setNuevaMarcaSistemaComisiones(false);
       showNotification("Marca creada correctamente", "success");
       router.refresh();
     } catch (err: any) {
@@ -799,6 +825,18 @@ export default function AdminCatalogosForm({
                 Acceso Rápido
               </label>
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="checkbox"
+                id="chkMarcaSistemaComisiones"
+                checked={nuevaMarcaSistemaComisiones}
+                onChange={e => setNuevaMarcaSistemaComisiones(e.target.checked)}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <label htmlFor="chkMarcaSistemaComisiones" style={{ cursor: "pointer", fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                Sist. Comisiones
+              </label>
+            </div>
             <button type="submit" className="btn btn-primary" style={{ padding: "12px 20px" }} disabled={loading}>
               + Crear Marca
             </button>
@@ -817,6 +855,9 @@ export default function AdminCatalogosForm({
                   </th>
                   <th onClick={() => handleSort("acceso_rapido")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Acceso Rápido{sortField === "acceso_rapido" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                  </th>
+                  <th onClick={() => handleSort("sistema_comisiones")} style={{ cursor: "pointer", userSelect: "none" }}>
+                    Sist. Comisiones{sortField === "sistema_comisiones" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
                   <th onClick={() => handleSort("modelos")} style={{ cursor: "pointer", userSelect: "none" }}>
                     Modelos Asoc.{sortField === "modelos" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
@@ -865,6 +906,18 @@ export default function AdminCatalogosForm({
                           title="Alternar Acceso Rápido"
                         >
                           {m.acceso_rapido ? "⭐ Sí" : "✖ No"}
+                        </button>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={`badge ${m.sistema_comisiones ? "badge-tienda" : "badge-admin"}`}
+                          onClick={() => handleToggleMarcaSistemaComisiones(m.id_marca, !!m.sistema_comisiones)}
+                          disabled={loading}
+                          style={{ border: "none", cursor: "pointer", fontSize: "0.75rem" }}
+                          title="Alternar en Sistema de Comisiones"
+                        >
+                          {m.sistema_comisiones ? "✓ Activo" : "✖ Inactivo"}
                         </button>
                       </td>
                       <td>{m.modelos.length} modelo(s)</td>

@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
       const [nueva] = await db.insert(marcas).values({
         nombre: data.nombre,
         activo: true,
-        acceso_rapido: !!data.acceso_rapido
+        acceso_rapido: !!data.acceso_rapido,
+        sistema_comisiones: !!data.sistema_comisiones
       }).returning();
       return NextResponse.json({ success: true, data: nueva }, { status: 201 });
     }
@@ -150,7 +151,8 @@ export async function PUT(req: NextRequest) {
       const [actualizada] = await db.update(marcas)
         .set({ 
           nombre: data.nombre,
-          acceso_rapido: data.acceso_rapido !== undefined ? !!data.acceso_rapido : undefined
+          acceso_rapido: data.acceso_rapido !== undefined ? !!data.acceso_rapido : undefined,
+          sistema_comisiones: data.sistema_comisiones !== undefined ? !!data.sistema_comisiones : undefined
         })
         .where(eq(marcas.id_marca, Number(id)))
         .returning();

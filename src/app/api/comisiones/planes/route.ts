@@ -10,9 +10,10 @@ import {
   commissionUsedRates,
   commissionFinanceRates,
   commissionPreferenceRules,
-  marcas,
+  commissionVoPatterns,
   modelos,
-  usuarios
+  usuarios,
+  marcas
 } from "@/db/schema";
 import { eq, desc, or, ilike } from "drizzle-orm";
 
@@ -80,6 +81,7 @@ export async function GET(req: NextRequest) {
               modelo: true
             }
           },
+          voPatterns: true,
           liquidations: {
             with: {
               lines: true
@@ -270,6 +272,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // 9. Clonar patrones de VO (voPatterns)
+      const sourceVoPatterns = await db.query.commissionVoPatterns.findMany({
+        where: eq(commissionVoPatterns.id_plan, sourcePlanId)
+      });
+      if (sourceVoPatterns.length > 0) {
+        await db.insert(commissionVoPatterns).values(
+          sourceVoPatterns.map(v => ({
+            id_plan: newId,
+            nombre: v.nombre,
+            activo: v.activo,
+            tiers: v.tiers,
+          }))
+        );
+      }
+
       nuevoPlanId = newId;
     } else {
       // --- CREAR NUEVO PLAN VACÍO CON VALORES POR DEFECTO ---
@@ -285,20 +302,17 @@ export async function POST(req: NextRequest) {
 
       const newId = insertedPlan.id_plan;
 
-      // Obtener marcas Renault y Dacia
+      // Obtener marcas activas en el sistema de comisiones
       const dbBrands = await db.query.marcas.findMany({
-        where: (m, { or, ilike }) => or(
-          ilike(m.nombre, "renault"),
-          ilike(m.nombre, "dacia")
-        )
+        where: eq(marcas.sistema_comisiones, true)
       });
-      const renDacIds = dbBrands.map(b => b.id_marca);
+      const activeBrandIds = dbBrands.map(b => b.id_marca);
 
-      // Cargar modelos de Renault y Dacia activos del sistema
+      // Cargar modelos de marcas activas del sistema
       let systemModels: any[] = [];
-      if (renDacIds.length > 0) {
+      if (activeBrandIds.length > 0) {
         systemModels = await db.query.modelos.findMany({
-          where: (mod, { inArray }) => inArray(mod.marca_id, renDacIds)
+          where: (mod, { inArray }) => inArray(mod.marca_id, activeBrandIds)
         });
       }
 
@@ -334,9 +348,9 @@ export async function POST(req: NextRequest) {
         { id_plan: newId, tipo_usado: "Usado", importe_primera: 120, importe_resto: 50, valor_objetivo: 1, min_aplicar: 1, activo: true }
       ]);
 
-      // Inicializar financiación por marca para Renault y Dacia
+      // Inicializar financiación por marca para marcas activas
       const financeRatesToInsert: any[] = [];
-      for (const bId of renDacIds) {
+      for (const bId of activeBrandIds) {
         financeRatesToInsert.push(
           { id_plan: newId, id_marca: bId, tipo_financiacion: "Crédito", importe: 80 },
           { id_plan: newId, id_marca: bId, tipo_financiacion: "Preference", importe: 120 },
@@ -347,6 +361,19 @@ export async function POST(req: NextRequest) {
       if (financeRatesToInsert.length > 0) {
         await db.insert(commissionFinanceRates).values(financeRatesToInsert);
       }
+
+      // Inicializar un patrón de VO por defecto
+      await db.insert(commissionVoPatterns).values({
+        id_plan: newId,
+        nombre: "Estándar VO",
+        activo: true,
+        tiers: JSON.stringify([
+          { unidad: 1, importe: 150, valor_objetivo: 1 },
+          { unidad: 2, importe: 180, valor_objetivo: 1 },
+          { unidad: 3, importe: 200, valor_objetivo: 1 },
+          { unidad: 4, importe: 250, valor_objetivo: 1 }
+        ])
+      });
 
       nuevoPlanId = newId;
     }
@@ -382,7 +409,8 @@ export async function PUT(req: NextRequest) {
       bonusRules,
       usedRates,
       financeRates,
-      preferenceRules
+      preferenceRules,
+      voPatterns
     } = body;
 
     if (!id_plan) {
@@ -522,6 +550,24 @@ export async function PUT(req: NextRequest) {
             tipo_financiacion: p.tipo_financiacion || null,
             importe: Number(p.importe || 0),
             activa: p.activa !== undefined ? !!p.activa : true,
+          }))
+        );
+      }
+    }
+
+    // 9. Actualizar patrones de VO (voPatterns)
+    if (voPatterns && Array.isArray(voPatterns)) {
+      // Eliminar anteriores
+      await db.delete(commissionVoPatterns).where(eq(commissionVoPatterns.id_plan, Number(id_plan)));
+      // Insertar vigentes
+      const activeVoPatterns = voPatterns.filter((v: any) => v.nombre);
+      if (activeVoPatterns.length > 0) {
+        await db.insert(commissionVoPatterns).values(
+          activeVoPatterns.map((v: any) => ({
+            id_plan: Number(id_plan),
+            nombre: v.nombre,
+            activo: v.activo !== undefined ? !!v.activo : true,
+            tiers: typeof v.tiers === 'string' ? v.tiers : JSON.stringify(v.tiers || []),
           }))
         );
       }

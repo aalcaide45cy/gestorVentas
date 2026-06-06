@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { nombre, email, telefono, rol } = body;
+    const { nombre, email, telefono, rol, tipo_vendedor, patron_vo } = body;
 
     if (!nombre) {
       return NextResponse.json({ message: "El nombre es obligatorio" }, { status: 400 });
@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
       nombre,
       rol: rol || "invitado",
       fecha_de_registro: new Date().toISOString().split("T")[0],
-      bloqueado: false
+      bloqueado: false,
+      tipo_vendedor: tipo_vendedor || "VN",
+      patron_vo: patron_vo || "Estándar VO"
     }).returning();
 
     // 2. Insertar email
@@ -84,7 +86,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id_usuario, nombre, rol, bloqueado, email, telefono } = body;
+    const { id_usuario, nombre, rol, bloqueado, email, telefono, tipo_vendedor, patron_vo } = body;
 
     if (!id_usuario) {
       return NextResponse.json({ message: "Falta id_usuario" }, { status: 400 });
@@ -109,7 +111,9 @@ export async function PUT(req: NextRequest) {
       .set({
         nombre: nombre !== undefined ? nombre : undefined,
         rol: rol !== undefined ? rol : undefined,
-        bloqueado: bloqueado !== undefined ? bloqueado : undefined
+        bloqueado: bloqueado !== undefined ? bloqueado : undefined,
+        tipo_vendedor: tipo_vendedor !== undefined ? tipo_vendedor : undefined,
+        patron_vo: patron_vo !== undefined ? patron_vo : undefined
       })
       .where(eq(usuarios.id_usuario, Number(id_usuario)));
 

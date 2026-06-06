@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
         usedRates: true,
         financeRates: true,
         preferenceRules: true,
+        voPatterns: true,
         liquidations: true
       }
     });
@@ -154,10 +155,33 @@ export async function POST(req: NextRequest) {
     // 6. Realizar cálculos para cada vendedor
     for (const [idVendedorStr, vendedorExps] of Object.entries(expedientesByVendedor)) {
       const idVendedor = Number(idVendedorStr);
+      const seller = vendedorExps[0]?.usuario;
+      const isVOVendedor = seller?.tipo_vendedor === "VO";
+      const patronName = seller?.patron_vo || "Estándar VO";
+
+      let matchedPatternTiers: any[] = [];
+      if (isVOVendedor) {
+        const dbPattern = plan.voPatterns?.find((vp: any) => vp.nombre === patronName && vp.activo);
+        if (dbPattern) {
+          try {
+            matchedPatternTiers = typeof dbPattern.tiers === "string" ? JSON.parse(dbPattern.tiers) : (dbPattern.tiers || []);
+          } catch (e) {
+            matchedPatternTiers = [];
+          }
+        }
+      }
+
+      // Ordenar expedientes cronológicamente para aplicar progresiones de forma secuencial y consistente
+      vendedorExps.sort((a, b) => {
+        const dateA = a.fecha_matriculacion || a.fecha_afectacion || a.fecha_expediente || "";
+        const dateB = b.fecha_matriculacion || b.fecha_afectacion || b.fecha_expediente || "";
+        return dateA.localeCompare(dateB);
+      });
 
       // --- Primera Pasada: Identificar tipos, calcular totalComputablesVendedor y matriculacionesRealesVendedor ---
       let totalComputablesVendedor = 0;
       let matriculacionesRealesVendedor = 0;
+      let voUnitCounter = 0;
 
       // Estructura para registrar los datos clasificados por expediente
       const expsClasificados = vendedorExps.map((exp) => {
@@ -186,29 +210,39 @@ export async function POST(req: NextRequest) {
         // A. Cómputo objetivo base VN o VO
         if (entraMatriculacion) {
           if (isVN) {
-            const brandName = exp.modelo?.marca?.nombre?.toLowerCase() || "";
-            const isRenDac = brandName.includes("renault") || brandName.includes("dacia");
-            if (isRenDac) {
-              const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
-              if (modelRate) {
-                objValorExpediente += modelRate.valor_objetivo;
-                itemsDetalle.push({
-                  concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo})`,
-                  importe: 0,
-                  afecta_objetivo: true,
-                  valor_objetivo: modelRate.valor_objetivo
-                });
-              }
-            }
-          } else if (tipoUsado) {
-            const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
-            if (usedRate) {
-              objValorExpediente += usedRate.valor_objetivo;
+            const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
+            if (modelRate) {
+              objValorExpediente += modelRate.valor_objetivo;
               itemsDetalle.push({
-                concepto: `Cómputo Base VO Tipo (${tipoUsado})`,
+                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo})`,
                 importe: 0,
                 afecta_objetivo: true,
-                valor_objetivo: usedRate.valor_objetivo
+                valor_objetivo: modelRate.valor_objetivo
+              });
+            }
+          } else if (tipoUsado) {
+            if (!isVOVendedor) {
+              const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
+              if (usedRate) {
+                objValorExpediente += usedRate.valor_objetivo;
+                itemsDetalle.push({
+                  concepto: `Cómputo Base VO Tipo (${tipoUsado})`,
+                  importe: 0,
+                  afecta_objetivo: true,
+                  valor_objetivo: usedRate.valor_objetivo
+                });
+              }
+            } else {
+              voUnitCounter++;
+              const tier = matchedPatternTiers.find((t: any) => t.unidad === voUnitCounter)
+                || matchedPatternTiers[matchedPatternTiers.length - 1]
+                || { valor_objetivo: 1, importe: 150 };
+              objValorExpediente += tier.valor_objetivo;
+              itemsDetalle.push({
+                concepto: `Cómputo VO Progresivo (Unidad #${voUnitCounter})`,
+                importe: 0,
+                afecta_objetivo: true,
+                valor_objetivo: tier.valor_objetivo
               });
             }
           }
@@ -317,6 +351,7 @@ export async function POST(req: NextRequest) {
 
       // Mapear un contador acumulativo para saber el índice de la unidad VO de cada tipo
       const currentUsedProcessedIndex: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+      let voUnitCounterPay = 0;
 
       // --- Segunda Pasada: Calcular comisiones económicas ---
       expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, isVN, tipoUsado, valorObjetivoCalculado, itemsDetalleInitial }) => {
@@ -331,10 +366,8 @@ export async function POST(req: NextRequest) {
         if (entraMatriculacion) {
           // 1. Comisión Base VN o VO/Usado
           if (isVN) {
-            // VN
-            const brandName = exp.modelo?.marca?.nombre?.toLowerCase() || "";
-            const isRenDac = brandName.includes("renault") || brandName.includes("dacia");
-            if (isRenDac) {
+            if (!isVOVendedor) {
+              // VN
               const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo);
               if (modelRate) {
                 let rateImporte = modelRate.rate_x_minus_3;
@@ -352,33 +385,56 @@ export async function POST(req: NextRequest) {
                   valor_objetivo: 0
                 });
               }
+            } else {
+              comisionBaseVN = 0;
+              finalItems.push({
+                concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Omitida (Vendedor de VO)`,
+                importe: 0,
+                afecta_objetivo: false,
+                valor_objetivo: 0
+              });
             }
           } else if (tipoUsado) {
-            // VO/Usado
-            const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
-            if (usedRate) {
-              const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
-              const currentIdx = currentUsedProcessedIndex[tipoUsado]++; // 0, 1, 2...
+            if (!isVOVendedor) {
+              // VO/Usado
+              const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
+              if (usedRate) {
+                const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
+                const currentIdx = currentUsedProcessedIndex[tipoUsado]++; // 0, 1, 2...
 
-              if (totalUnitsOfType >= usedRate.min_aplicar) {
-                const isFirst = currentIdx === 0;
-                const rateImporte = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
-                comisionUsado = rateImporte;
+                if (totalUnitsOfType >= usedRate.min_aplicar) {
+                  const isFirst = currentIdx === 0;
+                  const rateImporte = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
+                  comisionUsado = rateImporte;
 
-                finalItems.push({
-                  concepto: `Comisión VO (${tipoUsado}) - Unidad ${currentIdx + 1} de ${totalUnitsOfType}`,
-                  importe: rateImporte,
-                  afecta_objetivo: false,
-                  valor_objetivo: 0
-                });
-              } else {
-                finalItems.push({
-                  concepto: `Comisión VO (${tipoUsado}) - No aplica (mínimo no alcanzado: ${totalUnitsOfType}/${usedRate.min_aplicar})`,
-                  importe: 0,
-                  afecta_objetivo: false,
-                  valor_objetivo: 0
-                });
+                  finalItems.push({
+                    concepto: `Comisión VO (${tipoUsado}) - Unidad ${currentIdx + 1} de ${totalUnitsOfType}`,
+                    importe: rateImporte,
+                    afecta_objetivo: false,
+                    valor_objetivo: 0
+                  });
+                } else {
+                  finalItems.push({
+                    concepto: `Comisión VO (${tipoUsado}) - No aplica (mínimo no alcanzado: ${totalUnitsOfType}/${usedRate.min_aplicar})`,
+                    importe: 0,
+                    afecta_objetivo: false,
+                    valor_objetivo: 0
+                  });
+                }
               }
+            } else {
+              voUnitCounterPay++;
+              const tier = matchedPatternTiers.find((t: any) => t.unidad === voUnitCounterPay)
+                || matchedPatternTiers[matchedPatternTiers.length - 1]
+                || { valor_objetivo: 1, importe: 150 };
+
+              comisionUsado = tier.importe;
+              finalItems.push({
+                concepto: `Comisión VO Progresiva (Unidad #${voUnitCounterPay}) - Patrón: ${patronName}`,
+                importe: tier.importe,
+                afecta_objetivo: false,
+                valor_objetivo: 0
+              });
             }
           }
 
