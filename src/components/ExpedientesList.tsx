@@ -246,36 +246,17 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
     const val = exp[field];
     return (
       <td style={{ textAlign: "center", backgroundColor }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-          <span style={{ fontSize: "0.85rem", color: val ? "var(--text-primary)" : "var(--text-muted)", fontWeight: val ? 500 : 400 }}>
-            {formatDate(val)}
-          </span>
-          <div style={{ display: "flex", gap: "4px" }}>
-            <button
-              onClick={() => handleOpenEditDate(exp, field, displayName)}
-              style={{
-                border: "none",
-                background: "rgba(255, 255, 255, 0.05)",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                padding: "4px 6px",
-                borderRadius: "4px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.2s"
-              }}
-              title={`Modificar fecha de ${displayName}`}
-              className="glass-panel-interactive"
-            >
-              ✏️
-            </button>
-            {val && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.85rem", color: val ? "var(--text-primary)" : "var(--text-muted)", fontWeight: val ? 500 : 400 }}>
+              {formatDate(val)}
+            </span>
+            <div style={{ display: "flex", gap: "4px" }}>
               <button
-                onClick={() => handleOpenDeleteDate(exp, field, displayName)}
+                onClick={() => handleOpenEditDate(exp, field, displayName)}
                 style={{
                   border: "none",
-                  background: "rgba(239, 68, 68, 0.05)",
+                  background: "rgba(255, 255, 255, 0.05)",
                   cursor: "pointer",
                   fontSize: "0.8rem",
                   padding: "4px 6px",
@@ -285,13 +266,49 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                   justifyContent: "center",
                   transition: "all 0.2s"
                 }}
-                title={`Eliminar fecha de ${displayName}`}
+                title={`Modificar fecha de ${displayName}`}
                 className="glass-panel-interactive"
               >
-                🗑️
+                ✏️
               </button>
-            )}
+              {val && (
+                <button
+                  onClick={() => handleOpenDeleteDate(exp, field, displayName)}
+                  style={{
+                    border: "none",
+                    background: "rgba(239, 68, 68, 0.05)",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s"
+                  }}
+                  title={`Eliminar fecha de ${displayName}`}
+                  className="glass-panel-interactive"
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
           </div>
+          {field === "fecha_matriculacion" && exp.matricula && (
+            <div style={{
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              color: "var(--text-secondary)",
+              background: "rgba(255, 255, 255, 0.05)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              border: "1px solid var(--border-light)",
+              marginTop: "2px",
+              display: "inline-block"
+            }}>
+              🚗 {exp.matricula}
+            </div>
+          )}
         </div>
       </td>
     );
@@ -379,7 +396,6 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
                     ) : (
                       <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
                     )}
-                    {exp.matricula && <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "2px" }}>Matrícula: {exp.matricula}</div>}
                     {exp.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</div>}
                   </td>
                   <td>
