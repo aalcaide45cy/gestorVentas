@@ -17,6 +17,8 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
     redirect("/dashboard");
   }
 
+  const userRole = user.rol || "invitado";
+
   const queryParams = await searchParams;
   const q = queryParams.q || "";
 
@@ -120,7 +122,7 @@ export default async function SearchResultsPage({ searchParams }: SearchPageProp
               <h2 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
                 📄 Expedientes Encontrados ({matchedExpedientes.length})
               </h2>
-              <ExpedientesList expedientesIniciales={matchedExpedientes} />
+              <ExpedientesList expedientesIniciales={matchedExpedientes} userRole={userRole} />
             </div>
           )}
 

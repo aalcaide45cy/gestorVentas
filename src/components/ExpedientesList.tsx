@@ -72,9 +72,10 @@ interface Expediente {
 
 interface ExpedientesListProps {
   expedientesIniciales: Expediente[];
+  userRole: string;
 }
 
-export default function ExpedientesList({ expedientesIniciales }: ExpedientesListProps) {
+export default function ExpedientesList({ expedientesIniciales, userRole }: ExpedientesListProps) {
   const router = useRouter();
   const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciales);
   const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
@@ -390,6 +391,95 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
 
     reader.onerror = () => {
       showNotification("Error de lectura del archivo.", "error");
+      setLoading(false);
+      event.target.value = "";
+    };
+
+    reader.readAsText(file);
+  };
+
+  // Exportar base de datos a JSON (Copia de seguridad)
+  const handleExportBackupJSON = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/backup", { method: "GET" });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Error al generar la copia de seguridad.");
+      }
+
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+        JSON.stringify(result, null, 2)
+      )}`;
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", jsonString);
+      downloadAnchor.setAttribute(
+        "download",
+        `backup_completo_${new Date().toISOString().split("T")[0]}.json`
+      );
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      showNotification("Copia de seguridad JSON exportada correctamente.", "success");
+    } catch (err: any) {
+      showNotification(err.message || "Error al exportar copia de seguridad.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Importar base de datos desde JSON (Restauración completa)
+  const handleImportBackupJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const confirmRestore = window.confirm(
+      "¡ATENCIÓN! Estás a punto de restaurar una copia de seguridad COMPLETA de la base de datos.\n\n" +
+      "Esto ELIMINARÁ permanentemente todos los datos existentes (tiendas, usuarios, clientes, comisiones, expedientes, etc.) e importará los registros del archivo.\n\n" +
+      "¿Estás completamente seguro de que deseas proceder?"
+    );
+
+    if (!confirmRestore) {
+      event.target.value = "";
+      return;
+    }
+
+    setLoading(true);
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) throw new Error("Archivo vacío");
+
+        const parsedBackup = JSON.parse(text);
+
+        const response = await fetch("/api/admin/backup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsedBackup),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.message || "Error al restaurar la copia de seguridad.");
+        }
+
+        showNotification(result.message, "success");
+        router.refresh();
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (err: any) {
+        showNotification(err.message || "Error al procesar el archivo de copia de seguridad JSON.", "error");
+      } finally {
+        setLoading(false);
+        event.target.value = "";
+      }
+    };
+
+    reader.onerror = () => {
+      showNotification("Error al leer el archivo de backup.", "error");
       setLoading(false);
       event.target.value = "";
     };
@@ -875,7 +965,7 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
           )}
         </div>
 
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn btn-secondary"
@@ -895,6 +985,52 @@ export default function ExpedientesList({ expedientesIniciales }: ExpedientesLis
               disabled={loading}
             />
           </label>
+
+          {userRole === "administrador" && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportBackupJSON}
+                style={{ 
+                  padding: "8px 14px", 
+                  fontSize: "0.85rem", 
+                  backgroundColor: "rgba(124, 58, 237, 0.08)", 
+                  border: "1px solid rgba(124, 58, 237, 0.2)", 
+                  color: "var(--primary)",
+                  fontWeight: 500
+                }}
+                disabled={loading}
+              >
+                💾 Exportar Backup (JSON)
+              </button>
+              
+              <label 
+                className="btn" 
+                style={{ 
+                  padding: "8px 14px", 
+                  fontSize: "0.85rem", 
+                  cursor: "pointer", 
+                  display: "inline-flex", 
+                  alignItems: "center", 
+                  gap: "6px",
+                  backgroundColor: "rgba(16, 185, 129, 0.08)", 
+                  border: "1px solid rgba(16, 185, 129, 0.2)", 
+                  color: "var(--success)",
+                  fontWeight: 500
+                }}
+              >
+                🔄 Restaurar Backup (JSON)
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportBackupJSON}
+                  style={{ display: "none" }}
+                  disabled={loading}
+                />
+              </label>
+            </>
+          )}
         </div>
       </div>
 

@@ -106,7 +106,7 @@ export default async function ExpedientesPage() {
           )}
         </div>
       ) : (
-        <ExpedientesList expedientesIniciales={dbExpedientes} />
+        <ExpedientesList expedientesIniciales={dbExpedientes} userRole={userRole} />
       )}
     </div>
   );
