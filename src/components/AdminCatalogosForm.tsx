@@ -433,6 +433,62 @@ export default function AdminCatalogosForm({
     }
   };
 
+  const handleSaveBrandModelOrders = async (modelosList: any[]) => {
+    const changes = modelosList.filter(mod => {
+      const tempVal = tempOrders[mod.id_modelo];
+      return tempVal !== undefined && tempVal !== mod.orden_acceso_rapido;
+    });
+
+    if (changes.length === 0) {
+      showNotification("No hay cambios en el orden para guardar", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await Promise.all(changes.map(async (mod) => {
+        const nuevoOrden = tempOrders[mod.id_modelo];
+        const res = await fetch("/api/admin/catalogos", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            tipo: "modelo", 
+            id: mod.id_modelo, 
+            orden_acceso_rapido: nuevoOrden, 
+            nombre_modelo: mod.nombre_modelo 
+          })
+        });
+        if (!res.ok) throw new Error(`Error al actualizar el modelo ${mod.nombre_modelo}`);
+      }));
+
+      setMarcas(prevMarcas => prevMarcas.map(m => {
+        return {
+          ...m,
+          modelos: m.modelos.map(mod => {
+            const tempVal = tempOrders[mod.id_modelo];
+            if (tempVal !== undefined) {
+              return { ...mod, orden_acceso_rapido: tempVal };
+            }
+            return mod;
+          })
+        };
+      }));
+
+      const updatedTempOrders = { ...tempOrders };
+      changes.forEach(c => {
+        delete updatedTempOrders[c.id_modelo];
+      });
+      setTempOrders(updatedTempOrders);
+
+      showNotification("Orden de modelos guardado correctamente", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggleEstadoPredeterminado = async (idEstado: number, estadoActual: boolean) => {
     if (estadoActual) return; // Ya es predeterminado
     setLoading(true);
@@ -1164,9 +1220,22 @@ export default function AdminCatalogosForm({
                       Comisiones Activo
                     </span>
                   </h4>
-                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-                    {modelosDeMarca.length} modelo(s)
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    {modelosDeMarca.some(mod => tempOrders[mod.id_modelo] !== undefined && tempOrders[mod.id_modelo] !== mod.orden_acceso_rapido) && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => handleSaveBrandModelOrders(modelosDeMarca)}
+                        style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }}
+                        disabled={loading}
+                      >
+                        💾 Guardar Orden
+                      </button>
+                    )}
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                      {modelosDeMarca.length} modelo(s)
+                    </span>
+                  </div>
                 </div>
 
                 <div className="table-container">
@@ -1236,18 +1305,8 @@ export default function AdminCatalogosForm({
                                   className="form-input"
                                   value={tempOrders[mod.id_modelo] !== undefined ? tempOrders[mod.id_modelo] : (mod.orden_acceso_rapido || 0)}
                                   onChange={e => setTempOrders({ ...tempOrders, [mod.id_modelo]: Number(e.target.value) })}
-                                  onBlur={() => {
-                                    const val = tempOrders[mod.id_modelo];
-                                    if (val !== undefined && val !== mod.orden_acceso_rapido) {
-                                      handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
-                                    }
-                                  }}
                                   onKeyDown={e => {
                                     if (e.key === "Enter") {
-                                      const val = tempOrders[mod.id_modelo];
-                                      if (val !== undefined && val !== mod.orden_acceso_rapido) {
-                                        handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
-                                      }
                                       (e.target as HTMLInputElement).blur();
                                     }
                                   }}
@@ -1304,9 +1363,22 @@ export default function AdminCatalogosForm({
                   <h4 style={{ fontSize: "1.05rem", fontWeight: "bold", color: "var(--text-primary)" }}>
                     💼 Resto de Marcas
                   </h4>
-                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-                    {modelosResto.length} modelo(s)
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    {modelosResto.some(mod => tempOrders[mod.id_modelo] !== undefined && tempOrders[mod.id_modelo] !== mod.orden_acceso_rapido) && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => handleSaveBrandModelOrders(modelosResto)}
+                        style={{ padding: "4px 10px", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px" }}
+                        disabled={loading}
+                      >
+                        💾 Guardar Orden
+                      </button>
+                    )}
+                    <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                      {modelosResto.length} modelo(s)
+                    </span>
+                  </div>
                 </div>
 
                 <div className="table-container">
@@ -1376,18 +1448,8 @@ export default function AdminCatalogosForm({
                                   className="form-input"
                                   value={tempOrders[mod.id_modelo] !== undefined ? tempOrders[mod.id_modelo] : (mod.orden_acceso_rapido || 0)}
                                   onChange={e => setTempOrders({ ...tempOrders, [mod.id_modelo]: Number(e.target.value) })}
-                                  onBlur={() => {
-                                    const val = tempOrders[mod.id_modelo];
-                                    if (val !== undefined && val !== mod.orden_acceso_rapido) {
-                                      handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
-                                    }
-                                  }}
                                   onKeyDown={e => {
                                     if (e.key === "Enter") {
-                                      const val = tempOrders[mod.id_modelo];
-                                      if (val !== undefined && val !== mod.orden_acceso_rapido) {
-                                        handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
-                                      }
                                       (e.target as HTMLInputElement).blur();
                                     }
                                   }}
