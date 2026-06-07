@@ -345,6 +345,13 @@ export async function POST(req: NextRequest) {
 
           if (!eventMatches) return;
 
+          if (rule.tasa_intervencion_cumplida !== null && rule.tasa_intervencion_cumplida !== undefined) {
+            const brandId = exp.modelo?.marca_id;
+            if (!brandId) return;
+            const tasaCumplida = checkTasaCumplida(brandId);
+            if (tasaCumplida !== rule.tasa_intervencion_cumplida) return;
+          }
+
           const filterMarcaMatches = !rule.id_marca || exp.modelo?.marca_id === rule.id_marca;
           const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
 
@@ -601,6 +608,13 @@ export async function POST(req: NextRequest) {
             (rule.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
 
           if (!eventMatches) return;
+
+          if (rule.tasa_intervencion_cumplida !== null && rule.tasa_intervencion_cumplida !== undefined) {
+            const brandId = exp.modelo?.marca_id;
+            if (!brandId) return;
+            const tasaCumplida = checkTasaCumplida(brandId);
+            if (tasaCumplida !== rule.tasa_intervencion_cumplida) return;
+          }
 
           const filterMarcaMatches = !rule.id_marca || exp.modelo?.marca_id === rule.id_marca;
           const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;

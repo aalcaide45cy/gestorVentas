@@ -96,15 +96,24 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
       </div>
 
       {feedback && (
-        <div style={{
-          padding: "12px 16px",
-          borderRadius: "var(--radius-sm)",
-          fontSize: "0.9rem",
-          background: feedback.type === "success" ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
-          color: feedback.type === "success" ? "var(--success)" : "var(--danger)",
-          border: `1px solid ${feedback.type === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)"}`,
+        <div className="glass-panel" style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10000,
+          boxShadow: "var(--shadow-lg)",
+          padding: "12px 24px",
+          color: "#ffffff",
+          borderLeft: `4px solid ${feedback.type === "success" ? "var(--success)" : "var(--danger)"}`,
+          background: feedback.type === "success" ? "rgba(16, 185, 129, 0.95)" : "rgba(239, 68, 68, 0.95)",
+          backdropFilter: "blur(8px)",
+          minWidth: "300px",
+          textAlign: "center",
+          borderRadius: "4px",
           display: "flex",
           alignItems: "center",
+          justifyContent: "center",
           gap: "10px",
           animation: "fadeIn 0.3s ease"
         }}>

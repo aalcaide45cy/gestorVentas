@@ -70,6 +70,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [newRuleValObj, setNewRuleValObj] = useState("1");
   const [newRuleAfectaCom, setNewRuleAfectaCom] = useState(true);
   const [newRuleImporte, setNewRuleImporte] = useState("100");
+  const [newRuleTasaIntervencion, setNewRuleTasaIntervencion] = useState<string>("");
 
   // Bonus
   const [bonusRules, setBonusRules] = useState<any[]>([]);
@@ -543,7 +544,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       valor_objetivo: Number(newRuleValObj || 0),
       afecta_comision: newRuleAfectaCom,
       importe: Number(newRuleImporte || 0),
-      activa: true
+      activa: true,
+      tasa_intervencion_cumplida: newRuleTasaIntervencion === "" ? null : (newRuleTasaIntervencion === "true")
     };
     setRules([...rules, newRule]);
     // Resetear formulario
@@ -555,6 +557,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setNewRuleValObj("1");
     setNewRuleAfectaCom(true);
     setNewRuleImporte("100");
+    setNewRuleTasaIntervencion("");
   };
 
   const handleDeleteRule = (idx: number) => {
@@ -670,7 +673,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {successMsg && (
         <div style={{
           position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)",
-          padding: "12px 24px", color: "var(--success)", borderLeft: "4px solid var(--success)",
+          padding: "12px 24px", color: "#ffffff", borderLeft: "4px solid var(--success)",
           background: "rgba(16, 185, 129, 0.95)", backdropFilter: "blur(8px)",
           minWidth: "300px", textAlign: "center", zIndex: 1000, borderRadius: "4px",
           boxShadow: "var(--shadow-md)"
@@ -682,7 +685,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {errorMsg && (
         <div style={{
           position: "fixed", top: "20px", left: "50%", transform: "translateX(-50%)",
-          padding: "12px 24px", color: "var(--danger)", borderLeft: "4px solid var(--danger)",
+          padding: "12px 24px", color: "#ffffff", borderLeft: "4px solid var(--danger)",
           background: "rgba(239, 68, 68, 0.95)", backdropFilter: "blur(8px)",
           minWidth: "300px", textAlign: "center", zIndex: 1000, borderRadius: "4px",
           boxShadow: "var(--shadow-md)"
@@ -2052,6 +2055,19 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         </select>
                       </div>
 
+                      <div className="form-group">
+                        <label className="form-label">Tasa Intervención Financiera</label>
+                        <select
+                          className="form-select"
+                          value={newRuleTasaIntervencion}
+                          onChange={(e) => setNewRuleTasaIntervencion(e.target.value)}
+                        >
+                          <option value="">Cualquiera / Siempre</option>
+                          <option value="true">Tasa ≥ Objetivo (Tasa OK)</option>
+                          <option value="false">Tasa &lt; Objetivo (Tasa Baja)</option>
+                        </select>
+                      </div>
+
                       <div className="form-group" style={{ flexDirection: "row", alignItems: "center", gap: "8px", paddingTop: "28px" }}>
                         <input
                           type="checkbox"
@@ -2114,6 +2130,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <th>Trigger</th>
                         <th>Filtro Marca</th>
                         <th>Filtro Modelo</th>
+                        <th>Tasa Financ.</th>
                         <th style={{ textAlign: "center" }}>Afecta Objetivo</th>
                         <th style={{ textAlign: "center" }}>Afecta Comisión</th>
                         <th>Acción</th>
@@ -2129,6 +2146,15 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             <td><span className="badge badge-vendedor" style={{ fontSize: "0.7rem" }}>{r.tipo_evento}</span></td>
                             <td>{mName}</td>
                             <td>{modName}</td>
+                            <td>
+                              {r.tasa_intervencion_cumplida === true ? (
+                                <span className="badge badge-tienda" style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.1)", color: "var(--success)" }}>Tasa ≥ Obj.</span>
+                              ) : r.tasa_intervencion_cumplida === false ? (
+                                <span className="badge badge-admin" style={{ fontSize: "0.75rem", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "var(--danger)" }}>Tasa &lt; Obj.</span>
+                              ) : (
+                                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Cualquiera</span>
+                              )}
+                            </td>
                             <td style={{ textAlign: "center" }}>
                               {r.afecta_objetivo ? `✅ (+${r.valor_objetivo})` : "❌ No"}
                             </td>
@@ -2154,7 +2180,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       })}
                       {rules.length === 0 && (
                         <tr>
-                          <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                          <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
                             No hay reglas especiales configuradas en el plan.
                           </td>
                         </tr>

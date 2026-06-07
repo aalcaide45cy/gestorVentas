@@ -204,6 +204,7 @@ export async function POST(req: NextRequest) {
             afecta_comision: r.afecta_comision,
             importe: r.importe,
             activa: r.activa,
+            tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
           }))
         );
       }
@@ -542,6 +543,9 @@ export async function PUT(req: NextRequest) {
             afecta_comision: !!r.afecta_comision,
             importe: Number(r.importe || 0),
             activa: r.activa !== undefined ? !!r.activa : true,
+            tasa_intervencion_cumplida: (r.tasa_intervencion_cumplida === undefined || r.tasa_intervencion_cumplida === null || r.tasa_intervencion_cumplida === "")
+              ? null
+              : (String(r.tasa_intervencion_cumplida) === "true" || r.tasa_intervencion_cumplida === true),
           }))
         );
       }
