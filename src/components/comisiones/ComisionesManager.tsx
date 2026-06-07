@@ -770,11 +770,33 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </button>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <h1 style={{ fontSize: "1.85rem" }}>{planName}</h1>
-                <span className={`badge ${
-                  planEstado === "cerrado" ? "badge-admin" : planEstado === "activo" ? "badge-tienda" : "badge-vendedor"
-                }`} style={{ fontSize: "0.75rem" }}>
-                  {planEstado === "cerrado" ? "🔒 Cerrado" : planEstado === "activo" ? "⚙️ Activo" : "📝 Borrador"}
-                </span>
+                {isAdmin && planEstado !== "cerrado" ? (
+                  <select
+                    className="form-select"
+                    value={planEstado}
+                    onChange={(e) => setPlanEstado(e.target.value)}
+                    style={{
+                      padding: "6px 12px",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      borderRadius: "var(--radius-sm)",
+                      backgroundColor: planEstado === "activo" ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)",
+                      color: planEstado === "activo" ? "var(--success)" : "var(--warning)",
+                      border: planEstado === "activo" ? "1px solid rgba(16, 185, 129, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)",
+                      cursor: "pointer",
+                      width: "auto"
+                    }}
+                  >
+                    <option value="borrador" style={{ color: "black" }}>📝 Borrador</option>
+                    <option value="activo" style={{ color: "black" }}>⚙️ Activo</option>
+                  </select>
+                ) : (
+                  <span className={`badge ${
+                    planEstado === "cerrado" ? "badge-admin" : planEstado === "activo" ? "badge-tienda" : "badge-vendedor"
+                  }`} style={{ fontSize: "0.75rem" }}>
+                    {planEstado === "cerrado" ? "🔒 Cerrado" : planEstado === "activo" ? "⚙️ Activo" : "📝 Borrador"}
+                  </span>
+                )}
               </div>
               <p style={{ color: "var(--text-secondary)", marginTop: "4px", fontSize: "0.9rem" }}>
                 Periodo: <strong>{formatDate(planStart)}</strong> al <strong>{formatDate(planEnd)}</strong>
