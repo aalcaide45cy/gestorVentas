@@ -56,7 +56,7 @@ export default function Sidebar({ user }: SidebarProps) {
         height: "calc(100vh - 32px)",
         zIndex: 10,
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        overflow: "hidden",
+        overflow: "visible",
       }}
     >
       {/* Botón de Colapsar flotante */}
@@ -64,8 +64,8 @@ export default function Sidebar({ user }: SidebarProps) {
         onClick={toggleSidebar}
         style={{
           position: "absolute",
-          top: "24px",
-          right: isCollapsed ? "calc(50% - 14px)" : "12px",
+          top: "32px",
+          right: "-14px",
           width: "28px",
           height: "28px",
           borderRadius: "50%",
@@ -76,9 +76,8 @@ export default function Sidebar({ user }: SidebarProps) {
           alignItems: "center",
           justifyContent: "center",
           cursor: "pointer",
-          boxShadow: "var(--shadow-sm)",
+          boxShadow: "var(--shadow-md)",
           zIndex: 15,
-          transition: "right 0.3s ease, transform 0.3s ease",
         }}
         title={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
       >

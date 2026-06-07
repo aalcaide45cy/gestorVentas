@@ -365,6 +365,12 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
     return sorted;
   }, [filteredClientes, sortField, sortDirection, tiendas]);
 
+  const totalBulkExpedientes = useMemo(() => {
+    return clientes
+      .filter(c => selectedIds.includes(c.id))
+      .reduce((acc, c) => acc + (c.expedientes?.length || 0), 0);
+  }, [clientes, selectedIds]);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* NOTIFICACIONES */}
@@ -731,13 +737,26 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
         }}>
           <div className="glass-panel" style={{ padding: "32px", maxWidth: "450px", display: "flex", flexDirection: "column", gap: "24px" }}>
             <h3 style={{ margin: 0, color: "var(--danger)" }}>⚠️ Confirmar Eliminación</h3>
-            <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
-              ¿Estás seguro de que deseas eliminar al cliente <strong>{confirmDeleteCliente.nombre}</strong>?
-              <br />
-              <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                Nota: Se desligarán de forma automática todos los expedientes asociados a este cliente (pasarán a quedar registrados "Sin cliente"), y se eliminarán sus datos de contacto.
-              </span>
-            </p>
+            {confirmDeleteCliente.expedientes && confirmDeleteCliente.expedientes.length > 0 ? (
+              <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                El cliente <strong>{confirmDeleteCliente.nombre}</strong> tiene <strong>{confirmDeleteCliente.expedientes.length}</strong> expediente(s) de venta asociado(s).
+                <br />
+                <span style={{ color: "var(--warning)", fontWeight: "600", display: "block", marginTop: "12px", padding: "10px", background: "rgba(230, 157, 0, 0.05)", border: "1px solid rgba(230, 157, 0, 0.15)", borderRadius: "var(--radius-sm)" }}>
+                  ⚠️ Si continúas, estos expedientes se desvincularán del cliente y pasarán a quedar registrados como "Sin cliente".
+                </span>
+                <span style={{ display: "block", marginTop: "12px" }}>
+                  ¿Deseas confirmar la eliminación del cliente?
+                </span>
+              </p>
+            ) : (
+              <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                ¿Estás seguro de que deseas eliminar al cliente <strong>{confirmDeleteCliente.nombre}</strong>?
+                <br />
+                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem", display: "block", marginTop: "8px" }}>
+                  Nota: Se eliminarán de forma definitiva sus datos de contacto (correos y teléfonos).
+                </span>
+              </p>
+            )}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setConfirmDeleteCliente(null)} disabled={loading}>
                 Cancelar
@@ -767,13 +786,26 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
         }}>
           <div className="glass-panel" style={{ padding: "32px", maxWidth: "450px", display: "flex", flexDirection: "column", gap: "24px" }}>
             <h3 style={{ margin: 0, color: "var(--danger)" }}>⚠️ Confirmar Eliminación Masiva</h3>
-            <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
-              ¿Estás seguro de que deseas eliminar los <strong>{selectedIds.length}</strong> clientes seleccionados?
-              <br />
-              <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
-                Nota: Se desligarán todos sus expedientes de venta y se borrarán sus datos de contacto de forma definitiva.
-              </span>
-            </p>
+            {totalBulkExpedientes > 0 ? (
+              <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                Vas a eliminar <strong>{selectedIds.length}</strong> clientes, los cuales acumulan un total de <strong>{totalBulkExpedientes}</strong> expediente(s) de venta asociados.
+                <br />
+                <span style={{ color: "var(--warning)", fontWeight: "600", display: "block", marginTop: "12px", padding: "10px", background: "rgba(230, 157, 0, 0.05)", border: "1px solid rgba(230, 157, 0, 0.15)", borderRadius: "var(--radius-sm)" }}>
+                  ⚠️ Si continúas, todos estos expedientes quedarán desvinculados (como "Sin cliente").
+                </span>
+                <span style={{ display: "block", marginTop: "12px" }}>
+                  ¿Deseas proceder con la eliminación masiva?
+                </span>
+              </p>
+            ) : (
+              <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                ¿Estás seguro de que deseas eliminar los <strong>{selectedIds.length}</strong> clientes seleccionados?
+                <br />
+                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem", display: "block", marginTop: "8px" }}>
+                  Nota: Se borrarán sus datos de contacto de forma definitiva.
+                </span>
+              </p>
+            )}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
               <button type="button" className="btn btn-secondary" onClick={() => setConfirmBulkDelete(false)} disabled={loading}>
                 Cancelar
