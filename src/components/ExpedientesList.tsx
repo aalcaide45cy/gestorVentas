@@ -105,6 +105,10 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   const todayDate = new Date();
   const [statsYear, setStatsYear] = useState<number>(todayDate.getFullYear());
   const [statsMonth, setStatsMonth] = useState<number>(todayDate.getMonth() + 1);
+
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   
   // Modales y estados para fechas inline
   const [editDateModal, setEditDateModal] = useState<{
@@ -861,6 +865,84 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
     return true;
   });
 
+  // Calcular paginación
+  const totalFiltered = filteredExpedientes.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedExpedientes = filteredExpedientes.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  // Componente de barra de paginación (reutilizable arriba y abajo)
+  const PaginationBar = () => (
+    <div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: "10px",
+      padding: "10px 16px",
+      background: "rgba(255, 255, 255, 0.02)",
+      borderTop: "1px solid var(--border-light)",
+      borderBottom: "1px solid var(--border-light)",
+      fontSize: "0.85rem",
+      color: "var(--text-secondary)"
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <span>Mostrar:</span>
+        {[10, 20, 50, 100, 200].map(size => (
+          <button
+            key={size}
+            type="button"
+            onClick={() => handlePageSizeChange(size)}
+            style={{
+              padding: "3px 10px",
+              fontSize: "0.8rem",
+              border: `1px solid ${pageSize === size ? "var(--primary)" : "var(--border-light)"}`,
+              borderRadius: "4px",
+              background: pageSize === size ? "rgba(var(--primary-rgb), 0.12)" : "transparent",
+              color: pageSize === size ? "var(--primary)" : "var(--text-secondary)",
+              cursor: "pointer",
+              fontWeight: pageSize === size ? 700 : 400
+            }}
+          >{size}</button>
+        ))}
+        <span style={{ marginLeft: "8px" }}>
+          {totalFiltered} resultado(s)
+          {totalFiltered !== expedientes.length ? ` (de ${expedientes.length} totales)` : ""}
+        </span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <button type="button" onClick={() => goToPage(1)} disabled={safePage === 1}
+          style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePage === 1 ? "var(--text-muted)" : "var(--text-primary)", cursor: safePage === 1 ? "default" : "pointer", fontSize: "0.8rem" }}
+          title="Primera página"
+        >«</button>
+        <button type="button" onClick={() => goToPage(safePage - 1)} disabled={safePage === 1}
+          style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePage === 1 ? "var(--text-muted)" : "var(--text-primary)", cursor: safePage === 1 ? "default" : "pointer", fontSize: "0.8rem" }}
+          title="Página anterior"
+        >‹</button>
+        <span style={{ padding: "4px 12px", fontWeight: 600, color: "var(--text-primary)" }}>
+          Pág. {safePage} / {totalPages}
+        </span>
+        <button type="button" onClick={() => goToPage(safePage + 1)} disabled={safePage === totalPages}
+          style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePage === totalPages ? "var(--text-muted)" : "var(--text-primary)", cursor: safePage === totalPages ? "default" : "pointer", fontSize: "0.8rem" }}
+          title="Página siguiente"
+        >›</button>
+        <button type="button" onClick={() => goToPage(totalPages)} disabled={safePage === totalPages}
+          style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePage === totalPages ? "var(--text-muted)" : "var(--text-primary)", cursor: safePage === totalPages ? "default" : "pointer", fontSize: "0.8rem" }}
+          title="Última página"
+        >»</button>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* NOTIFICACIONES FLOTANTES */}
@@ -1052,6 +1134,9 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
 
       {/* TABLA DE EXPEDIENTES */}
       <div className="glass-panel" style={{ padding: "8px" }}>
+        {/* PAGINACIÓN SUPERIOR */}
+        <PaginationBar />
+
         <div className="table-container">
           <table className="table-premium">
             <thead>
@@ -1222,7 +1307,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
               </tr>
             </thead>
             <tbody>
-              {filteredExpedientes.map((exp) => (
+              {paginatedExpedientes.map((exp) => (
                 <tr key={exp.id_expediente} style={{ background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined }}>
                   {bulkSelectionUnlocked && (
                     <td style={{ textAlign: "center" }}>
@@ -1313,16 +1398,23 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                   </td>
                 </tr>
               ))}
-              {filteredExpedientes.length === 0 && (
+              {paginatedExpedientes.length === 0 && (
                 <tr>
                   <td colSpan={bulkSelectionUnlocked ? 12 : 11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
-                    No se encontraron expedientes con los filtros aplicados.
+                    {expedientes.length === 0
+                      ? "No hay expedientes registrados en el sistema."
+                      : "No se encontraron expedientes con los filtros aplicados."
+                    }
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* PAGINACIÓN INFERIOR */}
+        <PaginationBar />
+
       </div>
 
       {/* SECCIÓN DE RESUMEN MENSUAL Y ESTADÍSTICAS */}

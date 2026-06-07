@@ -48,6 +48,7 @@ export default async function ClientesPage() {
       {/* COMPONENTE INTERACTIVO DE CLIENTES */}
       <ClientesList
         clientesIniciales={dbClientes}
+        userRole={user.rol ?? "invitado"}
         tiendas={dbTiendas.map(t => ({
           id_tienda: t.id_tienda,
           nombre: t.nombre,

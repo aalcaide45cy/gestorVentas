@@ -37,11 +37,12 @@ interface TiendaItem {
 interface ClientesListProps {
   clientesIniciales: ClienteItem[];
   tiendas: TiendaItem[];
+  userRole: string;
 }
 
 type SortField = "nombre" | "dni" | "fecha_de_nacimiento" | "tienda" | "expedientes" | "id";
 
-export default function ClientesList({ clientesIniciales, tiendas }: ClientesListProps) {
+export default function ClientesList({ clientesIniciales, tiendas, userRole }: ClientesListProps) {
   const router = useRouter();
   const [clientes, setClientes] = useState<ClienteItem[]>(clientesIniciales);
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | false>(false);
@@ -56,6 +57,9 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
   const [confirmDeleteCliente, setConfirmDeleteCliente] = useState<ClienteItem | null>(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
+
+  // Buscador global
+  const [globalSearch, setGlobalSearch] = useState("");
 
   // Filtros por columna
   const [filterNombre, setFilterNombre] = useState("");
@@ -283,9 +287,187 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
     }
   };
 
+  // Exportar clientes a CSV
+  const handleExportCSV = (onlySelected = false) => {
+    const listToExport = onlySelected
+      ? clientes.filter(c => selectedIds.includes(c.id))
+      : filteredClientesSorted;
+    if (listToExport.length === 0) {
+      showNotification("No hay clientes para exportar.", "error");
+      return;
+    }
+    const headers = ["ID", "Nombre", "DNI", "Fecha Nacimiento", "Tienda", "Emails", "Telefonos", "Num Expedientes"];
+    const rows = listToExport.map(c => [
+      c.id,
+      c.nombre || "",
+      c.dni || "",
+      c.fecha_de_nacimiento || "",
+      tiendas.find(t => t.id_tienda === c.tienda_id)?.nombre || "",
+      c.emails.map(e => `${e.email}:${e.tipo_email || "Principal"}`).join("|"),
+      c.telefonos.map(t => `${t.telefono}:${t.tipo_telefono || "Principal"}`).join("|"),
+      c.expedientes?.length || 0
+    ]);
+    const csvContent = "\uFEFF" + [
+      "sep=;",
+      headers.join(";"),
+      ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(";"))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `clientes_${onlySelected ? 'seleccionados_' : ''}export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showNotification("Exportación CSV realizada con éxito.", "success");
+  };
+
+  // Importar clientes desde CSV
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setLoading(true);
+    setError(null);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) throw new Error("Archivo vacío");
+        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) throw new Error("El CSV no contiene suficientes líneas.");
+        let headerIndex = 0;
+        if (lines[0].toLowerCase().startsWith("sep=")) headerIndex = 1;
+        if (lines.length <= headerIndex + 1) throw new Error("El CSV no contiene datos.");
+        const headerLine = lines[headerIndex];
+        const delimiter = headerLine.includes(";") ? ";" : ",";
+        const rawHeaders = headerLine.split(delimiter).map(h => h.trim().replace(/^["']|["']$/g, "").toLowerCase());
+        const getColIndex = (names: string[]) => rawHeaders.findIndex(h => names.some(n => h.includes(n)));
+        const idxNombre = getColIndex(["nombre", "name"]);
+        const idxDni = getColIndex(["dni", "nif"]);
+        const idxFechaNac = getColIndex(["fecha nacimiento", "fecha_de_nacimiento", "fecha_nacimiento"]);
+        const idxTienda = getColIndex(["tienda"]);
+        const idxEmails = getColIndex(["emails", "correos"]);
+        const idxTels = getColIndex(["telefonos", "teléfonos", "tels"]);
+        const itemsToImport = [];
+        for (let i = headerIndex + 1; i < lines.length; i++) {
+          const line = lines[i];
+          let parts: string[] = [];
+          let current = "";
+          let inQuotes = false;
+          for (let c = 0; c < line.length; c++) {
+            const char = line[c];
+            if (char === '"') { inQuotes = !inQuotes; }
+            else if (char === delimiter && !inQuotes) { parts.push(current.trim().replace(/^["']|["']$/g, "")); current = ""; }
+            else { current += char; }
+          }
+          parts.push(current.trim().replace(/^["']|["']$/g, ""));
+          if (parts.length === 0 || (parts.length === 1 && parts[0] === "")) continue;
+          const getValue = (idx: number) => idx !== -1 && idx < parts.length ? parts[idx] : null;
+          const nombre = getValue(idxNombre);
+          if (!nombre) continue;
+          itemsToImport.push({
+            nombre,
+            dni: getValue(idxDni),
+            fecha_de_nacimiento: getValue(idxFechaNac),
+            tienda_nombre: getValue(idxTienda),
+            emails: getValue(idxEmails),
+            telefonos: getValue(idxTels),
+          });
+        }
+        if (itemsToImport.length === 0) throw new Error("No se encontraron registros válidos en el CSV.");
+        const response = await fetch("/api/clientes/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: itemsToImport })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Error al importar.");
+        showNotification(result.message, "success");
+        router.refresh();
+      } catch (err: any) {
+        showNotification(err.message || "Error al importar el archivo CSV.", "error");
+      } finally {
+        setLoading(false);
+        event.target.value = "";
+      }
+    };
+    reader.onerror = () => { showNotification("Error de lectura del archivo.", "error"); setLoading(false); event.target.value = ""; };
+    reader.readAsText(file);
+  };
+
+  // Exportar base de datos a JSON (Copia de seguridad)
+  const handleExportBackupJSON = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/backup", { method: "GET" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Error al generar la copia de seguridad.");
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(result, null, 2))}`;
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", jsonString);
+      downloadAnchor.setAttribute("download", `backup_completo_${new Date().toISOString().split("T")[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      showNotification("Copia de seguridad JSON exportada correctamente.", "success");
+    } catch (err: any) {
+      showNotification(err.message || "Error al exportar copia de seguridad.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Importar base de datos desde JSON (Restauración completa)
+  const handleImportBackupJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const confirmRestore = window.confirm(
+      "¡ATENCIÓN! Estás a punto de restaurar una copia de seguridad COMPLETA de la base de datos.\n\n" +
+      "Esto ELIMINARÁ permanentemente todos los datos existentes e importará los registros del archivo.\n\n" +
+      "¿Estás completamente seguro de que deseas proceder?"
+    );
+    if (!confirmRestore) { event.target.value = ""; return; }
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (!text) throw new Error("Archivo vacío");
+        const parsedBackup = JSON.parse(text);
+        const response = await fetch("/api/admin/backup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsedBackup),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || "Error al restaurar la copia de seguridad.");
+        showNotification(result.message, "success");
+        router.refresh();
+      } catch (err: any) {
+        showNotification(err.message || "Error al restaurar.", "error");
+      } finally {
+        setLoading(false);
+        event.target.value = "";
+      }
+    };
+    reader.onerror = () => { showNotification("Error de lectura del archivo.", "error"); setLoading(false); event.target.value = ""; };
+    reader.readAsText(file);
+  };
+
   // Filtrado de Clientes
   const filteredClientes = useMemo(() => {
     return clientes.filter(c => {
+      // Buscador global
+      if (globalSearch) {
+        const gs = globalSearch.toLowerCase();
+        const matchNombre = c.nombre?.toLowerCase().includes(gs);
+        const matchDni = c.dni?.toLowerCase().includes(gs);
+        const matchEmail = c.emails.some(e => e.email.toLowerCase().includes(gs));
+        const matchTel = c.telefonos.some(t => t.telefono.toLowerCase().includes(gs));
+        const matchTienda = tiendas.find(t => t.id_tienda === c.tienda_id)?.nombre.toLowerCase().includes(gs);
+        if (!matchNombre && !matchDni && !matchEmail && !matchTel && !matchTienda) return false;
+      }
       // Filtrar por Nombre
       if (filterNombre && !c.nombre?.toLowerCase().includes(filterNombre.toLowerCase())) {
         return false;
@@ -321,7 +503,7 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
       }
       return true;
     });
-  }, [clientes, filterNombre, filterDni, filterFechaNacimiento, filterCorreo, filterTelefono, filterTienda]);
+  }, [clientes, globalSearch, filterNombre, filterDni, filterFechaNacimiento, filterCorreo, filterTelefono, filterTienda, tiendas]);
 
   // Ordenación de Clientes
   const filteredClientesSorted = useMemo(() => {
@@ -415,9 +597,28 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
         </div>
       )}
 
+      {/* BUSCADOR GLOBAL */}
+      <div style={{ position: "relative", maxWidth: "400px" }}>
+        <input
+          type="text"
+          placeholder="🔍 Buscar clientes (nombre, DNI, email, teléfono...)"
+          className="form-input"
+          value={globalSearch}
+          onChange={e => setGlobalSearch(e.target.value)}
+          style={{ paddingRight: globalSearch ? "36px" : "12px", width: "100%" }}
+        />
+        {globalSearch && (
+          <button
+            type="button"
+            onClick={() => setGlobalSearch("")}
+            style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", fontSize: "1rem", color: "var(--text-muted)" }}
+          >✖</button>
+        )}
+      </div>
+
       {/* BARRA SUPERIOR DE ACCIONES */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn"
@@ -442,177 +643,243 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
           </button>
 
           {bulkSelectionUnlocked && selectedIds.length > 0 && (
-            <div
-              className="glass-panel"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "16px",
-                padding: "8px 16px",
-                borderColor: "var(--danger)",
-                backgroundColor: "rgba(239, 68, 68, 0.05)",
-                animation: "fadeIn 0.2s ease"
-              }}
-            >
-              <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--text-primary)" }}>
-                {selectedIds.length} seleccionado(s)
+            <>
+              <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--primary)" }}>
+                ({selectedIds.length} seleccionados):
               </span>
               <button
                 type="button"
                 className="btn"
                 onClick={() => setConfirmBulkDelete(true)}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "0.8rem",
-                  backgroundColor: "var(--danger)",
-                  color: "#fff",
-                  border: "none",
-                  cursor: "pointer"
-                }}
+                style={{ padding: "6px 12px", fontSize: "0.8rem", backgroundColor: "var(--danger)", color: "white", border: "none", cursor: "pointer", borderRadius: "var(--radius-sm)", fontWeight: "600" }}
               >
                 🗑️ Eliminar Seleccionados
               </button>
-            </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleExportCSV(true)}
+                style={{ padding: "6px 12px", fontSize: "0.8rem" }}
+              >
+                📤 Exportar Seleccionados (CSV)
+              </button>
+            </>
           )}
         </div>
 
-        <button type="button" className="btn btn-primary" onClick={handleOpenModal} style={{ padding: "10px 20px" }}>
-          + Registrar Nuevo Cliente
-        </button>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className="btn btn-primary" onClick={handleOpenModal} style={{ padding: "10px 20px" }}>
+            + Registrar Nuevo Cliente
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => handleExportCSV(false)}
+            style={{ padding: "8px 14px", fontSize: "0.85rem" }}
+          >
+            📤 Exportar (CSV)
+          </button>
+
+          <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            📥 Importar CSV
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImportCSV}
+              style={{ display: "none" }}
+              disabled={loading}
+            />
+          </label>
+
+          {userRole === "administrador" && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportBackupJSON}
+                style={{
+                  padding: "8px 14px",
+                  fontSize: "0.85rem",
+                  backgroundColor: "rgba(124, 58, 237, 0.08)",
+                  border: "1px solid rgba(124, 58, 237, 0.2)",
+                  color: "var(--primary)",
+                  fontWeight: 500
+                }}
+                disabled={loading}
+              >
+                💾 Exportar Backup (JSON)
+              </button>
+
+              <label
+                className="btn"
+                style={{
+                  padding: "8px 14px",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "rgba(16, 185, 129, 0.08)",
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  color: "var(--success)",
+                  fontWeight: 500
+                }}
+              >
+                🔄 Restaurar Backup (JSON)
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportBackupJSON}
+                  style={{ display: "none" }}
+                  disabled={loading}
+                />
+              </label>
+            </>
+          )}
+        </div>
       </div>
 
       {/* LISTADO DE CLIENTES */}
-      {clientes.length === 0 ? (
-        <div className="glass-panel" style={{ padding: "60px 40px", textAlign: "center" }}>
-          <p style={{ color: "var(--text-secondary)" }}>No hay clientes registrados en el sistema.</p>
+      <div className="glass-panel" style={{ padding: "8px" }}>
+        {/* RESUMEN */}
+        <div style={{ padding: "10px 16px 4px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+          {filteredClientesSorted.length} cliente(s){globalSearch || filterNombre || filterDni || filterFechaNacimiento || filterCorreo || filterTelefono || filterTienda ? ` (de ${clientes.length} totales)` : ""}
         </div>
-      ) : (
-        <div className="glass-panel" style={{ padding: "8px" }}>
-          <div className="table-container">
-            <table className="table-premium">
-              <thead>
-                <tr>
-                  {bulkSelectionUnlocked && (
-                    <th style={{ width: "40px", textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={filteredClientesSorted.length > 0 && selectedIds.length === filteredClientesSorted.length}
-                        onChange={e => handleSelectAll(e.target.checked)}
-                        style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                      />
-                    </th>
-                  )}
-                  <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer" }}>
-                    Nombre {sortField === "nombre" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+        <div className="table-container">
+          <table className="table-premium">
+            <thead>
+              <tr>
+                {bulkSelectionUnlocked && (
+                  <th style={{ width: "40px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={filteredClientesSorted.length > 0 && selectedIds.length === filteredClientesSorted.length}
+                      onChange={e => handleSelectAll(e.target.checked)}
+                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                    />
                   </th>
-                  <th onClick={() => handleSort("dni")} style={{ cursor: "pointer" }}>
-                    DNI / NIE {sortField === "dni" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th onClick={() => handleSort("fecha_de_nacimiento")} style={{ cursor: "pointer" }}>
-                    Fecha Nacimiento {sortField === "fecha_de_nacimiento" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th>Correos</th>
-                  <th>Teléfonos</th>
-                  <th onClick={() => handleSort("tienda")} style={{ cursor: "pointer" }}>
-                    Tienda Asignada {sortField === "tienda" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th onClick={() => handleSort("expedientes")} style={{ cursor: "pointer" }}>
-                    Ventas Realizadas {sortField === "expedientes" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
-                  </th>
-                  <th>Acciones</th>
-                </tr>
+                )}
+                <th onClick={() => handleSort("nombre")} style={{ cursor: "pointer" }}>
+                  Nombre {sortField === "nombre" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                </th>
+                <th onClick={() => handleSort("dni")} style={{ cursor: "pointer" }}>
+                  DNI / NIE {sortField === "dni" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                </th>
+                <th onClick={() => handleSort("fecha_de_nacimiento")} style={{ cursor: "pointer" }}>
+                  F. Nacimiento {sortField === "fecha_de_nacimiento" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                </th>
+                <th>Correos</th>
+                <th>Teléfonos</th>
+                <th onClick={() => handleSort("tienda")} style={{ cursor: "pointer" }}>
+                  Tienda {sortField === "tienda" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                </th>
+                <th onClick={() => handleSort("expedientes")} style={{ cursor: "pointer" }}>
+                  Ventas {sortField === "expedientes" ? (sortDirection === "asc" ? "▲" : "▼") : "↕"}
+                </th>
+                <th>Acciones</th>
+              </tr>
 
-                {/* FILTROS POR COLUMNA */}
-                <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
-                  {bulkSelectionUnlocked && <td></td>}
-                  <td>
-                    <input
-                      type="text"
-                      placeholder="Filtrar..."
-                      className="form-input"
-                      value={filterNombre}
-                      onChange={e => setFilterNombre(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "100px" }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      placeholder="Filtrar..."
-                      className="form-input"
-                      value={filterDni}
-                      onChange={e => setFilterDni(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      placeholder="Filtrar..."
-                      className="form-input"
-                      value={filterFechaNacimiento}
-                      onChange={e => setFilterFechaNacimiento(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      placeholder="Filtrar..."
-                      className="form-input"
-                      value={filterCorreo}
-                      onChange={e => setFilterCorreo(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "100px" }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      placeholder="Filtrar..."
-                      className="form-input"
-                      value={filterTelefono}
-                      onChange={e => setFilterTelefono(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      className="form-select"
-                      value={filterTienda}
-                      onChange={e => setFilterTienda(e.target.value)}
-                      style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "120px" }}
+              {/* FILTROS POR COLUMNA */}
+              <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
+                {bulkSelectionUnlocked && <td></td>}
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterNombre}
+                    onChange={e => setFilterNombre(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "100px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterDni}
+                    onChange={e => setFilterDni(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterFechaNacimiento}
+                    onChange={e => setFilterFechaNacimiento(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterCorreo}
+                    onChange={e => setFilterCorreo(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "100px" }}
+                  />
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    className="form-input"
+                    value={filterTelefono}
+                    onChange={e => setFilterTelefono(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
+                  />
+                </td>
+                <td>
+                  <select
+                    className="form-select"
+                    value={filterTienda}
+                    onChange={e => setFilterTienda(e.target.value)}
+                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "120px" }}
+                  >
+                    <option value="">Todas</option>
+                    <option value="global">Global (Sin Tienda)</option>
+                    {tiendas.map(t => (
+                      <option key={t.id_tienda} value={t.id_tienda}>{t.nombre}</option>
+                    ))}
+                  </select>
+                </td>
+                <td></td>
+                <td style={{ textAlign: "center" }}>
+                  {(filterNombre || filterDni || filterFechaNacimiento || filterCorreo || filterTelefono || filterTienda) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterNombre("");
+                        setFilterDni("");
+                        setFilterFechaNacimiento("");
+                        setFilterCorreo("");
+                        setFilterTelefono("");
+                        setFilterTienda("");
+                      }}
+                      style={{ border: "none", background: "none", cursor: "pointer", fontSize: "0.85rem", color: "var(--danger)" }}
+                      title="Limpiar filtros"
                     >
-                      <option value="">Todas</option>
-                      <option value="global">Global (Sin Tienda)</option>
-                      {tiendas.map(t => (
-                        <option key={t.id_tienda} value={t.id_tienda}>{t.nombre}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td></td>
-                  <td style={{ textAlign: "center" }}>
-                    {(filterNombre || filterDni || filterFechaNacimiento || filterCorreo || filterTelefono || filterTienda) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFilterNombre("");
-                          setFilterDni("");
-                          setFilterFechaNacimiento("");
-                          setFilterCorreo("");
-                          setFilterTelefono("");
-                          setFilterTienda("");
-                        }}
-                        style={{ border: "none", background: "none", cursor: "pointer", fontSize: "0.85rem", color: "var(--danger)" }}
-                        title="Limpiar filtros"
-                      >
-                        ✖
-                      </button>
-                    )}
+                      ✖
+                    </button>
+                  )}
+                </td>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredClientesSorted.length === 0 ? (
+                <tr>
+                  <td colSpan={bulkSelectionUnlocked ? 9 : 8} style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                    {clientes.length === 0
+                      ? "No hay clientes registrados en el sistema."
+                      : "No se encontraron clientes que coincidan con los filtros aplicados."
+                    }
                   </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredClientesSorted.map((c) => {
+              ) : filteredClientesSorted.map((c) => {
                   const tiendaAsociada = tiendas.find(t => t.id_tienda === c.tienda_id);
                   const isSelected = selectedIds.includes(c.id);
                   return (
@@ -713,12 +980,11 @@ export default function ClientesList({ clientesIniciales, tiendas }: ClientesLis
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
       {/* CONFIRMAR BORRADO CLIENTE (MODAL) */}
       {confirmDeleteCliente && (

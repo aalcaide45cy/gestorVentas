@@ -74,7 +74,8 @@ export default async function AdminPage() {
     modelos: m.modelos.map(mod => ({
       id_modelo: mod.id_modelo,
       nombre_modelo: mod.nombre_modelo,
-      acceso_rapido: mod.acceso_rapido
+      acceso_rapido: mod.acceso_rapido,
+      orden_acceso_rapido: mod.orden_acceso_rapido
     }))
   }));
 
