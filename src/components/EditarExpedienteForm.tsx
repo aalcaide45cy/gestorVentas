@@ -204,6 +204,13 @@ export default function EditarExpedienteForm({
   const [modeloSeleccionado, setModeloSeleccionado] = useState<number | "">(expediente.id_modelo || "");
   const [tipoVentaSeleccionado, setTipoVentaSeleccionado] = useState<number | "">(expediente.id_tipo_de_venta || "");
   const [estadoVehiculoSeleccionado, setEstadoVehiculoSeleccionado] = useState<number | "">(expediente.id_estado_vehiculo || "");
+  const [valorObjetivo, setValorObjetivo] = useState<number>(
+    expediente.valor_objetivo !== undefined && expediente.valor_objetivo !== null
+      ? Number(expediente.valor_objetivo)
+      : 1
+  );
+  const [comisionBreakdown, setComisionBreakdown] = useState<any | null>(null);
+  const [calculandoComision, setCalculandoComision] = useState(false);
 
   const [fechaExpediente, setFechaExpediente] = useState(expediente.fecha_expediente || "");
   const [fechaAfectacion, setFechaAfectacion] = useState(expediente.fecha_afectacion || "");
@@ -287,6 +294,11 @@ export default function EditarExpedienteForm({
     if (matricula !== (expediente.matricula || "")) return true;
     if (vin !== (expediente.vin || "")) return true;
 
+    const originalValorObjetivo = expediente.valor_objetivo !== null && expediente.valor_objetivo !== undefined
+      ? Number(expediente.valor_objetivo)
+      : 1;
+    if (valorObjetivo !== originalValorObjetivo) return true;
+
     return false;
   };
 
@@ -318,7 +330,69 @@ export default function EditarExpedienteForm({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleAnchorClick, true);
     };
-  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, success]);
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, success]);
+
+  useEffect(() => {
+    if (!modeloSeleccionado) {
+      setComisionBreakdown(null);
+      return;
+    }
+
+    const fetchSimulation = async () => {
+      setCalculandoComision(true);
+      try {
+        const response = await fetch("/api/expedientes/simular-comision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id_expediente: expediente.id_expediente,
+            id_usuario: expediente.id_usuario,
+            id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
+            id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
+            id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
+            fecha_expediente: fechaExpediente || null,
+            fecha_afectacion: fechaAfectacion || null,
+            fecha_rci: fechaRci || null,
+            fecha_matriculacion: fechaMatriculacion || null,
+            fecha_entrega: fechaEntrega || null,
+            matricula: matricula || null,
+            vin: vin || null,
+            valor_objetivo: valorObjetivo,
+            id_cliente: clienteAsignado ? clienteAsignado.id : null
+          })
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData.success) {
+            setComisionBreakdown(resData.data);
+          } else {
+            setComisionBreakdown({ error: resData.message });
+          }
+        }
+      } catch (err) {
+        console.error("Error al calcular simulación de comisión:", err);
+      } finally {
+        setCalculandoComision(false);
+      }
+    };
+
+    const timer = setTimeout(fetchSimulation, 400);
+    return () => clearTimeout(timer);
+  }, [
+    modeloSeleccionado,
+    tipoVentaSeleccionado,
+    estadoVehiculoSeleccionado,
+    fechaExpediente,
+    fechaAfectacion,
+    fechaRci,
+    fechaMatriculacion,
+    fechaEntrega,
+    valorObjetivo,
+    clienteAsignado,
+    matricula,
+    vin
+  ]);
 
   // Envío del Formulario
   const handleSubmit = async (e: React.FormEvent) => {
@@ -344,7 +418,8 @@ export default function EditarExpedienteForm({
             fecha_matriculacion: fechaMatriculacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
-            vin: vin || null
+            vin: vin || null,
+            valor_objetivo: valorObjetivo
           }
         })
       });
@@ -672,8 +747,170 @@ export default function EditarExpedienteForm({
               <label className="form-label">Fecha Entrega</label>
               <input type="date" className="form-input" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
             </div>
+            <div className="form-group">
+              <label className="form-label">VAL. Obj. / Multiplicador</label>
+              <select
+                className="form-select"
+                value={valorObjetivo}
+                onChange={e => setValorObjetivo(Number(e.target.value))}
+              >
+                <option value={0}>0</option>
+                <option value={0.5}>0.5</option>
+                <option value={1}>1</option>
+                <option value={1.5}>1.5</option>
+                <option value={2}>2</option>
+                <option value={2.5}>2.5</option>
+                <option value={3}>3</option>
+                <option value={3.5}>3.5</option>
+                <option value={4}>4</option>
+              </select>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* SECCIÓN 3: DESGLOSE DE COMISIONAMIENTO (EN TIEMPO REAL) */}
+      <div className="glass-panel" style={{ padding: "32px", borderLeft: "4px solid var(--primary)" }}>
+        <h2 style={{ fontSize: "1.25rem", marginBottom: "16px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"></line>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+          Desglose Estimado de Comisión
+        </h2>
+
+        {!modeloSeleccionado ? (
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+            Selecciona un modelo y fechas válidas para ver el desglose en tiempo real.
+          </p>
+        ) : calculandoComision ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+            <div className="spinner-mini" style={{
+              width: "16px", height: "16px", border: "2px solid rgba(255,255,255,0.1)",
+              borderTopColor: "var(--primary)", borderRadius: "50%", animation: "spin 0.8s linear infinite"
+            }}></div>
+            <span>Calculando desglose de comisionamiento...</span>
+          </div>
+        ) : comisionBreakdown?.error ? (
+          <div style={{ color: "var(--danger)", fontSize: "0.9rem" }}>
+            ⚠️ {comisionBreakdown.error}
+          </div>
+        ) : comisionBreakdown ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            {/* Cabecera global del cálculo */}
+            <div style={{ 
+              display: "grid", 
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", 
+              gap: "16px",
+              padding: "16px",
+              borderRadius: "var(--radius-sm)",
+              backgroundColor: "rgba(255,255,255,0.02)",
+              border: "1px solid var(--border-light)"
+            }}>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Plan Aplicado</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>{comisionBreakdown.planNombre}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Tramo Alcanzado</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--primary)", marginTop: "4px" }}>
+                  Tramo {comisionBreakdown.tramoAlcanzado}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Objetivo Computable</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
+                  {comisionBreakdown.totalComputablesVendedor} Uds.
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 600 }}>Matriculaciones Mes</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", marginTop: "4px" }}>
+                  {comisionBreakdown.matriculacionesRealesVendedor} de {comisionBreakdown.minMatriculacionesPlan} mín.
+                </div>
+              </div>
+            </div>
+
+            {/* Alerta de no cumplimiento de mínimo */}
+            {!comisionBreakdown.cumpleMinimo && (
+              <div className="glass-panel" style={{ 
+                padding: "12px 16px", 
+                backgroundColor: "rgba(239, 68, 68, 0.08)", 
+                borderLeft: "4px solid var(--danger)",
+                color: "var(--danger)",
+                fontSize: "0.85rem"
+              }}>
+                <strong>⚠️ Penalización de Comisión (0 €):</strong> El vendedor no alcanza el mínimo de {comisionBreakdown.minMatriculacionesPlan} matriculaciones exigidas por el plan para este mes.
+              </div>
+            )}
+
+            {/* Tabla de conceptos */}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border-light)", color: "var(--text-muted)" }}>
+                    <th style={{ textAlign: "left", padding: "8px 0", fontWeight: 600 }}>Concepto / Regla de Comisión</th>
+                    <th style={{ textAlign: "center", padding: "8px", fontWeight: 600, width: "100px" }}>Cómputo Obj.</th>
+                    <th style={{ textAlign: "right", padding: "8px 0", fontWeight: 600, width: "100px" }}>Importe (€)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comisionBreakdown.items && comisionBreakdown.items.length > 0 ? (
+                    comisionBreakdown.items.map((item: any, idx: number) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                        <td style={{ padding: "10px 0", color: "var(--text-primary)" }}>{item.concepto}</td>
+                        <td style={{ padding: "10px", textAlign: "center", color: item.afecta_objetivo ? "var(--secondary)" : "var(--text-muted)" }}>
+                          {item.afecta_objetivo ? `+${item.valor_objetivo}` : "-"}
+                        </td>
+                        <td style={{ padding: "10px 0", textAlign: "right", fontWeight: item.importe > 0 ? 600 : 400, color: item.importe > 0 ? "var(--success)" : "var(--text-muted)" }}>
+                          {item.importe > 0 ? `+${item.importe} €` : "0 €"}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} style={{ padding: "16px 0", color: "var(--text-muted)", textAlign: "center" }}>
+                        Este expediente no genera cómputo ni comisiones económicas en este estado (comprueba fechas y tipo de vehículo).
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Caja de Total comisionable */}
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center",
+              padding: "16px 20px", 
+              borderRadius: "var(--radius-sm)",
+              background: comisionBreakdown.cumpleMinimo ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.05)",
+              border: comisionBreakdown.cumpleMinimo ? "1px solid rgba(16, 185, 129, 0.2)" : "1px solid rgba(239, 68, 68, 0.15)",
+              marginTop: "8px"
+            }}>
+              <div>
+                <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>Total Comisión para este Expediente:</span>
+                {!comisionBreakdown.cumpleMinimo && (
+                  <div style={{ fontSize: "0.75rem", color: "var(--danger)", marginTop: "2px" }}>
+                    (Teórico: {comisionBreakdown.totalTeorico} €)
+                  </div>
+                )}
+              </div>
+              <span style={{ 
+                fontSize: "1.4rem", 
+                fontWeight: 800, 
+                color: comisionBreakdown.cumpleMinimo ? "var(--success)" : "var(--danger)" 
+              }}>
+                {comisionBreakdown.totalGenerado} €
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+            Sin datos de comisión.
+          </p>
+        )}
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "16px", marginTop: "8px" }}>

@@ -254,24 +254,32 @@ export async function POST(req: NextRequest) {
             const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
             const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
             if (modelRate) {
-              objValorExpediente += modelRate.valor_objetivo;
+              let valObj = modelRate.valor_objetivo;
+              if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+                valObj = Number(exp.valor_objetivo);
+              }
+              objValorExpediente += valObj;
               itemsDetalle.push({
-                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo}) [${tasaCumplida ? 'Tasa OK' : 'Tasa Baja'}]`,
+                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo}) [${tasaCumplida ? 'Tasa OK' : 'Tasa Baja'}]${exp.valor_objetivo !== null && exp.valor_objetivo !== undefined ? ' (Personalizado)' : ''}`,
                 importe: 0,
                 afecta_objetivo: true,
-                valor_objetivo: modelRate.valor_objetivo
+                valor_objetivo: valObj
               });
             }
           } else if (tipoUsado) {
             if (!isVOVendedor) {
               const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
               if (usedRate) {
-                objValorExpediente += usedRate.valor_objetivo;
+                let valObj = usedRate.valor_objetivo;
+                if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+                  valObj = Number(exp.valor_objetivo);
+                }
+                objValorExpediente += valObj;
                 itemsDetalle.push({
-                  concepto: `Cómputo Base VO Tipo (${tipoUsado})`,
+                  concepto: `Cómputo Base VO Tipo (${tipoUsado})${exp.valor_objetivo !== null && exp.valor_objetivo !== undefined ? ' (Personalizado)' : ''}`,
                   importe: 0,
                   afecta_objetivo: true,
-                  valor_objetivo: usedRate.valor_objetivo
+                  valor_objetivo: valObj
                 });
               }
             } else {
@@ -279,12 +287,16 @@ export async function POST(req: NextRequest) {
               const tier = matchedPatternTiers.find((t: any) => t.unidad === voUnitCounter)
                 || matchedPatternTiers[matchedPatternTiers.length - 1]
                 || { valor_objetivo: 1, importe: 150 };
-              objValorExpediente += tier.valor_objetivo;
+              let valObj = tier.valor_objetivo;
+              if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+                valObj = Number(exp.valor_objetivo);
+              }
+              objValorExpediente += valObj;
               itemsDetalle.push({
-                concepto: `Cómputo VO Progresivo (Unidad #${voUnitCounter})`,
+                concepto: `Cómputo VO Progresivo (Unidad #${voUnitCounter})${exp.valor_objetivo !== null && exp.valor_objetivo !== undefined ? ' (Personalizado)' : ''}`,
                 importe: 0,
                 afecta_objetivo: true,
-                valor_objetivo: tier.valor_objetivo
+                valor_objetivo: valObj
               });
             }
           }

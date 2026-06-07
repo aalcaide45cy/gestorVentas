@@ -1121,7 +1121,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
                                   return (
                                     <Fragment key={modelId}>
-                                      {/* Fila 1: Tasa < Target */}
+                                      {/* Fila 1: Tasa >= Target */}
                                       <tr style={{ borderBottom: "none" }}>
                                         {isAdmin && planEstado !== "cerrado" && (
                                           <td rowSpan={2} style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)", padding: "4px" }}>
@@ -1169,77 +1169,30 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                             modelName
                                           )}
                                         </td>
-                                        <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle" }}>
-                                          Tasa {"<"} {targetIntervention}%
-                                        </td>
-                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                                          <select
-                                            className="form-select"
-                                            value={rateLess.valor_objetivo}
-                                            onChange={(e) => handleSpecificChange(rateLess, "valor_objetivo", Number(e.target.value))}
-                                            disabled={planEstado === "cerrado" || !isAdmin}
-                                            style={{ padding: "4px 8px", width: "60px", margin: "0 auto" }}
-                                          >
-                                            <option value={0}>0</option>
-                                            <option value={1}>1</option>
-                                            <option value={2}>2</option>
-                                          </select>
-                                        </td>
-                                        {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
-                                          <td key={col} style={{ borderBottom: "none" }}>
-                                            <input
-                                              type="number"
-                                              className="form-input"
-                                              value={rateLess[col] || 0}
-                                              onChange={(e) => handleSpecificChange(rateLess, col, Number(e.target.value))}
-                                              disabled={planEstado === "cerrado" || !isAdmin}
-                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
-                                            />
-                                          </td>
-                                        ))}
-                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                                          <input
-                                            type="checkbox"
-                                            checked={rateLess.activo !== false}
-                                            onChange={(e) => handleSpecificChange(rateLess, "activo", e.target.checked)}
-                                            disabled={planEstado === "cerrado" || !isAdmin}
-                                          />
-                                        </td>
-                                        {isAdmin && planEstado !== "cerrado" && (
-                                          <td style={{ verticalAlign: "middle" }}>
-                                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-                                              <button type="button" onClick={() => handleCopyRate(rateLess)}
-                                                style={{ border: "none", background: "rgba(124,58,237,0.06)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600 }}
-                                                title="Copiar valores de esta línea">📄 Copiar</button>
-                                              {rateClipboard && (
-                                                <button type="button" onClick={() => handlePasteRate(rateLess)}
-                                                  style={{ border: "none", background: "rgba(16,185,129,0.08)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--success)", fontWeight: 600 }}
-                                                  title="Pegar valores del portapapeles">📋 Pegar</button>
-                                              )}
-                                            </div>
-                                          </td>
-                                        )}
-                                      </tr>
-                                      {/* Fila 2: Tasa >= Target */}
-                                      <tr style={{ borderBottom: "1px solid var(--border-light)" }}>
-                                        <td style={{ color: "var(--success)", fontWeight: 600, verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                        <td style={{ color: "var(--success)", fontWeight: 600, verticalAlign: "middle" }}>
                                           Tasa ≥ {targetIntervention}%
                                         </td>
-                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
                                           <select
                                             className="form-select"
                                             value={rateMore.valor_objetivo}
                                             onChange={(e) => handleSpecificChange(rateMore, "valor_objetivo", Number(e.target.value))}
                                             disabled={planEstado === "cerrado" || !isAdmin}
-                                            style={{ padding: "4px 8px", width: "60px", margin: "0 auto" }}
+                                            style={{ padding: "4px 8px", width: "70px", margin: "0 auto" }}
                                           >
                                             <option value={0}>0</option>
+                                            <option value={0.5}>0.5</option>
                                             <option value={1}>1</option>
+                                            <option value={1.5}>1.5</option>
                                             <option value={2}>2</option>
+                                            <option value={2.5}>2.5</option>
+                                            <option value={3}>3</option>
+                                            <option value={3.5}>3.5</option>
+                                            <option value={4}>4</option>
                                           </select>
                                         </td>
                                         {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
-                                          <td key={col} style={{ borderBottom: "1px solid var(--border-light)" }}>
+                                          <td key={col} style={{ borderBottom: "none" }}>
                                             <input
                                               type="number"
                                               className="form-input"
@@ -1250,7 +1203,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                             />
                                           </td>
                                         ))}
-                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
                                           <input
                                             type="checkbox"
                                             checked={rateMore.activo !== false}
@@ -1259,13 +1212,72 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                           />
                                         </td>
                                         {isAdmin && planEstado !== "cerrado" && (
-                                          <td style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          <td style={{ verticalAlign: "middle" }}>
                                             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                                               <button type="button" onClick={() => handleCopyRate(rateMore)}
                                                 style={{ border: "none", background: "rgba(124,58,237,0.06)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600 }}
                                                 title="Copiar valores de esta línea">📄 Copiar</button>
                                               {rateClipboard && (
                                                 <button type="button" onClick={() => handlePasteRate(rateMore)}
+                                                  style={{ border: "none", background: "rgba(16,185,129,0.08)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--success)", fontWeight: 600 }}
+                                                  title="Pegar valores del portapapeles">📋 Pegar</button>
+                                              )}
+                                            </div>
+                                          </td>
+                                        )}
+                                      </tr>
+                                      {/* Fila 2: Tasa < Target */}
+                                      <tr style={{ borderBottom: "1px solid var(--border-light)" }}>
+                                        <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          Tasa {"<"} {targetIntervention}%
+                                        </td>
+                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          <select
+                                            className="form-select"
+                                            value={rateLess.valor_objetivo}
+                                            onChange={(e) => handleSpecificChange(rateLess, "valor_objetivo", Number(e.target.value))}
+                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                            style={{ padding: "4px 8px", width: "70px", margin: "0 auto" }}
+                                          >
+                                            <option value={0}>0</option>
+                                            <option value={0.5}>0.5</option>
+                                            <option value={1}>1</option>
+                                            <option value={1.5}>1.5</option>
+                                            <option value={2}>2</option>
+                                            <option value={2.5}>2.5</option>
+                                            <option value={3}>3</option>
+                                            <option value={3.5}>3.5</option>
+                                            <option value={4}>4</option>
+                                          </select>
+                                        </td>
+                                        {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                          <td key={col} style={{ borderBottom: "1px solid var(--border-light)" }}>
+                                            <input
+                                              type="number"
+                                              className="form-input"
+                                              value={rateLess[col] || 0}
+                                              onChange={(e) => handleSpecificChange(rateLess, col, Number(e.target.value))}
+                                              disabled={planEstado === "cerrado" || !isAdmin}
+                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                            />
+                                          </td>
+                                        ))}
+                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                          <input
+                                            type="checkbox"
+                                            checked={rateLess.activo !== false}
+                                            onChange={(e) => handleSpecificChange(rateLess, "activo", e.target.checked)}
+                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                          />
+                                        </td>
+                                        {isAdmin && planEstado !== "cerrado" && (
+                                          <td style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
+                                            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                                              <button type="button" onClick={() => handleCopyRate(rateLess)}
+                                                style={{ border: "none", background: "rgba(124,58,237,0.06)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600 }}
+                                                title="Copiar valores de esta línea">📄 Copiar</button>
+                                              {rateClipboard && (
+                                                <button type="button" onClick={() => handlePasteRate(rateLess)}
                                                   style={{ border: "none", background: "rgba(16,185,129,0.08)", cursor: "pointer", padding: "3px 7px", borderRadius: "4px", fontSize: "0.7rem", color: "var(--success)", fontWeight: 600 }}
                                                   title="Pegar valores del portapapeles">📋 Pegar</button>
                                               )}

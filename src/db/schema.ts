@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, date, integer, boolean, text } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, date, integer, boolean, text, doublePrecision } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // TABLA: TIENDAS
@@ -117,6 +117,7 @@ export const expedientes = pgTable('expedientes', {
   id_tipo_de_venta: integer('id_tipo_de_venta').references(() => tipoDeVenta.id_tipo_de_venta),
   id_estado_vehiculo: integer('id_estado_vehiculo').references(() => estadoVehiculo.id_estado_vehiculo),
   vin: varchar('vin', { length: 100 }),
+  valor_objetivo: doublePrecision('valor_objetivo'),
 });
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===
@@ -248,7 +249,7 @@ export const commissionPlanModelRates = pgTable('commission_plan_model_rates', {
   rate_x: integer('rate_x').notNull().default(0),
   rate_x_plus_1: integer('rate_x_plus_1').notNull().default(0),
   rate_x_plus_2: integer('rate_x_plus_2').notNull().default(0),
-  valor_objetivo: integer('valor_objetivo').notNull().default(1), // valor computable objetivo (ej. 1 o 2)
+  valor_objetivo: doublePrecision('valor_objetivo').notNull().default(1), // valor computable objetivo (ej. 1 o 2)
   activo: boolean('activo').notNull().default(true),
 });
 

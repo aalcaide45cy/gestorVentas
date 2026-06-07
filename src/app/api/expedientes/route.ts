@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo } from "@/db/schema";
-import { eq, ilike, inArray } from "drizzle-orm";
+import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo, commissionPlans, commissionPlanModelRates } from "@/db/schema";
+import { eq, ilike, inArray, and, lte, gte } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -118,6 +118,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Determinar valor_objetivo por defecto de la tasa del plan activo
+    let defaultValorObjetivo = 1;
+    if (expedienteData.id_modelo) {
+      let activePlan = await db.query.commissionPlans.findFirst({
+        where: and(
+          eq(commissionPlans.estado, "activo"),
+          lte(commissionPlans.fecha_inicio, fechaExp),
+          gte(commissionPlans.fecha_fin, fechaExp)
+        ),
+      });
+
+      if (!activePlan) {
+        activePlan = await db.query.commissionPlans.findFirst({
+          where: and(
+            lte(commissionPlans.fecha_inicio, fechaExp),
+            gte(commissionPlans.fecha_fin, fechaExp)
+          ),
+        });
+      }
+
+      if (activePlan) {
+        const modelRate = await db.query.commissionPlanModelRates.findFirst({
+          where: and(
+            eq(commissionPlanModelRates.id_plan, activePlan.id_plan),
+            eq(commissionPlanModelRates.id_modelo, expedienteData.id_modelo),
+            eq(commissionPlanModelRates.activo, true)
+          )
+        });
+        if (modelRate) {
+          defaultValorObjetivo = Number(modelRate.valor_objetivo);
+        }
+      }
+    }
+
+    const valorObjetivoToSave = (expedienteData.valor_objetivo !== undefined && expedienteData.valor_objetivo !== null)
+      ? Number(expedienteData.valor_objetivo)
+      : defaultValorObjetivo;
+
     // Crear el expediente
     const [nuevoExpediente] = await db.insert(expedientes).values({
       id_usuario: localUser.id_usuario,
@@ -133,6 +171,7 @@ export async function POST(req: NextRequest) {
       vin: expedienteData.vin || null,
       id_tipo_de_venta: expedienteData.id_tipo_de_venta || null,
       id_estado_vehiculo: estadoVehiculoId,
+      valor_objetivo: valorObjetivoToSave,
     }).returning();
 
     return NextResponse.json({ success: true, data: nuevoExpediente }, { status: 201 });
@@ -179,6 +218,7 @@ export async function PUT(req: NextRequest) {
       matricula: expedienteData.matricula !== undefined ? expedienteData.matricula : undefined,
       vin: expedienteData.vin !== undefined ? expedienteData.vin : undefined,
       id_cliente: id_cliente !== undefined ? id_cliente : undefined,
+      valor_objetivo: expedienteData.valor_objetivo !== undefined ? (expedienteData.valor_objetivo !== null ? Number(expedienteData.valor_objetivo) : null) : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 
     return NextResponse.json({ success: true, message: "Expediente actualizado correctamente" }, { status: 200 });
