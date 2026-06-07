@@ -64,9 +64,8 @@ export async function POST(req: NextRequest) {
     const targetDate = fecha_matriculacion || fecha_rci || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
 
     // 2. Obtener el plan de comisiones aplicable para esa fecha
-    let plan = await db.query.commissionPlans.findFirst({
+    const plan = await db.query.commissionPlans.findFirst({
       where: and(
-        eq(commissionPlans.estado, "activo"),
         lte(commissionPlans.fecha_inicio, targetDate),
         gte(commissionPlans.fecha_fin, targetDate)
       ),
@@ -82,27 +81,6 @@ export async function POST(req: NextRequest) {
         brandInterventionRates: true,
       }
     });
-
-    if (!plan) {
-      // Fallback: buscar cualquier plan que cubra la fecha sin importar su estado
-      plan = await db.query.commissionPlans.findFirst({
-        where: and(
-          lte(commissionPlans.fecha_inicio, targetDate),
-          gte(commissionPlans.fecha_fin, targetDate)
-        ),
-        with: {
-          rates: true,
-          rules: true,
-          bonusRules: true,
-          financeRules: true,
-          usedRates: true,
-          financeRates: true,
-          preferenceRules: true,
-          voPatterns: true,
-          brandInterventionRates: true,
-        }
-      });
-    }
 
     if (!plan) {
       return NextResponse.json({ 

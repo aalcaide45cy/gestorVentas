@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
         arrastre: arrastre !== undefined ? Number(arrastre) : 0,
         min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
         min_coches_multiplicador: min_coches_multiplicador !== undefined ? Number(min_coches_multiplicador) : 0,
-        estado: "borrador",
+        estado: "activo",
       }).returning();
 
       const newId = insertedPlan.id_plan;
@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
         arrastre: arrastre ? Number(arrastre) : 0,
         min_matriculaciones: min_matriculaciones ? Number(min_matriculaciones) : 6,
         min_coches_multiplicador: min_coches_multiplicador ? Number(min_coches_multiplicador) : 0,
-        estado: "borrador",
+        estado: "activo",
       }).returning();
 
       const newId = insertedPlan.id_plan;

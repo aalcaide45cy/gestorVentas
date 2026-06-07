@@ -232,7 +232,7 @@ export const commissionPlans = pgTable('commission_plans', {
   nombre: text('nombre').notNull(),
   fecha_inicio: date('fecha_inicio').notNull(),
   fecha_fin: date('fecha_fin').notNull(),
-  estado: varchar('estado', { length: 50 }).notNull().default('borrador'), // borrador, activo, cerrado
+  estado: varchar('estado', { length: 50 }).notNull().default('activo'), // borrador, activo, cerrado
   objetivo_base: integer('objetivo_base').notNull().default(0),
   arrastre: integer('arrastre').notNull().default(0),
   min_matriculaciones: integer('min_matriculaciones').notNull().default(6),
