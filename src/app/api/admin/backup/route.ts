@@ -132,10 +132,10 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { version, data } = body;
+    const { data } = body;
 
-    if (version !== "1.0" || !data) {
-      return NextResponse.json({ message: "Formato de backup inválido" }, { status: 400 });
+    if (!data) {
+      return NextResponse.json({ message: "Formato de backup inválido: falta el campo 'data'" }, { status: 400 });
     }
 
     // 1. Delete all tables in reverse order to avoid FK constraint violations

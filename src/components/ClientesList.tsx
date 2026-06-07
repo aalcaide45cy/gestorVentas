@@ -403,7 +403,17 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole }: C
       const response = await fetch("/api/admin/backup", { method: "GET" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Error al generar la copia de seguridad.");
-      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(result, null, 2))}`;
+
+      // Inyectar preferencias del navegador en el backup
+      const backupWithPrefs = {
+        ...result,
+        preferences: {
+          expDefaultPageSize: Number(localStorage.getItem("exp-default-page-size") || "20"),
+          sidebarCollapsed: localStorage.getItem("sidebar-collapsed") === "true",
+        }
+      };
+
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(backupWithPrefs, null, 2))}`;
       const downloadAnchor = document.createElement("a");
       downloadAnchor.setAttribute("href", jsonString);
       downloadAnchor.setAttribute("download", `backup_completo_${new Date().toISOString().split("T")[0]}.json`);
@@ -435,6 +445,18 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole }: C
         const text = e.target?.result as string;
         if (!text) throw new Error("Archivo vacío");
         const parsedBackup = JSON.parse(text);
+
+        // Restaurar preferencias del navegador si el backup las contiene
+        if (parsedBackup.preferences) {
+          const prefs = parsedBackup.preferences;
+          if (typeof prefs.expDefaultPageSize === "number") {
+            localStorage.setItem("exp-default-page-size", String(prefs.expDefaultPageSize));
+          }
+          if (typeof prefs.sidebarCollapsed === "boolean") {
+            localStorage.setItem("sidebar-collapsed", String(prefs.sidebarCollapsed));
+          }
+        }
+
         const response = await fetch("/api/admin/backup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -444,6 +466,7 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole }: C
         if (!response.ok) throw new Error(result.message || "Error al restaurar la copia de seguridad.");
         showNotification(result.message, "success");
         router.refresh();
+        setTimeout(() => { window.location.reload(); }, 1500);
       } catch (err: any) {
         showNotification(err.message || "Error al restaurar.", "error");
       } finally {

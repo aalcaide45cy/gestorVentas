@@ -419,8 +419,17 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
         throw new Error(result.message || "Error al generar la copia de seguridad.");
       }
 
+      // Inyectar preferencias del navegador en el backup
+      const backupWithPrefs = {
+        ...result,
+        preferences: {
+          expDefaultPageSize: Number(localStorage.getItem("exp-default-page-size") || "20"),
+          sidebarCollapsed: localStorage.getItem("sidebar-collapsed") === "true",
+        }
+      };
+
       const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-        JSON.stringify(result, null, 2)
+        JSON.stringify(backupWithPrefs, null, 2)
       )}`;
       const downloadAnchor = document.createElement("a");
       downloadAnchor.setAttribute("href", jsonString);
@@ -464,6 +473,17 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
         if (!text) throw new Error("Archivo vacío");
 
         const parsedBackup = JSON.parse(text);
+
+        // Restaurar preferencias del navegador si el backup las contiene
+        if (parsedBackup.preferences) {
+          const prefs = parsedBackup.preferences;
+          if (typeof prefs.expDefaultPageSize === "number") {
+            localStorage.setItem("exp-default-page-size", String(prefs.expDefaultPageSize));
+          }
+          if (typeof prefs.sidebarCollapsed === "boolean") {
+            localStorage.setItem("sidebar-collapsed", String(prefs.sidebarCollapsed));
+          }
+        }
 
         const response = await fetch("/api/admin/backup", {
           method: "POST",
