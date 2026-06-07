@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Vendedor no encontrado" }, { status: 404 });
     }
 
-    // Determinar fecha de cálculo
-    const targetDate = fecha_matriculacion || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
+    // Determinar fecha de cálculo (incluyendo fecha_rci en la prioridad)
+    const targetDate = fecha_matriculacion || fecha_rci || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
 
     // 2. Obtener el plan de comisiones aplicable para esa fecha
     let plan = await db.query.commissionPlans.findFirst({
@@ -182,12 +182,13 @@ export async function POST(req: NextRequest) {
     // Unir todos los expedientes
     const allExpedientes = [...otherExpedientes, simulatedExp];
 
-    // 5. Filtrar que entren en el período
+    // 5. Filtrar que entren en el período (incluyendo RCI)
     const qualExpedientes = allExpedientes.filter((exp) => {
       const pedidoIn = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
       const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
       const matriculacionIn = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
-      return pedidoIn || afectacionIn || matriculacionIn;
+      const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
+      return pedidoIn || afectacionIn || matriculacionIn || rciIn;
     });
 
     const isVOVendedor = sellerUser.tipo_vendedor === "VO";
@@ -212,21 +213,26 @@ export async function POST(req: NextRequest) {
       return dateA.localeCompare(dateB);
     });
 
-    // Calcular Tasas Intervención por Marca
+    // Calcular Tasas Intervención por Marca (basado en matriculaciones y fecha RCI)
     const totalMatriculadosPorMarca: Record<number, number> = {};
     const financiadosPorMarca: Record<number, number> = {};
 
     qualExpedientes.forEach((exp) => {
-      const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
-      if (entraMatriculacion) {
-        const brandId = exp.modelo?.marca_id;
-        if (brandId) {
-          const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-          const isVN = stateName === "nuevo" || stateName === "demo";
-          
-          if (isVN) {
+      const brandId = exp.modelo?.marca_id;
+      if (brandId) {
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        
+        if (isVN) {
+          // Denominador: Coches matriculados en el mes
+          const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+          if (entraMatriculacion) {
             totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
-            
+          }
+          
+          // Numerador: Coches con contratación de financiación (fecha_rci) en el mes
+          const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
+          if (entraRci) {
             const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
             const isFinanced = salesTypeName.includes("preference") || 
                                salesTypeName.includes("crédito") || 
@@ -260,6 +266,7 @@ export async function POST(req: NextRequest) {
       const entraPedido = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
       const entraAfectacion = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
       const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+      const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
 
       if (entraMatriculacion) {
         matriculacionesRealesVendedor++;
@@ -340,8 +347,8 @@ export async function POST(req: NextRequest) {
           (rule.tipo_evento === "pedido" && entraPedido) ||
           (rule.tipo_evento === "afectacion" && entraAfectacion) ||
           (rule.tipo_evento === "matriculacion" && entraMatriculacion) ||
-          (rule.tipo_evento === "financiacion" && entraMatriculacion && exp.id_tipo_de_venta) ||
-          (rule.tipo_evento === "preference" && entraMatriculacion && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
+          (rule.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
+          (rule.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
 
         if (!eventMatches) return;
 
@@ -368,8 +375,8 @@ export async function POST(req: NextRequest) {
           (bonus.tipo_evento === "pedido" && entraPedido) ||
           (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
           (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
-          (bonus.tipo_evento === "financiacion" && entraMatriculacion && exp.id_tipo_de_venta) ||
-          (bonus.tipo_evento === "preference" && entraMatriculacion && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
+          (bonus.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
+          (bonus.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
 
         if (!eventMatches) return;
 
@@ -402,6 +409,7 @@ export async function POST(req: NextRequest) {
         entraPedido,
         entraAfectacion,
         entraMatriculacion,
+        entraRci,
         isVN,
         tipoUsado,
         valorObjetivoCalculado: objValorExpediente,
@@ -435,7 +443,7 @@ export async function POST(req: NextRequest) {
 
     let simulatedResult: any = null;
 
-    expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, isVN, tipoUsado, itemsDetalleInitial }) => {
+    expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, entraRci, isVN, tipoUsado, itemsDetalleInitial }) => {
       let comisionBaseVN = 0;
       let comisionUsado = 0;
       let comisionFinanciacion = 0;
@@ -517,35 +525,40 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        if (exp.id_tipo_de_venta) {
-          const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-          let matchedFinanceType = "";
-          if (salesTypeName.includes("preference")) {
-            matchedFinanceType = "Preference";
-          } else if (salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("financiado")) {
-            matchedFinanceType = "Crédito";
-          } else if (salesTypeName.includes("renting")) {
-            matchedFinanceType = "Renting";
-          } else if (salesTypeName.includes("contado")) {
-            matchedFinanceType = "Contado";
-          }
+      }
 
-          if (matchedFinanceType && exp.modelo?.marca_id) {
-            const finRate = plan.financeRates.find(
-              r => r.id_marca === exp.modelo?.marca_id && r.tipo_financiacion === matchedFinanceType
-            );
-            if (finRate) {
-              comisionFinanciacion = finRate.importe;
-              finalItems.push({
-                concepto: `Incentivo Financiación (${exp.modelo?.marca?.nombre} - ${matchedFinanceType})`,
-                importe: finRate.importe,
-                afecta_objetivo: false,
-                valor_objetivo: 0
-              });
-            }
-          }
+      // 2. Comisión por Financiación (configurable por Marca y Tipo Financiación) - Se abona según fecha RCI
+      if (entraRci && exp.id_tipo_de_venta) {
+        const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+        let matchedFinanceType = "";
+        if (salesTypeName.includes("preference")) {
+          matchedFinanceType = "Preference";
+        } else if (salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("financiado")) {
+          matchedFinanceType = "Crédito";
+        } else if (salesTypeName.includes("renting")) {
+          matchedFinanceType = "Renting";
+        } else if (salesTypeName.includes("contado")) {
+          matchedFinanceType = "Contado";
         }
 
+        if (matchedFinanceType && exp.modelo?.marca_id) {
+          const finRate = plan.financeRates.find(
+            r => r.id_marca === exp.modelo?.marca_id && r.tipo_financiacion === matchedFinanceType
+          );
+          if (finRate) {
+            comisionFinanciacion = finRate.importe;
+            finalItems.push({
+              concepto: `Incentivo Financiación (${exp.modelo?.marca?.nombre} - ${matchedFinanceType})`,
+              importe: finRate.importe,
+              afecta_objetivo: false,
+              valor_objetivo: 0
+            });
+          }
+        }
+      }
+
+      // 3. Reglas Preference / BOX3 (commissionPreferenceRules) - Se aplican según fecha RCI
+      if (entraRci) {
         plan.preferenceRules.forEach((rule) => {
           if (!rule.activa) return;
           const filterMarcaMatches = !rule.id_marca || exp.modelo?.marca_id === rule.id_marca;
@@ -575,7 +588,9 @@ export async function POST(req: NextRequest) {
         const eventMatches = 
           (rule.tipo_evento === "pedido" && entraPedido) ||
           (rule.tipo_evento === "afectacion" && entraAfectacion) ||
-          (rule.tipo_evento === "matriculacion" && entraMatriculacion);
+          (rule.tipo_evento === "matriculacion" && entraMatriculacion) ||
+          (rule.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
+          (rule.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
 
         if (!eventMatches) return;
 
@@ -598,7 +613,9 @@ export async function POST(req: NextRequest) {
         const eventMatches = 
           (bonus.tipo_evento === "pedido" && entraPedido) ||
           (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
-          (bonus.tipo_evento === "matriculacion" && entraMatriculacion);
+          (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
+          (bonus.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
+          (bonus.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
 
         if (!eventMatches) return;
 

@@ -790,10 +790,19 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
           const isVN = stateName === "nuevo" || stateName === "demo";
           if (isVN) {
             matriculadosVN++;
-            if (isCredito || isPreference) {
-              matriculadosVNFinanciados++;
-            }
           }
+        }
+      }
+
+      // VN Financiados (según fecha_rci en el mes)
+      const stateNameVN = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+      const isVNVeh = stateNameVN === "nuevo" || stateNameVN === "demo";
+      if (isVNVeh && (isCredito || isPreference) && exp.fecha_rci) {
+        const parts = exp.fecha_rci.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y === statsYear && m === statsMonth) {
+          matriculadosVNFinanciados++;
         }
       }
       // Entregados

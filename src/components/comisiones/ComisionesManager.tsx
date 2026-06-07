@@ -122,6 +122,20 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   // Filtro tipo vehiculo para Bonus
   const [newBonusTypeVehiculo, setNewBonusTypeVehiculo] = useState("cualquiera");
 
+  // Estados para editar Bonus
+  const [editingBonusIdx, setEditingBonusIdx] = useState<number | null>(null);
+  const [editingBonusName, setEditingBonusName] = useState("");
+  const [editingBonusDesc, setEditingBonusDesc] = useState("");
+  const [editingBonusType, setEditingBonusType] = useState("pedido");
+  const [editingBonusMarca, setEditingBonusMarca] = useState("");
+  const [editingBonusModelo, setEditingBonusModelo] = useState("");
+  const [editingBonusTypeVehiculo, setEditingBonusTypeVehiculo] = useState("cualquiera");
+  const [editingBonusImporte, setEditingBonusImporte] = useState("150");
+  const [editingBonusAfectaObj, setEditingBonusAfectaObj] = useState(false);
+  const [editingBonusValObj, setEditingBonusValObj] = useState("0");
+  const [editingBonusStart, setEditingBonusStart] = useState("");
+  const [editingBonusEnd, setEditingBonusEnd] = useState("");
+
   // Liquidación
   const [calculating, setCalculating] = useState(false);
   const [selectedLineDetails, setSelectedLineDetails] = useState<any | null>(null);
@@ -150,7 +164,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   };
 
   // Cargar detalles de un plan
-  const loadPlanDetails = async (id: number) => {
+  const loadPlanDetails = async (id: number, keepTab = false) => {
     setLoadingPlan(true);
     try {
       const res = await fetch(`/api/comisiones/planes?id=${id}`);
@@ -229,7 +243,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           setFinancePref(120);
         }
 
-        setActiveTab("resumen");
+        if (!keepTab) {
+          setActiveTab("resumen");
+        }
       } else {
         showNotification(result.message || "Error al cargar detalles del plan", "error");
       }
@@ -276,7 +292,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       const result = await res.json();
       if (result.success) {
         showNotification("Plan guardado con éxito", "success");
-        loadPlanDetails(selectedPlanId);
+        loadPlanDetails(selectedPlanId, true);
         refreshPlanes();
       } else {
         showNotification(result.message || "Error al guardar el plan", "error");
@@ -378,7 +394,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       const result = await res.json();
       if (result.success) {
         showNotification("Liquidación calculada y guardada correctamente", "success");
-        loadPlanDetails(selectedPlanId);
+        loadPlanDetails(selectedPlanId, true);
       } else {
         showNotification(result.message || "Error al calcular la liquidación", "error");
       }
@@ -411,7 +427,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       const result = await res.json();
       if (result.success) {
         showNotification("Liquidación cerrada de forma inmutable", "success");
-        loadPlanDetails(selectedPlanId);
+        loadPlanDetails(selectedPlanId, true);
         refreshPlanes();
       } else {
         showNotification(result.message || "Error al cerrar liquidación", "error");
@@ -493,6 +509,45 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   const handleDeleteBonus = (idx: number) => {
     setBonusRules(bonusRules.filter((_, i) => i !== idx));
+  };
+
+  const handleStartEditBonus = (idx: number, b: any) => {
+    setEditingBonusIdx(idx);
+    setEditingBonusName(b.nombre || "");
+    setEditingBonusDesc(b.descripcion || "");
+    setEditingBonusType(b.tipo_evento || "pedido");
+    setEditingBonusMarca(b.id_marca ? String(b.id_marca) : "");
+    setEditingBonusModelo(b.id_modelo ? String(b.id_modelo) : "");
+    setEditingBonusTypeVehiculo(b.tipo_vehiculo || "cualquiera");
+    setEditingBonusImporte(String(b.importe || 0));
+    setEditingBonusAfectaObj(!!b.afecta_objetivo);
+    setEditingBonusValObj(String(b.valor_objetivo || 0));
+    setEditingBonusStart(b.fecha_inicio || "");
+    setEditingBonusEnd(b.fecha_fin || "");
+  };
+
+  const handleSaveBonusEdit = (idx: number) => {
+    if (!editingBonusName.trim()) {
+      showNotification("Por favor, introduce un nombre para el Bonus", "error");
+      return;
+    }
+    const updated = [...bonusRules];
+    updated[idx] = {
+      ...updated[idx],
+      nombre: editingBonusName,
+      descripcion: editingBonusDesc || null,
+      tipo_evento: editingBonusType,
+      id_marca: editingBonusMarca ? Number(editingBonusMarca) : null,
+      id_modelo: editingBonusModelo ? Number(editingBonusModelo) : null,
+      tipo_vehiculo: editingBonusTypeVehiculo,
+      importe: Number(editingBonusImporte || 0),
+      afecta_objetivo: editingBonusAfectaObj,
+      valor_objetivo: Number(editingBonusValObj || 0),
+      fecha_inicio: editingBonusStart || null,
+      fecha_fin: editingBonusEnd || null,
+    };
+    setBonusRules(updated);
+    setEditingBonusIdx(null);
   };
 
   // --- CRUD local de preference rules ---
@@ -2177,13 +2232,154 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       {bonusRules.map((b, idx) => {
                         const mName = b.id_marca ? marcas.find(m => m.id === b.id_marca)?.nombre : "Todas";
                         const modName = b.id_modelo ? modelos.find(m => m.id === b.id_modelo)?.nombre : "Todos";
+                        const isEditing = editingBonusIdx === idx;
+
+                        if (isEditing) {
+                          return (
+                            <tr key={idx} style={{ background: "rgba(255, 255, 255, 0.02)" }}>
+                              <td>
+                                <input 
+                                  type="text" 
+                                  className="form-input" 
+                                  value={editingBonusName} 
+                                  onChange={e => setEditingBonusName(e.target.value)} 
+                                  style={{ padding: "4px 8px", fontSize: "0.85rem", width: "100%", marginBottom: "4px" }} 
+                                  placeholder="Nombre del bonus" 
+                                />
+                                <input 
+                                  type="text" 
+                                  className="form-input" 
+                                  value={editingBonusDesc} 
+                                  onChange={e => setEditingBonusDesc(e.target.value)} 
+                                  style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%" }} 
+                                  placeholder="Descripción" 
+                                />
+                              </td>
+                              <td>
+                                <select 
+                                  className="form-select" 
+                                  value={editingBonusType} 
+                                  onChange={e => setEditingBonusType(e.target.value)} 
+                                  style={{ padding: "4px 8px", fontSize: "0.8rem", width: "100%", marginBottom: "4px" }}
+                                >
+                                  <option value="pedido">Pedido</option>
+                                  <option value="afectacion">Afectación</option>
+                                  <option value="matriculacion">Matriculación</option>
+                                </select>
+                                <select 
+                                  className="form-select" 
+                                  value={editingBonusTypeVehiculo} 
+                                  onChange={e => setEditingBonusTypeVehiculo(e.target.value)} 
+                                  style={{ padding: "4px 8px", fontSize: "0.8rem", width: "100%" }}
+                                >
+                                  <option value="cualquiera">Cualquiera</option>
+                                  <option value="nuevo">Nuevo</option>
+                                  <option value="usado">Usado</option>
+                                </select>
+                              </td>
+                              <td>
+                                <select 
+                                  className="form-select" 
+                                  value={editingBonusMarca} 
+                                  onChange={e => {
+                                    setEditingBonusMarca(e.target.value);
+                                    setEditingBonusModelo("");
+                                  }} 
+                                  style={{ padding: "4px 8px", fontSize: "0.8rem", width: "100%", marginBottom: "4px" }}
+                                >
+                                  <option value="">Todas</option>
+                                  {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                                </select>
+                                <select 
+                                  className="form-select" 
+                                  value={editingBonusModelo} 
+                                  onChange={e => setEditingBonusModelo(e.target.value)} 
+                                  disabled={!editingBonusMarca} 
+                                  style={{ padding: "4px 8px", fontSize: "0.8rem", width: "100%" }}
+                                >
+                                  <option value="">Todos</option>
+                                  {modelos.filter(m => m.marca_id === Number(editingBonusMarca)).map(m => (
+                                    <option key={m.id} value={m.id}>{m.nombre}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <input 
+                                  type="number" 
+                                  className="form-input" 
+                                  value={editingBonusImporte} 
+                                  onChange={e => setEditingBonusImporte(e.target.value)} 
+                                  style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px", textAlign: "right", display: "inline-block" }} 
+                                />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                                  <label style={{ display: "flex", gap: "4px", fontSize: "0.8rem", cursor: "pointer", alignItems: "center" }}>
+                                    <input 
+                                      type="checkbox" 
+                                      checked={editingBonusAfectaObj} 
+                                      onChange={e => setEditingBonusAfectaObj(e.target.checked)} 
+                                    />
+                                    Sí
+                                  </label>
+                                  {editingBonusAfectaObj && (
+                                    <input 
+                                      type="number" 
+                                      className="form-input" 
+                                      value={editingBonusValObj} 
+                                      onChange={e => setEditingBonusValObj(e.target.value)} 
+                                      style={{ padding: "2px 6px", fontSize: "0.8rem", width: "60px", textAlign: "center" }} 
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                  <input 
+                                    type="date" 
+                                    className="form-input" 
+                                    value={editingBonusStart} 
+                                    onChange={e => setEditingBonusStart(e.target.value)} 
+                                    style={{ padding: "2px 4px", fontSize: "0.75rem", width: "110px" }} 
+                                  />
+                                  <input 
+                                    type="date" 
+                                    className="form-input" 
+                                    value={editingBonusEnd} 
+                                    onChange={e => setEditingBonusEnd(e.target.value)} 
+                                    style={{ padding: "2px 4px", fontSize: "0.75rem", width: "110px" }} 
+                                  />
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: "4px", flexDirection: "column" }}>
+                                  <button 
+                                    onClick={() => handleSaveBonusEdit(idx)} 
+                                    className="btn" 
+                                    style={{ padding: "4px 8px", fontSize: "0.75rem", backgroundColor: "var(--success)", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                                  >
+                                    Guardar
+                                  </button>
+                                  <button 
+                                    onClick={() => setEditingBonusIdx(null)} 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: "4px 8px", fontSize: "0.75rem", borderRadius: "4px", cursor: "pointer" }}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+
                         return (
                           <tr key={idx}>
                             <td>
                               <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{b.nombre}</div>
                               {b.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{b.descripcion}</div>}
                             </td>
-                             <td>
+                            <td>
                               <span className="badge badge-tienda" style={{ fontSize: "0.7rem", marginRight: "4px" }}>{b.tipo_evento}</span>
                               <span className={`badge ${b.tipo_vehiculo === 'nuevo' ? 'badge-admin' : b.tipo_vehiculo === 'usado' ? 'badge-vendedor' : 'badge-tienda'}`} style={{ fontSize: "0.7rem" }}>
                                 {b.tipo_vehiculo === 'nuevo' ? "VN" : b.tipo_vehiculo === 'usado' ? "VO" : "Cualquiera"}
@@ -2204,18 +2400,30 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               ) : "Siempre"}
                             </td>
                             <td>
-                              <button
-                                onClick={() => handleDeleteBonus(idx)}
-                                disabled={planEstado === "cerrado" || !isAdmin}
-                                className="btn"
-                                style={{
-                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
-                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                  borderRadius: "var(--radius-sm)", cursor: "pointer"
-                                }}
-                              >
-                                Quitar
-                              </button>
+                              {isAdmin && planEstado !== "cerrado" && (
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                  <button
+                                    onClick={() => handleStartEditBonus(idx, b)}
+                                    className="btn btn-secondary"
+                                    style={{
+                                      padding: "4px 8px", fontSize: "0.75rem", cursor: "pointer"
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteBonus(idx)}
+                                    className="btn"
+                                    style={{
+                                      padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                      background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                      borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                    }}
+                                  >
+                                    Quitar
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
