@@ -86,6 +86,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
+  const [deleteUnlocked, setDeleteUnlocked] = useState(false);
 
   // Estados para buscadores y filtros
   const [globalSearch, setGlobalSearch] = useState("");
@@ -1036,9 +1037,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
         )}
       </div>
 
-      {/* PANEL DE ACCIONES MASIVAS E IMPORT/EXPORT */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
             className="btn"
@@ -1064,6 +1064,28 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
             {bulkSelectionUnlocked ? "🔓 Selección Activa" : "🔒 Selección Inactiva"}
           </button>
 
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setDeleteUnlocked(!deleteUnlocked)}
+            style={{
+              padding: "8px 14px",
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor: deleteUnlocked ? "var(--danger)" : "rgba(255,255,255,0.05)",
+              color: deleteUnlocked ? "white" : "var(--text-primary)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-sm)",
+              fontWeight: 600
+            }}
+            title={deleteUnlocked ? "Bloquear Eliminación" : "Desbloquear Eliminación"}
+          >
+            {deleteUnlocked ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
+          </button>
+
           {bulkSelectionUnlocked && selectedIds.length > 0 && (
             <>
               <span style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--primary)" }}>
@@ -1072,8 +1094,21 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
               <button
                 type="button"
                 className="btn"
-                onClick={() => setConfirmBulkDelete(true)}
-                style={{ padding: "6px 12px", fontSize: "0.8rem", backgroundColor: "var(--danger)", color: "white", border: "none", cursor: "pointer", borderRadius: "var(--radius-sm)", fontWeight: "600" }}
+                onClick={() => {
+                  if (deleteUnlocked) setConfirmBulkDelete(true);
+                }}
+                disabled={!deleteUnlocked}
+                style={{ 
+                  padding: "6px 12px", 
+                  fontSize: "0.8rem", 
+                  backgroundColor: deleteUnlocked ? "var(--danger)" : "rgba(255,255,255,0.02)", 
+                  color: deleteUnlocked ? "white" : "var(--text-muted)", 
+                  border: deleteUnlocked ? "none" : "1px solid var(--border-light)", 
+                  cursor: deleteUnlocked ? "pointer" : "not-allowed", 
+                  borderRadius: "var(--radius-sm)", 
+                  fontWeight: "600",
+                  opacity: deleteUnlocked ? 1 : 0.5 
+                }}
               >
                 🗑️ Eliminar Seleccionados
               </button>
@@ -1403,20 +1438,24 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                       </Link>
                       <button
                         type="button"
-                        onClick={() => setConfirmDeleteExpediente(exp)}
+                        onClick={() => {
+                          if (deleteUnlocked) setConfirmDeleteExpediente(exp);
+                        }}
                         style={{
                           padding: "6px 12px",
                           fontSize: "0.8rem",
-                          color: "var(--danger)",
-                          background: "rgba(239, 68, 68, 0.05)",
-                          border: "1px solid rgba(239, 68, 68, 0.15)",
+                          color: deleteUnlocked ? "var(--danger)" : "var(--text-muted)",
+                          background: deleteUnlocked ? "rgba(239, 68, 68, 0.05)" : "rgba(255, 255, 255, 0.02)",
+                          border: deleteUnlocked ? "1px solid rgba(239, 68, 68, 0.15)" : "1px solid var(--border-light)",
                           borderRadius: "var(--radius-sm)",
-                          cursor: "pointer",
+                          cursor: deleteUnlocked ? "pointer" : "not-allowed",
                           marginLeft: "8px",
                           fontWeight: 600,
-                          transition: "all 0.2s ease"
+                          transition: "all 0.2s ease",
+                          opacity: deleteUnlocked ? 1 : 0.5
                         }}
-                        className="glass-panel-interactive"
+                        disabled={!deleteUnlocked}
+                        className={deleteUnlocked ? "glass-panel-interactive" : ""}
                       >
                         🗑️ Eliminar
                       </button>
