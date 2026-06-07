@@ -133,9 +133,11 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
       }}>
         {marcasConModelos.map((marca) => (
           <div key={marca.id_marca} style={{
-            width: "320px",
+            width: "350px",
             flexGrow: 1,
-            maxWidth: "360px",
+            flexShrink: 1,
+            flexBasis: "350px",
+            maxWidth: "100%",
             padding: "20px",
             background: "rgba(255, 255, 255, 0.01)",
             border: "1px solid var(--border-light)",
@@ -162,7 +164,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
               {marca.nombre}
             </h4>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", width: "100%" }}>
               {marca.modelos.map((modelo) => (
                 <div key={modelo.id_modelo} className="glass-panel-interactive" style={{
                   padding: "16px",
@@ -170,7 +172,10 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
                   flexDirection: "column",
                   gap: "12px",
                   background: "rgba(255, 255, 255, 0.02)",
-                  border: "1px solid var(--border-light)"
+                  border: "1px solid var(--border-light)",
+                  flex: "1 1 200px",
+                  minWidth: "160px",
+                  maxWidth: "100%"
                 }}>
                   <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text-primary)" }}>
                     {modelo.nombre_modelo}
@@ -231,9 +236,11 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
 
         {/* Tarjeta VO */}
         <div style={{
-          width: "320px",
+          width: "350px",
           flexGrow: 1,
-          maxWidth: "360px",
+          flexShrink: 1,
+          flexBasis: "350px",
+          maxWidth: "100%",
           padding: "20px",
           background: "rgba(255, 255, 255, 0.01)",
           border: "1px solid var(--border-light)",
