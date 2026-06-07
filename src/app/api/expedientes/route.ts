@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo, commissionPlans, commissionPlanModelRates, modelos, commissionBrandInterventionRates } from "@/db/schema";
-import { eq, ilike, inArray, and, lte, gte } from "drizzle-orm";
+import { eq, ilike, inArray, and, lte, gte, lt } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
   try {
@@ -212,7 +212,54 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id_expediente, expediente: expedienteData, id_cliente } = body;
+    const { id_expediente, expediente: expedienteData, id_cliente, isBulk, mes, año, tipoFecha, min_coches_multiplicador } = body;
+
+    if (isBulk) {
+      if (!mes || !año || !tipoFecha || min_coches_multiplicador === undefined) {
+        return NextResponse.json({ message: "Faltan parámetros requeridos para la actualización masiva" }, { status: 400 });
+      }
+
+      const mesNum = Number(mes);
+      const añoNum = Number(año);
+
+      const startDate = `${añoNum}-${String(mesNum).padStart(2, "0")}-01`;
+      let nextMes = mesNum + 1;
+      let nextAño = añoNum;
+      if (nextMes > 12) {
+        nextMes = 1;
+        nextAño = añoNum + 1;
+      }
+      const endDate = `${nextAño}-${String(nextMes).padStart(2, "0")}-01`;
+
+      let columnField;
+      switch (tipoFecha) {
+        case "fecha_afectacion":
+          columnField = expedientes.fecha_afectacion;
+          break;
+        case "fecha_matriculacion":
+          columnField = expedientes.fecha_matriculacion;
+          break;
+        case "fecha_entrega":
+          columnField = expedientes.fecha_entrega;
+          break;
+        case "fecha_rci":
+          columnField = expedientes.fecha_rci;
+          break;
+        default:
+          columnField = expedientes.fecha_expediente;
+      }
+
+      await db.update(expedientes)
+        .set({ min_coches_multiplicador: Number(min_coches_multiplicador) })
+        .where(
+          and(
+            gte(columnField, startDate),
+            lt(columnField, endDate)
+          )
+        );
+
+      return NextResponse.json({ success: true, message: "Expedientes actualizados en lote correctamente" }, { status: 200 });
+    }
 
     if (!id_expediente || !expedienteData) {
       return NextResponse.json({ message: "Faltan datos obligatorios para actualizar" }, { status: 400 });

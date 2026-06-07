@@ -82,6 +82,10 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Estados para ordenación de cabeceras
+  const [sortField, setSortField] = useState<string>("fecha_expediente");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   // Estados para selección masiva e Importación/Exportación
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -919,11 +923,91 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
     return true;
   });
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+    setCurrentPage(1);
+  };
+
+  const renderSortIndicator = (field: string) => {
+    if (sortField !== field) return " ↕";
+    return sortOrder === "asc" ? " ▲" : " ▼";
+  };
+
+  const sortedExpedientes = [...filteredExpedientes].sort((a, b) => {
+    let valA: any = "";
+    let valB: any = "";
+
+    switch (sortField) {
+      case "cliente":
+        valA = a.cliente?.nombre || "";
+        valB = b.cliente?.nombre || "";
+        break;
+      case "marca":
+        valA = a.modelo?.marca?.nombre || "";
+        valB = b.modelo?.marca?.nombre || "";
+        break;
+      case "modelo":
+        valA = a.modelo?.nombre_modelo || "";
+        valB = b.modelo?.nombre_modelo || "";
+        break;
+      case "tipo_venta":
+        valA = a.tipoDeVenta?.nombre_tipo_venta || "";
+        valB = b.tipoDeVenta?.nombre_tipo_venta || "";
+        break;
+      case "estado":
+        valA = a.estadoVehiculo?.nombre_estado_vehiculo || "";
+        valB = b.estadoVehiculo?.nombre_estado_vehiculo || "";
+        break;
+      case "vendedor":
+        valA = a.usuario?.nombre || "";
+        valB = b.usuario?.nombre || "";
+        break;
+      case "fecha_expediente":
+        valA = a.fecha_expediente || "";
+        valB = b.fecha_expediente || "";
+        break;
+      case "fecha_afectacion":
+        valA = a.fecha_afectacion || "";
+        valB = b.fecha_afectacion || "";
+        break;
+      case "fecha_rci":
+        valA = a.fecha_rci || "";
+        valB = b.fecha_rci || "";
+        break;
+      case "fecha_matriculacion":
+        valA = a.fecha_matriculacion || "";
+        valB = b.fecha_matriculacion || "";
+        break;
+      case "fecha_entrega":
+        valA = a.fecha_entrega || "";
+        valB = b.fecha_entrega || "";
+        break;
+      default:
+        valA = a.fecha_expediente || "";
+        valB = b.fecha_expediente || "";
+    }
+
+    if (typeof valA === "string" && typeof valB === "string") {
+      return sortOrder === "asc"
+        ? valA.localeCompare(valB, undefined, { sensitivity: "base" })
+        : valB.localeCompare(valA, undefined, { sensitivity: "base" });
+    } else {
+      return sortOrder === "asc"
+        ? (valA > valB ? 1 : -1)
+        : (valB > valA ? 1 : -1);
+    }
+  });
+
   // Calcular paginación
   const totalFiltered = filteredExpedientes.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / pageSize));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedExpedientes = filteredExpedientes.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedExpedientes = sortedExpedientes.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -1267,159 +1351,40 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                     />
                   </th>
                 )}
-                <th>Cliente</th>
-                <th>Marca</th>
-                <th>Modelo</th>
-                <th>T. Venta</th>
-                <th>Estado</th>
-                <th>Vendedor</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. RCI</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Mat</th>
-                <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Entrega</th>
+                <th onClick={() => handleSort("cliente")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  Cliente{renderSortIndicator("cliente")}
+                </th>
+                <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  Marca{renderSortIndicator("marca")}
+                </th>
+                <th onClick={() => handleSort("modelo")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  Modelo{renderSortIndicator("modelo")}
+                </th>
+                <th onClick={() => handleSort("tipo_venta")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  T. Venta{renderSortIndicator("tipo_venta")}
+                </th>
+                <th onClick={() => handleSort("estado")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  Estado{renderSortIndicator("estado")}
+                </th>
+                <th onClick={() => handleSort("vendedor")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  Vendedor{renderSortIndicator("vendedor")}
+                </th>
+                <th onClick={() => handleSort("fecha_expediente")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
+                  F. Exp.{renderSortIndicator("fecha_expediente")}
+                </th>
+                <th onClick={() => handleSort("fecha_afectacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none" }}>
+                  F. Afect{renderSortIndicator("fecha_afectacion")}
+                </th>
+                <th onClick={() => handleSort("fecha_rci")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
+                  F. RCI{renderSortIndicator("fecha_rci")}
+                </th>
+                <th onClick={() => handleSort("fecha_matriculacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none" }}>
+                  F. Mat{renderSortIndicator("fecha_matriculacion")}
+                </th>
+                <th onClick={() => handleSort("fecha_entrega")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
+                  F. Entrega{renderSortIndicator("fecha_entrega")}
+                </th>
                 <th>Acciones</th>
-              </tr>
-              {/* FILTROS POR COLUMNA */}
-              <tr style={{ background: "rgba(255, 255, 255, 0.01)" }}>
-                {bulkSelectionUnlocked && <td></td>}
-                <td>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterCliente}
-                    onChange={e => setFilterCliente(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                  />
-                </td>
-                <td>
-                  <select
-                    className="form-select"
-                    value={filterMarca}
-                    onChange={e => setFilterMarca(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "100px" }}
-                  >
-                    <option value="">Todas</option>
-                    {uniqueBrands.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                    <option value="VO_NO_BRAND">VO (Sin marca)</option>
-                  </select>
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterModelo}
-                    onChange={e => setFilterModelo(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterTipoVenta}
-                    onChange={e => setFilterTipoVenta(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterEstadoVehiculo}
-                    onChange={e => setFilterEstadoVehiculo(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterVendedor}
-                    onChange={e => setFilterVendedor(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "80px" }}
-                  />
-                </td>
-                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterFExp}
-                    onChange={e => setFilterFExp(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
-                  />
-                </td>
-                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterFAfect}
-                    onChange={e => setFilterFAfect(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
-                  />
-                </td>
-                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterFRci}
-                    onChange={e => setFilterFRci(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
-                  />
-                </td>
-                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterFMat}
-                    onChange={e => setFilterFMat(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
-                  />
-                </td>
-                <td style={{ backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    className="form-input"
-                    value={filterFEntrega}
-                    onChange={e => setFilterFEntrega(e.target.value)}
-                    style={{ padding: "4px 8px", fontSize: "0.75rem", width: "100%", minWidth: "60px", textAlign: "center" }}
-                  />
-                </td>
-                <td style={{ textAlign: "center" }}>
-                  {(filterCliente || filterMarca || filterModelo || filterTipoVenta || filterEstadoVehiculo || filterVendedor || filterFExp || filterFAfect || filterFRci || filterFMat || filterFEntrega) && (
-                    <button 
-                      onClick={() => {
-                        setFilterCliente("");
-                        setFilterMarca("");
-                        setFilterModelo("");
-                        setFilterTipoVenta("");
-                        setFilterEstadoVehiculo("");
-                        setFilterVendedor("");
-                        setFilterFExp("");
-                        setFilterFAfect("");
-                        setFilterFRci("");
-                        setFilterFMat("");
-                        setFilterFEntrega("");
-                      }}
-                      style={{ border: "none", background: "none", cursor: "pointer", fontSize: "0.85rem", color: "var(--danger)" }}
-                      title="Limpiar filtros"
-                    >
-                      ✖
-                    </button>
-                  )}
-                </td>
               </tr>
             </thead>
             <tbody>

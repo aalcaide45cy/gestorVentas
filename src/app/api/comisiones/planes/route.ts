@@ -688,10 +688,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ message: "Plan no encontrado" }, { status: 404 });
     }
 
-    if (plan.estado === "cerrado") {
-      return NextResponse.json({ message: "No se puede eliminar un plan cerrado." }, { status: 400 });
-    }
-
     // Ejecutar eliminación en cascada (Drizzle onDelete cascade limpiará rates, rules, bonus, liquidations)
     await db.delete(commissionPlans).where(eq(commissionPlans.id_plan, planId));
 

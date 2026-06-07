@@ -134,6 +134,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   // Orden manual de modelos por marca (map brandId -> array de modelIds)
   const [modelOrder, setModelOrder] = useState<Record<number, number[]>>({});
 
+  // Estados para actualización masiva de cupo
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkYear, setBulkYear] = useState(2026);
+  const [bulkMonth, setBulkMonth] = useState(6);
+  const [bulkDateType, setBulkDateType] = useState("fecha_expediente");
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   // Preference / BOX3
   const [preferenceRules, setPreferenceRules] = useState<any[]>([]);
   const [newPrefName, setNewPrefName] = useState("");
@@ -206,6 +213,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setArrastre(plan.arrastre);
         setMinMatriculaciones(plan.min_matriculaciones);
         setMinCochesMultiplicador(plan.min_coches_multiplicador || 0);
+
+        const planDate = plan.fecha_inicio ? new Date(plan.fecha_inicio) : new Date();
+        setBulkYear(planDate.getFullYear());
+        setBulkMonth(planDate.getMonth() + 1);
 
         // Proactive Healing: Asegurar que cada modelo de marca activa tenga exactamente 2 filas (tasa cumplida y no cumplida)
         const initialRates = plan.rates || [];
@@ -345,6 +356,40 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       showNotification("Error de conexión al guardar", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Actualización masiva de cupo
+  const handleExecuteBulkUpdate = async () => {
+    if (minCochesMultiplicador === undefined || minCochesMultiplicador === null) {
+      showNotification("Por favor define primero un valor para el cupo", "error");
+      return;
+    }
+    setBulkSaving(true);
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isBulk: true,
+          mes: bulkMonth,
+          año: bulkYear,
+          tipoFecha: bulkDateType,
+          min_coches_multiplicador: minCochesMultiplicador
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        showNotification("Cupo aplicado a los expedientes en lote correctamente", "success");
+        setBulkModalOpen(false);
+      } else {
+        showNotification(result.message || "Error al aplicar el cupo en lote", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification("Error de conexión al aplicar el cupo en lote", "error");
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -762,7 +807,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 📋 Clonar
                               </button>
                             )}
-                            {isAdmin && p.estado !== "cerrado" && (
+                            {isAdmin && (
                               <button
                                 onClick={() => handleDeletePlan(p.id_plan)}
                                 className="btn"
@@ -813,7 +858,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </button>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <h1 style={{ fontSize: "1.85rem" }}>{planName}</h1>
-                {isAdmin && planEstado !== "cerrado" ? (
+                {isAdmin ? (
                   <select
                     className="form-select"
                     value={planEstado}
@@ -823,15 +868,16 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       fontSize: "0.8rem",
                       fontWeight: 600,
                       borderRadius: "var(--radius-sm)",
-                      backgroundColor: planEstado === "activo" ? "rgba(16, 185, 129, 0.08)" : "rgba(245, 158, 11, 0.08)",
-                      color: planEstado === "activo" ? "var(--success)" : "var(--warning)",
-                      border: planEstado === "activo" ? "1px solid rgba(16, 185, 129, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)",
+                      backgroundColor: planEstado === "activo" ? "rgba(16, 185, 129, 0.08)" : planEstado === "cerrado" ? "rgba(239, 68, 68, 0.08)" : "rgba(245, 158, 11, 0.08)",
+                      color: planEstado === "activo" ? "var(--success)" : planEstado === "cerrado" ? "var(--danger)" : "var(--warning)",
+                      border: planEstado === "activo" ? "1px solid rgba(16, 185, 129, 0.2)" : planEstado === "cerrado" ? "1px solid rgba(239, 68, 68, 0.2)" : "1px solid rgba(245, 158, 11, 0.2)",
                       cursor: "pointer",
                       width: "auto"
                     }}
                   >
                     <option value="borrador" style={{ color: "black" }}>📝 Borrador</option>
                     <option value="activo" style={{ color: "black" }}>⚙️ Activo</option>
+                    {planEstado === "cerrado" && <option value="cerrado" style={{ color: "black" }}>🔒 Cerrado</option>}
                   </select>
                 ) : (
                   <span className={`badge ${
@@ -845,7 +891,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 Periodo: <strong>{formatDate(planStart)}</strong> al <strong>{formatDate(planEnd)}</strong>
               </p>
             </div>
-            {isAdmin && planEstado !== "cerrado" && (
+            {isAdmin && (
               <button
                 onClick={handleSavePlan}
                 disabled={saving}
@@ -945,7 +991,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       className="form-input"
                       value={objetivoBase}
                       onChange={(e) => setObjetivoBase(Number(e.target.value))}
-                      disabled={planEstado === "cerrado" || !isAdmin}
+                      disabled={!isAdmin}
                     />
                   </div>
 
@@ -956,7 +1002,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       className="form-input"
                       value={arrastre}
                       onChange={(e) => setArrastre(Number(e.target.value))}
-                      disabled={planEstado === "cerrado" || !isAdmin}
+                      disabled={!isAdmin}
                     />
                   </div>
 
@@ -967,7 +1013,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       className="form-input"
                       value={minMatriculaciones}
                       onChange={(e) => setMinMatriculaciones(Number(e.target.value))}
-                      disabled={planEstado === "cerrado" || !isAdmin}
+                      disabled={!isAdmin}
                     />
                   </div>
 
@@ -1020,7 +1066,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               className="form-input"
                               value={rateObj.tasa_intervencion}
                               onChange={(e) => handleInterventionChange(Number(e.target.value))}
-                              disabled={planEstado === "cerrado" || !isAdmin}
+                              disabled={!isAdmin}
                               style={{ width: "80px", textAlign: "right", padding: "6px" }}
                               min={0}
                               max={100}
@@ -1065,7 +1111,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             className="form-select"
                             value={rateObj.valor_objetivo_defecto !== undefined ? rateObj.valor_objetivo_defecto : 1.0}
                             onChange={(e) => handleDefaultObjectiveChange(Number(e.target.value))}
-                            disabled={planEstado === "cerrado" || !isAdmin}
+                            disabled={!isAdmin}
                             style={{ width: "90px", padding: "4px 8px" }}
                           >
                             <option value={0}>0</option>
@@ -1096,10 +1142,29 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         className="form-input"
                         value={minCochesMultiplicador}
                         onChange={(e) => setMinCochesMultiplicador(Number(e.target.value))}
-                        disabled={planEstado === "cerrado" || !isAdmin}
+                        disabled={!isAdmin}
                         min={0}
                         style={{ width: "100%" }}
                       />
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => setBulkModalOpen(true)}
+                          className="btn btn-secondary"
+                          style={{
+                            marginTop: "12px",
+                            width: "100%",
+                            padding: "8px 12px",
+                            fontSize: "0.8rem",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "6px"
+                          }}
+                        >
+                          🔄 Aplicar este cupo a expedientes en lote
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1230,6 +1295,55 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       showNotification("Comisiones del modelo pegadas correctamente.", "success");
                     };
 
+                    const handleApplyRatesToAllBelow = (firstModelId: number) => {
+                      const firstModelRates = brandRates.filter(r => r.id_modelo === firstModelId);
+                      const lessSrc = firstModelRates.find(r => !r.tasa_intervencion_cumplida);
+                      const moreSrc = firstModelRates.find(r => !!r.tasa_intervencion_cumplida);
+
+                      if (!lessSrc || !moreSrc) {
+                        showNotification("El primer modelo no tiene sus tarifas configuradas", "error");
+                        return;
+                      }
+
+                      const firstModelName = modelos.find(m => m.id === firstModelId)?.nombre || "";
+                      if (!confirm(`¿Estás seguro de aplicar las tarifas del modelo "${firstModelName}" a todos los demás modelos de la marca ${brand.nombre}?`)) return;
+
+                      const updated = rates.map(item => {
+                        const itemModelObj = modelos.find(m => m.id === item.id_modelo);
+                        if (itemModelObj && itemModelObj.marca_id === brand.id && item.id_modelo !== firstModelId) {
+                          if (!item.tasa_intervencion_cumplida) {
+                            return {
+                              ...item,
+                              rate_x_minus_4: lessSrc.rate_x_minus_4 || 0,
+                              rate_x_minus_3: lessSrc.rate_x_minus_3 || 0,
+                              rate_x_minus_2: lessSrc.rate_x_minus_2 || 0,
+                              rate_x_minus_1: lessSrc.rate_x_minus_1 || 0,
+                              rate_x: lessSrc.rate_x || 0,
+                              rate_x_plus_1: lessSrc.rate_x_plus_1 || 0,
+                              rate_x_plus_2: lessSrc.rate_x_plus_2 || 0,
+                              rate_x_plus_3: lessSrc.rate_x_plus_3 || 0,
+                            };
+                          } else {
+                            return {
+                              ...item,
+                              rate_x_minus_4: moreSrc.rate_x_minus_4 || 0,
+                              rate_x_minus_3: moreSrc.rate_x_minus_3 || 0,
+                              rate_x_minus_2: moreSrc.rate_x_minus_2 || 0,
+                              rate_x_minus_1: moreSrc.rate_x_minus_1 || 0,
+                              rate_x: moreSrc.rate_x || 0,
+                              rate_x_plus_1: moreSrc.rate_x_plus_1 || 0,
+                              rate_x_plus_2: moreSrc.rate_x_plus_2 || 0,
+                              rate_x_plus_3: moreSrc.rate_x_plus_3 || 0,
+                            };
+                          }
+                        }
+                        return item;
+                      });
+
+                      setRates(updated);
+                      showNotification("Tarifas aplicadas a todos los modelos de la marca correctamente.", "success");
+                    };
+
                     // Reordering helpers
                     const handleMoveModel = (currentModelIds: number[], modelId: number, direction: "up" | "down") => {
                       const idx = currentModelIds.indexOf(modelId);
@@ -1281,7 +1395,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <table className="table-premium" style={{ fontSize: "0.9rem" }}>
                             <thead>
                               <tr>
-                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "50px", textAlign: "center" }}>Orden</th>}
+                                {isAdmin && <th style={{ width: "50px", textAlign: "center" }}>Orden</th>}
                                 <th style={{ minWidth: "140px" }}>Modelo</th>
                                 <th>Tasa Intervención</th>
                                 <th style={{ width: "80px" }}>X - 4</th>
@@ -1293,7 +1407,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 <th style={{ width: "80px" }}>X + 2</th>
                                 <th style={{ width: "80px" }}>X + 3</th>
                                 <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
-                                {isAdmin && planEstado !== "cerrado" && <th style={{ width: "150px" }}>Acciones</th>}
+                                {isAdmin && <th style={{ width: "150px" }}>Acciones</th>}
                               </tr>
                             </thead>
                             <tbody>
@@ -1391,7 +1505,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                     <Fragment key={modelId}>
                                       {/* Fila 1: Tasa >= Target */}
                                       <tr style={{ borderBottom: "none" }}>
-                                        {isAdmin && planEstado !== "cerrado" && (
+                                        {isAdmin && (
                                           <td rowSpan={2} style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)", padding: "4px" }}>
                                             <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "center" }}>
                                               <button
@@ -1423,7 +1537,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         )}
                                         <td rowSpan={2} style={{ fontWeight: 600, color: "var(--text-primary)", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
                                           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                                            {isAdmin && planEstado !== "cerrado" && dropdownOptions.length > 1 ? (
+                                            {isAdmin && dropdownOptions.length > 1 ? (
                                               <select
                                                 className="form-select"
                                                 value={modelId}
@@ -1438,7 +1552,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                               <span>{modelName}</span>
                                             )}
 
-                                            {isAdmin && planEstado !== "cerrado" && (
+                                            {isAdmin && (
                                               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                                                 <button
                                                   type="button"
@@ -1468,6 +1582,22 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                                     📋 Pegar Modelo
                                                   </button>
                                                 )}
+                                                {isFirst && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleApplyRatesToAllBelow(modelId)}
+                                                    style={{
+                                                      border: "none", background: "rgba(59, 130, 246, 0.08)",
+                                                      cursor: "pointer", padding: "4px 8px", borderRadius: "4px",
+                                                      fontSize: "0.7rem", color: "#2563eb", fontWeight: 600,
+                                                      display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
+                                                      marginTop: "2px"
+                                                    }}
+                                                    title="Aplicar tarifas de este modelo a todos los inferiores de esta marca"
+                                                  >
+                                                    👇 Aplicar a los de abajo
+                                                  </button>
+                                                )}
                                               </div>
                                             )}
                                           </div>
@@ -1482,7 +1612,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                               className="form-input"
                                               value={rateMore[col] || 0}
                                               onChange={(e) => handleSpecificChange(rateMore, col, Number(e.target.value))}
-                                              disabled={planEstado === "cerrado" || !isAdmin}
+                                              disabled={!isAdmin}
                                               style={{ padding: "4px 8px", fontSize: "0.85rem", width: "75px" }}
                                             />
                                           </td>
@@ -1492,10 +1622,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                             type="checkbox"
                                             checked={rateMore.activo !== false}
                                             onChange={(e) => handleSpecificChange(rateMore, "activo", e.target.checked)}
-                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                            disabled={!isAdmin}
                                           />
                                         </td>
-                                        {isAdmin && planEstado !== "cerrado" && (
+                                        {isAdmin && (
                                           <td style={{ verticalAlign: "middle" }}>
                                             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                                               <button type="button" onClick={() => handleCopyRate(rateMore)}
@@ -1522,7 +1652,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                               className="form-input"
                                               value={rateLess[col] || 0}
                                               onChange={(e) => handleSpecificChange(rateLess, col, Number(e.target.value))}
-                                              disabled={planEstado === "cerrado" || !isAdmin}
+                                              disabled={!isAdmin}
                                               style={{ padding: "4px 8px", fontSize: "0.85rem", width: "75px" }}
                                             />
                                           </td>
@@ -1532,10 +1662,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                             type="checkbox"
                                             checked={rateLess.activo !== false}
                                             onChange={(e) => handleSpecificChange(rateLess, "activo", e.target.checked)}
-                                            disabled={planEstado === "cerrado" || !isAdmin}
+                                            disabled={!isAdmin}
                                           />
                                         </td>
-                                        {isAdmin && planEstado !== "cerrado" && (
+                                        {isAdmin && (
                                           <td style={{ verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
                                             <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                                               <button type="button" onClick={() => handleCopyRate(rateLess)}
@@ -1602,7 +1732,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   className="form-input"
                                   value={u.valor_objetivo}
                                   onChange={(e) => handleChange("valor_objetivo", Number(e.target.value))}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  disabled={!isAdmin}
                                   style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
                                 />
                               </td>
@@ -1612,7 +1742,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   className="form-input"
                                   value={u.importe_primera}
                                   onChange={(e) => handleChange("importe_primera", Number(e.target.value))}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  disabled={!isAdmin}
                                   style={{ padding: "4px 8px", width: "120px" }}
                                 />
                               </td>
@@ -1622,7 +1752,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   className="form-input"
                                   value={u.importe_resto}
                                   onChange={(e) => handleChange("importe_resto", Number(e.target.value))}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  disabled={!isAdmin}
                                   style={{ padding: "4px 8px", width: "120px" }}
                                 />
                               </td>
@@ -1632,7 +1762,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   className="form-input"
                                   value={u.min_aplicar}
                                   onChange={(e) => handleChange("min_aplicar", Number(e.target.value))}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  disabled={!isAdmin}
                                   style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
                                 />
                               </td>
@@ -1641,7 +1771,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   type="checkbox"
                                   checked={u.activo}
                                   onChange={(e) => handleChange("activo", e.target.checked)}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
+                                  disabled={!isAdmin}
                                 />
                               </td>
                             </tr>
@@ -1667,7 +1797,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         Define esquemas progresivos para vendedores de VO. Cada patrón indica cuánto se comisiona y cuántos puntos aporta cada unidad vendida en orden secuencial (unidad 1, unidad 2, etc.).
                       </p>
                     </div>
-                    {isAdmin && planEstado !== "cerrado" && (
+                    {isAdmin && (
                       <button
                         type="button"
                         className="btn btn-secondary"
@@ -1746,11 +1876,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 className="form-input"
                                 value={pat.nombre}
                                 onChange={(e) => updatePatternName(e.target.value)}
-                                disabled={planEstado === "cerrado" || !isAdmin}
+                                disabled={!isAdmin}
                                 style={{ fontWeight: 600, fontSize: "1rem", border: "none", background: "transparent", borderBottom: "1px dashed var(--border-light)", padding: "2px 6px", width: "250px" }}
                               />
                             </div>
-                            {isAdmin && planEstado !== "cerrado" && (
+                            {isAdmin && (
                               <button
                                 type="button"
                                 className="btn"
@@ -1774,7 +1904,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   <th>Unidad Vendida</th>
                                   <th style={{ width: "150px" }}>Comisión (€)</th>
                                   <th style={{ width: "150px", textAlign: "center" }}>Valor Objetivo (Puntos)</th>
-                                  {isAdmin && planEstado !== "cerrado" && <th style={{ width: "80px" }}>Acción</th>}
+                                  {isAdmin && <th style={{ width: "80px" }}>Acción</th>}
                                 </tr>
                               </thead>
                               <tbody>
@@ -1790,7 +1920,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         className="form-input"
                                         value={t.importe}
                                         onChange={(e) => handleTierChange(tIdx, "importe", Number(e.target.value))}
-                                        disabled={planEstado === "cerrado" || !isAdmin}
+                                        disabled={!isAdmin}
                                         style={{ padding: "4px 8px", width: "100px" }}
                                       />
                                     </td>
@@ -1800,11 +1930,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         className="form-input"
                                         value={t.valor_objetivo}
                                         onChange={(e) => handleTierChange(tIdx, "valor_objetivo", Number(e.target.value))}
-                                        disabled={planEstado === "cerrado" || !isAdmin}
+                                        disabled={!isAdmin}
                                         style={{ padding: "4px 8px", width: "80px", margin: "0 auto" }}
                                       />
                                     </td>
-                                    {isAdmin && planEstado !== "cerrado" && (
+                                    {isAdmin && (
                                       <td>
                                         <button
                                           type="button"
@@ -1833,7 +1963,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             </table>
                           </div>
 
-                          {isAdmin && planEstado !== "cerrado" && (
+                          {isAdmin && (
                             <div style={{ display: "flex", justifyContent: "flex-start" }}>
                               <button
                                 type="button"
@@ -1862,7 +1992,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                 <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Financiación / Reglas del Plan</h3>
                 
-                {isAdmin && planEstado !== "cerrado" && (
+                {isAdmin && (
                   <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
                     <h4 style={{ margin: 0, fontSize: "1rem" }}>Añadir Nueva Regla</h4>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
@@ -2008,7 +2138,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             <td>
                               <button
                                 onClick={() => handleDeleteRule(idx)}
-                                disabled={planEstado === "cerrado" || !isAdmin}
+                                disabled={!isAdmin}
                                 className="btn"
                                 style={{
                                   padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
@@ -2040,7 +2170,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                 <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Bonus de Campaña Dinámicos</h3>
                 
-                {isAdmin && planEstado !== "cerrado" && (
+                {isAdmin && (
                   <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
                     <h4 style={{ margin: 0, fontSize: "1rem" }}>Añadir Bonus Personalizado</h4>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
@@ -2369,7 +2499,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               ) : "Siempre"}
                             </td>
                             <td>
-                              {isAdmin && planEstado !== "cerrado" && (
+                              {isAdmin && (
                                 <div style={{ display: "flex", gap: "4px" }}>
                                   <button
                                     onClick={() => handleStartEditBonus(idx, b)}
@@ -2423,7 +2553,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     </p>
                   </div>
                   
-                  {isAdmin && planEstado !== "cerrado" && (
+                  {isAdmin && (
                     <button
                       onClick={handleCalculateLiquidation}
                       disabled={calculating}
@@ -2554,21 +2684,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       </div>
                     </div>
 
-                    {/* BOTÓN CERRAR LIQUIDACIÓN */}
-                    {isAdmin && planEstado !== "cerrado" && (
-                      <button
-                        onClick={handleCloseLiquidation}
-                        disabled={saving}
-                        className="btn"
-                        style={{
-                          backgroundColor: "var(--danger)", color: "white", alignSelf: "flex-end",
-                          padding: "12px 24px", fontWeight: 600, border: "none", borderRadius: "var(--radius-sm)",
-                          cursor: "pointer", marginTop: "12px", boxShadow: "var(--shadow-sm)"
-                        }}
-                      >
-                        🔒 Cerrar Liquidación e Inmutar Plan
-                      </button>
-                    )}
+
                   </div>
                 ) : (
                   <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>
@@ -2710,6 +2826,95 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* MODAL 3: ACTUALIZACIÓN MASIVA DE CUPO DE MULTIPLICADOR */}
+      {bulkModalOpen && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              Aplicar Cupo a Expedientes en Lote
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+              Esta acción actualizará el campo de cupo requerido de todos los expedientes que coincidan con el mes, año y tipo de fecha seleccionados al valor actual ({minCochesMultiplicador}).
+            </p>
+
+            <div className="form-group">
+              <label className="form-label">Año</label>
+              <input
+                type="number"
+                className="form-input"
+                value={bulkYear}
+                onChange={(e) => setBulkYear(Number(e.target.value))}
+                min={2000}
+                max={2100}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Mes</label>
+              <select
+                className="form-select"
+                value={bulkMonth}
+                onChange={(e) => setBulkMonth(Number(e.target.value))}
+                required
+              >
+                <option value={1}>Enero</option>
+                <option value={2}>Febrero</option>
+                <option value={3}>Marzo</option>
+                <option value={4}>Abril</option>
+                <option value={5}>Mayo</option>
+                <option value={6}>Junio</option>
+                <option value={7}>Julio</option>
+                <option value={8}>Agosto</option>
+                <option value={9}>Septiembre</option>
+                <option value={10}>Octubre</option>
+                <option value={11}>Noviembre</option>
+                <option value={12}>Diciembre</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Filtrar por Tipo de Fecha</label>
+              <select
+                className="form-select"
+                value={bulkDateType}
+                onChange={(e) => setBulkDateType(e.target.value)}
+                required
+              >
+                <option value="fecha_expediente">Fecha de Creación (Expediente)</option>
+                <option value="fecha_afectacion">Fecha de Afectación</option>
+                <option value="fecha_matriculacion">Fecha de Matriculación</option>
+                <option value="fecha_entrega">Fecha de Entrega</option>
+                <option value="fecha_rci">Fecha RCI</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setBulkModalOpen(false)}
+                disabled={bulkSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleExecuteBulkUpdate}
+                disabled={bulkSaving}
+              >
+                {bulkSaving ? "Aplicando..." : "Aplicar en Lote"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

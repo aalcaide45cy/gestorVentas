@@ -97,10 +97,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Plan no encontrado" }, { status: 404 });
     }
 
-    if (plan.estado === "cerrado") {
-      return NextResponse.json({ message: "El plan ya está cerrado y su liquidación no puede ser modificada" }, { status: 400 });
-    }
-
     const startDate = plan.fecha_inicio;
     const endDate = plan.fecha_fin;
     const X = plan.objetivo_base + plan.arrastre;
