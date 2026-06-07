@@ -792,7 +792,9 @@ export default function EditarExpedienteForm({
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Coches con Multiplicador Req. (Mes)</label>
+              <label className="form-label" title="Número mínimo de ventas con multiplicador > 1 en el mes requeridas para que este vendedor mantenga su multiplicador">
+                Cupo Ventas Multiplicadas Req. (Vendedor)
+              </label>
               <input
                 type="number"
                 className="form-input"

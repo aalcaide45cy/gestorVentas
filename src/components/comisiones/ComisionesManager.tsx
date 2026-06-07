@@ -110,6 +110,27 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     activo: boolean;
   } | null>(null);
 
+  // Clipboard para copiar/pegar tarifas completas de un modelo (superior e inferior a la vez)
+  const [modelClipboard, setModelClipboard] = useState<{
+    rate_x_minus_4_less: number;
+    rate_x_minus_3_less: number;
+    rate_x_minus_2_less: number;
+    rate_x_minus_1_less: number;
+    rate_x_less: number;
+    rate_x_plus_1_less: number;
+    rate_x_plus_2_less: number;
+    rate_x_plus_3_less: number;
+    
+    rate_x_minus_4_more: number;
+    rate_x_minus_3_more: number;
+    rate_x_minus_2_more: number;
+    rate_x_minus_1_more: number;
+    rate_x_more: number;
+    rate_x_plus_1_more: number;
+    rate_x_plus_2_more: number;
+    rate_x_plus_3_more: number;
+  } | null>(null);
+
   // Orden manual de modelos por marca (map brandId -> array de modelIds)
   const [modelOrder, setModelOrder] = useState<Record<number, number[]>>({});
 
@@ -194,20 +215,34 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         
         const normalizedRates = [...initialRates];
         systemModels.forEach(m => {
+          // Buscar el "ultimo modelo subido" (el modelo de esta marca con ID más alto en initialRates)
+          const brandModelsInRates = initialRates.filter((r: any) => {
+            const modelObj = modelos.find(mod => mod.id === r.id_modelo);
+            return modelObj?.marca_id === m.marca_id;
+          });
+
+          let lastBrandRateInferior: any = null;
+          let lastBrandRateSuperior: any = null;
+          if (brandModelsInRates.length > 0) {
+            const maxModelId = Math.max(...brandModelsInRates.map((r: any) => r.id_modelo).filter(Boolean) as number[]);
+            lastBrandRateInferior = brandModelsInRates.find((r: any) => r.id_modelo === maxModelId && !r.tasa_intervencion_cumplida);
+            lastBrandRateSuperior = brandModelsInRates.find((r: any) => r.id_modelo === maxModelId && r.tasa_intervencion_cumplida);
+          }
+
           const hasInferior = initialRates.some((r: any) => r.id_modelo === m.id && r.tasa_intervencion_cumplida === false);
           if (!hasInferior) {
             normalizedRates.push({
               id_plan: id,
               id_modelo: m.id,
               tasa_intervencion_cumplida: false,
-              rate_x_minus_4: 70,
-              rate_x_minus_3: 80,
-              rate_x_minus_2: 90,
-              rate_x_minus_1: 100,
-              rate_x: 120,
-              rate_x_plus_1: 140,
-              rate_x_plus_2: 160,
-              rate_x_plus_3: 180,
+              rate_x_minus_4: lastBrandRateInferior?.rate_x_minus_4 ?? 70,
+              rate_x_minus_3: lastBrandRateInferior?.rate_x_minus_3 ?? 80,
+              rate_x_minus_2: lastBrandRateInferior?.rate_x_minus_2 ?? 90,
+              rate_x_minus_1: lastBrandRateInferior?.rate_x_minus_1 ?? 100,
+              rate_x: lastBrandRateInferior?.rate_x ?? 120,
+              rate_x_plus_1: lastBrandRateInferior?.rate_x_plus_1 ?? 140,
+              rate_x_plus_2: lastBrandRateInferior?.rate_x_plus_2 ?? 160,
+              rate_x_plus_3: lastBrandRateInferior?.rate_x_plus_3 ?? 180,
               valor_objetivo: 1,
               activo: true,
             });
@@ -219,14 +254,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               id_plan: id,
               id_modelo: m.id,
               tasa_intervencion_cumplida: true,
-              rate_x_minus_4: 90,
-              rate_x_minus_3: 100,
-              rate_x_minus_2: 110,
-              rate_x_minus_1: 120,
-              rate_x: 140,
-              rate_x_plus_1: 160,
-              rate_x_plus_2: 180,
-              rate_x_plus_3: 200,
+              rate_x_minus_4: lastBrandRateSuperior?.rate_x_minus_4 ?? 90,
+              rate_x_minus_3: lastBrandRateSuperior?.rate_x_minus_3 ?? 100,
+              rate_x_minus_2: lastBrandRateSuperior?.rate_x_minus_2 ?? 110,
+              rate_x_minus_1: lastBrandRateSuperior?.rate_x_minus_1 ?? 120,
+              rate_x: lastBrandRateSuperior?.rate_x ?? 140,
+              rate_x_plus_1: lastBrandRateSuperior?.rate_x_plus_1 ?? 160,
+              rate_x_plus_2: lastBrandRateSuperior?.rate_x_plus_2 ?? 180,
+              rate_x_plus_3: lastBrandRateSuperior?.rate_x_plus_3 ?? 200,
               valor_objetivo: 1,
               activo: true,
             });
@@ -829,8 +864,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               { id: "objetivo", label: "🎯 Objetivo" },
               { id: "modelos", label: "🚗 VN" },
               { id: "usados", label: "🚙 Usados / VO" },
-              { id: "preference", label: "💳 Financiación" },
-              { id: "reglas", label: "⚙️ Reglas" },
+              { id: "reglas", label: "⚙️ Financ/Reglas" },
               { id: "bonus", label: "🎁 Bonus" },
               { id: "liquidacion", label: "💰 Liquidación" }
             ].map((tab) => (
@@ -926,7 +960,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     />
                   </div>
 
-                  <div className="form-group">
+                    <div className="form-group">
                     <label className="form-label">Mínimo de Matriculaciones Reales (Derecho a cobro)</label>
                     <input
                       type="number"
@@ -934,18 +968,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       value={minMatriculaciones}
                       onChange={(e) => setMinMatriculaciones(Number(e.target.value))}
                       disabled={planEstado === "cerrado" || !isAdmin}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Coches con Multiplicador Req. (Mes)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={minCochesMultiplicador}
-                      onChange={(e) => setMinCochesMultiplicador(Number(e.target.value))}
-                      disabled={planEstado === "cerrado" || !isAdmin}
-                      min={0}
                     />
                   </div>
 
@@ -1059,6 +1081,26 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         </div>
                       );
                     })}
+
+                    <div style={{ borderBottom: "1px solid var(--border-light)", margin: "12px 0 8px 0" }} />
+
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 600, fontSize: "0.88rem" }}>
+                        Cupo Ventas Multiplicadas Requerido (Mes)
+                      </label>
+                      <p style={{ color: "var(--text-secondary)", fontSize: "0.78rem", margin: "2px 0 8px 0", lineHeight: "1.25" }}>
+                        Número mínimo de ventas con multiplicador &gt; 1 en el mes necesarias para mantener los multiplicadores en las liquidaciones.
+                      </p>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={minCochesMultiplicador}
+                        onChange={(e) => setMinCochesMultiplicador(Number(e.target.value))}
+                        disabled={planEstado === "cerrado" || !isAdmin}
+                        min={0}
+                        style={{ width: "100%" }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1126,6 +1168,68 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       showNotification("Valores pegados correctamente.", "success");
                     };
 
+                    const handleCopyModel = (less: any, more: any) => {
+                      setModelClipboard({
+                        rate_x_minus_4_less: less.rate_x_minus_4 || 0,
+                        rate_x_minus_3_less: less.rate_x_minus_3 || 0,
+                        rate_x_minus_2_less: less.rate_x_minus_2 || 0,
+                        rate_x_minus_1_less: less.rate_x_minus_1 || 0,
+                        rate_x_less: less.rate_x || 0,
+                        rate_x_plus_1_less: less.rate_x_plus_1 || 0,
+                        rate_x_plus_2_less: less.rate_x_plus_2 || 0,
+                        rate_x_plus_3_less: less.rate_x_plus_3 || 0,
+                        
+                        rate_x_minus_4_more: more.rate_x_minus_4 || 0,
+                        rate_x_minus_3_more: more.rate_x_minus_3 || 0,
+                        rate_x_minus_2_more: more.rate_x_minus_2 || 0,
+                        rate_x_minus_1_more: more.rate_x_minus_1 || 0,
+                        rate_x_more: more.rate_x || 0,
+                        rate_x_plus_1_more: more.rate_x_plus_1 || 0,
+                        rate_x_plus_2_more: more.rate_x_plus_2 || 0,
+                        rate_x_plus_3_more: more.rate_x_plus_3 || 0,
+                      });
+                      showNotification("Valores de tasas (ambas filas) del modelo copiados al portapapeles.", "success");
+                    };
+
+                    const handlePasteModel = (targetModelId: number) => {
+                      if (!modelClipboard) {
+                        showNotification("No hay valores de modelo en el portapapeles. Copia primero con 📦 Copiar Modelo.", "error");
+                        return;
+                      }
+                      const updated = rates.map(item => {
+                        if (item.id_modelo === targetModelId) {
+                          if (!item.tasa_intervencion_cumplida) {
+                            return {
+                              ...item,
+                              rate_x_minus_4: modelClipboard.rate_x_minus_4_less,
+                              rate_x_minus_3: modelClipboard.rate_x_minus_3_less,
+                              rate_x_minus_2: modelClipboard.rate_x_minus_2_less,
+                              rate_x_minus_1: modelClipboard.rate_x_minus_1_less,
+                              rate_x: modelClipboard.rate_x_less,
+                              rate_x_plus_1: modelClipboard.rate_x_plus_1_less,
+                              rate_x_plus_2: modelClipboard.rate_x_plus_2_less,
+                              rate_x_plus_3: modelClipboard.rate_x_plus_3_less,
+                            };
+                          } else {
+                            return {
+                              ...item,
+                              rate_x_minus_4: modelClipboard.rate_x_minus_4_more,
+                              rate_x_minus_3: modelClipboard.rate_x_minus_3_more,
+                              rate_x_minus_2: modelClipboard.rate_x_minus_2_more,
+                              rate_x_minus_1: modelClipboard.rate_x_minus_1_more,
+                              rate_x: modelClipboard.rate_x_more,
+                              rate_x_plus_1: modelClipboard.rate_x_plus_1_more,
+                              rate_x_plus_2: modelClipboard.rate_x_plus_2_more,
+                              rate_x_plus_3: modelClipboard.rate_x_plus_3_more,
+                            };
+                          }
+                        }
+                        return item;
+                      });
+                      setRates(updated);
+                      showNotification("Comisiones del modelo pegadas correctamente.", "success");
+                    };
+
                     // Reordering helpers
                     const handleMoveModel = (currentModelIds: number[], modelId: number, direction: "up" | "down") => {
                       const idx = currentModelIds.indexOf(modelId);
@@ -1163,9 +1267,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <h4 style={{ margin: 0, fontSize: "1.05rem", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                             📦 Modelos de {brand.nombre}
                           </h4>
-                          {rateClipboard && (
-                            <span style={{ fontSize: "0.75rem", color: "var(--success)", fontWeight: 600 }}>📋 Portapapeles con datos</span>
-                          )}
+                          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                            {rateClipboard && (
+                              <span style={{ fontSize: "0.75rem", color: "var(--success)", fontWeight: 600 }}>📋 Línea copiada</span>
+                            )}
+                            {modelClipboard && (
+                              <span style={{ fontSize: "0.75rem", color: "var(--success)", fontWeight: 600 }}>📦 Modelo copiado</span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="table-container">
@@ -1313,20 +1422,55 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                           </td>
                                         )}
                                         <td rowSpan={2} style={{ fontWeight: 600, color: "var(--text-primary)", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                          {isAdmin && planEstado !== "cerrado" && dropdownOptions.length > 1 ? (
-                                            <select
-                                              className="form-select"
-                                              value={modelId}
-                                              onChange={(e) => handleChangeModel(modelId, Number(e.target.value))}
-                                              style={{ fontWeight: 600, fontSize: "0.85rem", padding: "4px 8px", width: "100%" }}
-                                            >
-                                              {dropdownOptions.map(m => (
-                                                <option key={m.id} value={m.id}>{m.nombre}</option>
-                                              ))}
-                                            </select>
-                                          ) : (
-                                            modelName
-                                          )}
+                                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                            {isAdmin && planEstado !== "cerrado" && dropdownOptions.length > 1 ? (
+                                              <select
+                                                className="form-select"
+                                                value={modelId}
+                                                onChange={(e) => handleChangeModel(modelId, Number(e.target.value))}
+                                                style={{ fontWeight: 600, fontSize: "0.85rem", padding: "4px 8px", width: "100%" }}
+                                              >
+                                                {dropdownOptions.map(m => (
+                                                  <option key={m.id} value={m.id}>{m.nombre}</option>
+                                                ))}
+                                              </select>
+                                            ) : (
+                                              <span>{modelName}</span>
+                                            )}
+
+                                            {isAdmin && planEstado !== "cerrado" && (
+                                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleCopyModel(rateLess, rateMore)}
+                                                  style={{
+                                                    border: "none", background: "rgba(124, 58, 237, 0.08)",
+                                                    cursor: "pointer", padding: "4px 8px", borderRadius: "4px",
+                                                    fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600,
+                                                    display: "flex", alignItems: "center", justifyContent: "center", gap: "4px"
+                                                  }}
+                                                  title="Copiar comisiones de este modelo (ambas tasas)"
+                                                >
+                                                  📦 Copiar Modelo
+                                                </button>
+                                                {modelClipboard && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handlePasteModel(modelId)}
+                                                    style={{
+                                                      border: "none", background: "rgba(16, 185, 129, 0.1)",
+                                                      cursor: "pointer", padding: "4px 8px", borderRadius: "4px",
+                                                      fontSize: "0.7rem", color: "var(--success)", fontWeight: 600,
+                                                      display: "flex", alignItems: "center", justifyContent: "center", gap: "4px"
+                                                    }}
+                                                    title="Pegar comisiones del modelo copiado"
+                                                  >
+                                                    📋 Pegar Modelo
+                                                  </button>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
                                         </td>
                                         <td style={{ color: "var(--success)", fontWeight: 600, verticalAlign: "middle" }}>
                                           Tasa ≥ {targetIntervention}%
@@ -1713,242 +1857,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 </div>
               </div>
             )}
-
-            {/* TAB: FINANCIACIÓN (REPLACED FROM PREFERENCE) */}
-            {activeTab === "preference" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
-                  <div>
-                    <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Reglas de Financiación</h3>
-                    <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
-                      Define reglas de comisionamiento para operaciones financiadas. Puedes asociar comisiones fijas por marca, modelo o tipo de financiación específico.
-                    </p>
-                  </div>
-                  {isAdmin && planEstado !== "cerrado" && (
-                    <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setPrefLocked(!prefLocked)}
-                        style={{
-                          padding: "8px 16px",
-                          fontSize: "0.85rem",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                          background: prefLocked ? "rgba(239, 68, 68, 0.08)" : "rgba(16, 185, 129, 0.08)",
-                          color: prefLocked ? "var(--danger)" : "var(--success)",
-                          border: `1px solid ${prefLocked ? "rgba(239, 68, 68, 0.15)" : "rgba(16, 185, 129, 0.15)"}`
-                        }}
-                      >
-                        {prefLocked ? "🔒 Editar Tabla" : "🔓 Cerrar Edición"}
-                      </button>
-                      {!prefLocked && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => {
-                            const newRule = {
-                              nombre: "Nueva Regla Financiación",
-                              id_marca: null,
-                              id_modelo: null,
-                              tipo_financiacion: "Preference",
-                              importe: 100,
-                              activa: true
-                            };
-                            setPreferenceRules([...preferenceRules, newRule]);
-                          }}
-                        >
-                          ➕ Añadir Regla
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="table-container">
-                  <table className="table-premium" style={{ fontSize: "0.9rem" }}>
-                    <thead>
-                      <tr>
-                        <th>Nombre de la Regla</th>
-                        <th>Marca Filtro</th>
-                        <th>Modelo Filtro</th>
-                        <th>Financiación Filtro</th>
-                        <th style={{ width: "150px", textAlign: "right" }}>Importe (€)</th>
-                        <th style={{ width: "90px", textAlign: "center" }}>Activa</th>
-                        {isAdmin && planEstado !== "cerrado" && <th style={{ width: "180px" }}>Acciones</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preferenceRules.map((p, idx) => {
-                        const handleChange = (field: string, value: any) => {
-                          const updated = [...preferenceRules];
-                          updated[idx] = { ...updated[idx], [field]: value };
-                          if (field === "id_marca") {
-                            updated[idx].id_modelo = null;
-                          }
-                          setPreferenceRules(updated);
-                        };
-
-                        const handleDuplicate = () => {
-                          const ruleToClone = preferenceRules[idx];
-                          const cloned = {
-                            ...ruleToClone,
-                            nombre: `${ruleToClone.nombre} (Copia)`,
-                            id_pref_rule: undefined
-                          };
-                          setPreferenceRules([...preferenceRules, cloned]);
-                          showNotification("Regla duplicada al final de la lista", "success");
-                        };
-
-                        const handleRemove = () => {
-                          setPreferenceRules(preferenceRules.filter((_, i) => i !== idx));
-                        };
-
-                        const brandName = p.id_marca ? marcas.find(m => m.id === p.id_marca)?.nombre : "Todas";
-                        const modName = p.id_modelo ? modelos.find(m => m.id === p.id_modelo)?.nombre : "Todos";
-
-                        return (
-                          <tr key={idx}>
-                            <td>
-                              {prefLocked ? (
-                                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{p.nombre}</span>
-                              ) : (
-                                <input
-                                  type="text"
-                                  className="form-input"
-                                  value={p.nombre}
-                                  onChange={(e) => handleChange("nombre", e.target.value)}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
-                                  style={{ padding: "4px 8px" }}
-                                />
-                              )}
-                            </td>
-                            <td>
-                              {prefLocked ? (
-                                <span>{brandName}</span>
-                              ) : (
-                                <select
-                                  className="form-select"
-                                  value={p.id_marca || ""}
-                                  onChange={(e) => handleChange("id_marca", e.target.value ? Number(e.target.value) : null)}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
-                                  style={{ padding: "4px 8px" }}
-                                >
-                                  <option value="">Todas</option>
-                                  {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
-                                </select>
-                              )}
-                            </td>
-                            <td>
-                              {prefLocked ? (
-                                <span>{modName}</span>
-                              ) : (
-                                <select
-                                  className="form-select"
-                                  value={p.id_modelo || ""}
-                                  onChange={(e) => handleChange("id_modelo", e.target.value ? Number(e.target.value) : null)}
-                                  disabled={planEstado === "cerrado" || !isAdmin || !p.id_marca}
-                                  style={{ padding: "4px 8px" }}
-                                >
-                                  <option value="">Todos</option>
-                                  {modelos.filter(m => m.marca_id === p.id_marca).map(m => (
-                                    <option key={m.id} value={m.id}>{m.nombre}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </td>
-                            <td>
-                              {prefLocked ? (
-                                p.tipo_financiacion ? (
-                                  <span className="badge badge-tienda" style={{ fontSize: "0.75rem" }}>{p.tipo_financiacion}</span>
-                                ) : (
-                                  <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Cualquiera</span>
-                                )
-                              ) : (
-                                <input
-                                  type="text"
-                                  className="form-input"
-                                  value={p.tipo_financiacion || ""}
-                                  onChange={(e) => handleChange("tipo_financiacion", e.target.value || null)}
-                                  placeholder="Ej. Preference, BOX3"
-                                  disabled={planEstado === "cerrado" || !isAdmin}
-                                  style={{ padding: "4px 8px" }}
-                                />
-                              )}
-                            </td>
-                            <td style={{ textAlign: "right" }}>
-                              {prefLocked ? (
-                                <strong style={{ color: "var(--text-primary)" }}>{p.importe.toLocaleString()} €</strong>
-                              ) : (
-                                <input
-                                  type="number"
-                                  className="form-input"
-                                  value={p.importe}
-                                  onChange={(e) => handleChange("importe", Number(e.target.value))}
-                                  disabled={planEstado === "cerrado" || !isAdmin}
-                                  style={{ padding: "4px 8px", width: "100px", textAlign: "right" }}
-                                />
-                              )}
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <input
-                                type="checkbox"
-                                checked={p.activa}
-                                onChange={(e) => handleChange("activa", e.target.checked)}
-                                disabled={planEstado === "cerrado" || !isAdmin || prefLocked}
-                              />
-                            </td>
-                            {isAdmin && planEstado !== "cerrado" && (
-                              <td>
-                                <div style={{ display: "flex", gap: "6px" }}>
-                                  {!prefLocked && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="btn btn-secondary"
-                                        onClick={handleDuplicate}
-                                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                                      >
-                                        📋 Duplicar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="btn"
-                                        onClick={handleRemove}
-                                        style={{
-                                          padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
-                                          background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                          borderRadius: "var(--radius-sm)", cursor: "pointer"
-                                        }}
-                                      >
-                                        Quitar
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                      {preferenceRules.length === 0 && (
-                        <tr>
-                          <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
-                            No hay reglas de financiación configuradas en el plan. Haz clic en &quot;🔒 Editar Tabla&quot; para añadir reglas.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
             {/* TAB: REGLAS */}
             {activeTab === "reglas" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Reglas del Plan</h3>
+                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Financiación / Reglas del Plan</h3>
                 
                 {isAdmin && planEstado !== "cerrado" && (
                   <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
