@@ -525,7 +525,17 @@ export default function AdminCatalogosForm({
         return m;
       }));
       setNuevoModeloNombre("");
-      setNuevoModeloAccesoRapido(false);
+      let defaultAccesoRapido = false;
+      if (typeof nuevoModeloMarcaId === "number") {
+        const marca = marcas.find(m => m.id_marca === nuevoModeloMarcaId);
+        if (marca) {
+          const nombreNorm = marca.nombre.toLowerCase().trim();
+          if (nombreNorm === "renault" || nombreNorm === "dacia") {
+            defaultAccesoRapido = true;
+          }
+        }
+      }
+      setNuevoModeloAccesoRapido(defaultAccesoRapido);
       setNuevoModeloOrden(0);
       showNotification("Modelo creado correctamente", "success");
       router.refresh();
