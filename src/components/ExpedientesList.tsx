@@ -90,6 +90,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
 
   // Estados para buscadores y filtros
   const [globalSearch, setGlobalSearch] = useState("");
+  const [ocultarEntregados, setOcultarEntregados] = useState(false);
   const [filterCliente, setFilterCliente] = useState("");
   const [filterMarca, setFilterMarca] = useState("");
   const [filterModelo, setFilterModelo] = useState("");
@@ -765,6 +766,9 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
     let pedidosCredito = 0;
     let pedidosPreference = 0;
 
+    let matriculadosVN = 0;
+    let matriculadosVNFinanciados = 0;
+
     expedientes.forEach(exp => {
       const tipoVentaNombre = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
       const isContado = tipoVentaNombre.includes("contado");
@@ -781,6 +785,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
           if (isContado) matriculadosContado++;
           else if (isCredito) matriculadosCredito++;
           else if (isPreference) matriculadosPreference++;
+
+          const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+          const isVN = stateName === "nuevo" || stateName === "demo";
+          if (isVN) {
+            matriculadosVN++;
+            if (isCredito || isPreference) {
+              matriculadosVNFinanciados++;
+            }
+          }
         }
       }
       // Entregados
@@ -821,7 +834,9 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
       pedidos,
       pedidosContado,
       pedidosCredito,
-      pedidosPreference
+      pedidosPreference,
+      matriculadosVN,
+      matriculadosVNFinanciados
     };
   };
 
@@ -851,6 +866,9 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   ).sort();
 
   const filteredExpedientes = expedientes.filter(exp => {
+    // Ocultar entregados
+    if (ocultarEntregados && exp.fecha_entrega !== null && exp.fecha_entrega !== undefined && exp.fecha_entrega !== "") return false;
+
     // 1. Buscador global
     if (globalSearch) {
       const gs = globalSearch.toLowerCase();
@@ -1039,6 +1057,34 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px", background: "rgba(255, 255, 255, 0.03)", padding: "12px 16px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ 
+            display: "inline-flex", 
+            alignItems: "center", 
+            gap: "8px", 
+            fontSize: "0.85rem", 
+            color: "var(--text-primary)", 
+            cursor: "pointer", 
+            background: "rgba(255, 255, 255, 0.05)", 
+            border: "1px solid var(--border-light)", 
+            padding: "8px 14px", 
+            borderRadius: "var(--radius-sm)",
+            fontWeight: 600,
+            transition: "all 0.2s"
+          }}>
+            <input
+              type="checkbox"
+              checked={ocultarEntregados}
+              onChange={e => setOcultarEntregados(e.target.checked)}
+              style={{
+                width: "15px",
+                height: "15px",
+                accentColor: "var(--primary)",
+                cursor: "pointer"
+              }}
+            />
+            <span>Ocultar Entregados</span>
+          </label>
+
           <button
             type="button"
             className="btn"
@@ -1550,6 +1596,24 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span>Preference:</span> <strong>{stats.matriculadosPreference}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>TASA INT. FINANCIERA</span>
+            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>
+              {stats.matriculadosVN > 0 ? `${((stats.matriculadosVNFinanciados / stats.matriculadosVN) * 100).toFixed(1)}%` : "0.0%"}
+            </h3>
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Matr. VN:</span> <strong>{stats.matriculadosVN}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>VN Financiados:</span> <strong>{stats.matriculadosVNFinanciados}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Tasa Global:</span> <strong>{stats.matriculados > 0 ? `${(((stats.matriculadosCredito + stats.matriculadosPreference) / stats.matriculados) * 100).toFixed(1)}%` : "0.0%"}</strong>
               </div>
             </div>
           </div>

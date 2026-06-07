@@ -426,7 +426,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // --- CRUD local de reglas ---
   const handleAddRule = () => {
-    if (!newRuleName) return;
+    if (!newRuleName.trim()) {
+      showNotification("Por favor, introduce un nombre para la regla", "error");
+      return;
+    }
     const newRule = {
       nombre: newRuleName,
       tipo_evento: newRuleType,
@@ -456,7 +459,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // --- CRUD local de bonus ---
   const handleAddBonus = () => {
-    if (!newBonusName) return;
+    if (!newBonusName.trim()) {
+      showNotification("Por favor, introduce un nombre para el Bonus", "error");
+      return;
+    }
     const newBonus = {
       nombre: newBonusName,
       descripcion: newBonusDesc || null,
@@ -491,7 +497,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // --- CRUD local de preference rules ---
   const handleAddPrefRule = () => {
-    if (!newPrefName) return;
+    if (!newPrefName.trim()) {
+      showNotification("Por favor, introduce un nombre para la regla Preference", "error");
+      return;
+    }
     const newRule = {
       nombre: newPrefName,
       id_marca: newPrefMarca ? Number(newPrefMarca) : null,
