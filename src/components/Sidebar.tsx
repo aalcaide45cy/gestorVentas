@@ -59,31 +59,40 @@ export default function Sidebar({ user }: SidebarProps) {
         overflow: "visible",
       }}
     >
-      {/* Botón de Colapsar flotante */}
+      {/* Botón de Colapsar flotante — mejorado */}
       <button
         onClick={toggleSidebar}
         style={{
           position: "absolute",
-          top: "32px",
-          right: "-14px",
-          width: "28px",
-          height: "28px",
+          top: "80px",
+          right: isCollapsed ? "-20px" : "-18px",
+          width: isCollapsed ? "40px" : "40px",
+          height: "40px",
           borderRadius: "50%",
-          background: "var(--bg-app)",
-          border: "1px solid var(--border-light)",
-          color: "var(--text-primary)",
+          background: "linear-gradient(135deg, var(--primary), var(--secondary))",
+          border: "2px solid rgba(255,255,255,0.12)",
+          color: "#fff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           cursor: "pointer",
-          boxShadow: "var(--shadow-md)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.35), 0 0 0 3px rgba(var(--primary-rgb), 0.2)",
           zIndex: 15,
+          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
         title={isCollapsed ? "Expandir barra lateral" : "Colapsar barra lateral"}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1.12)";
+          (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 6px 20px rgba(0,0,0,0.45), 0 0 0 4px rgba(var(--primary-rgb), 0.3)";
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
+          (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.35), 0 0 0 3px rgba(var(--primary-rgb), 0.2)";
+        }}
       >
         <svg
-          width="16"
-          height="16"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -93,6 +102,7 @@ export default function Sidebar({ user }: SidebarProps) {
           style={{
             transform: isCollapsed ? "rotate(180deg)" : "rotate(0deg)",
             transition: "transform 0.3s ease",
+            flexShrink: 0,
           }}
         >
           <polyline points="15 18 9 12 15 6" />

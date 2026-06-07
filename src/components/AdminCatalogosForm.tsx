@@ -37,7 +37,7 @@ interface AdminCatalogosFormProps {
   tiendasIniciales: TiendaItem[];
 }
 
-type TabType = "marcas" | "modelos" | "tiendas" | "pagos" | "estados";
+type TabType = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes";
 
 export default function AdminCatalogosForm({
   marcasIniciales,
@@ -56,6 +56,17 @@ export default function AdminCatalogosForm({
   const [tiposVenta, setTiposVenta] = useState<DropdownItem[]>(tiposVentaIniciales);
   const [estadosVehiculo, setEstadosVehiculo] = useState<DropdownItem[]>(estadosVehiculoIniciales);
   const [tiendas, setTiendas] = useState<TiendaItem[]>(tiendasIniciales);
+
+  // Preferencias de expedientes (localStorage)
+  const [expDefaultPageSize, setExpDefaultPageSize] = useState<number>(20);
+
+  // Cargar preferencias guardadas al montar
+  const [prefLoaded, setPrefLoaded] = useState(false);
+  if (!prefLoaded && typeof window !== "undefined") {
+    const stored = localStorage.getItem("exp-default-page-size");
+    if (stored) setExpDefaultPageSize(Number(stored));
+    setPrefLoaded(true);
+  }
 
   // Estados de ordenación
   const [sortField, setSortField] = useState<string>("id");
@@ -854,6 +865,14 @@ export default function AdminCatalogosForm({
           style={{ padding: "10px 20px", fontSize: "0.9rem" }}
         >
           🚗 Estados
+        </button>
+        <button
+          type="button"
+          className={`btn ${activeTab === "expedientes" ? "btn-primary" : "btn-secondary"}`}
+          onClick={() => changeTab("expedientes")}
+          style={{ padding: "10px 20px", fontSize: "0.9rem" }}
+        >
+          📋 Expedientes
         </button>
       </div>
 
@@ -1692,6 +1711,99 @@ export default function AdminCatalogosForm({
           </div>
         </div>
       )}
+
+      {/* PESTAÑA: EXPEDIENTES */}
+      {activeTab === "expedientes" && (
+        <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "28px" }}>
+          <div>
+            <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Configuración de Expedientes</h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+              Personaliza el comportamiento por defecto de la lista de expedientes. Estos ajustes se guardan en tu navegador.
+            </p>
+          </div>
+
+          {/* PAGINACIÓN POR DEFECTO */}
+          <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px", borderLeft: "3px solid var(--primary)" }}>
+            <div>
+              <h4 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 6px 0", color: "var(--text-primary)" }}>
+                📄 Número de expedientes por página (por defecto)
+              </h4>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0, lineHeight: "1.5" }}>
+                Define cuántos expedientes se mostrarán al cargar la lista. Puedes cambiarlo en cualquier momento desde la propia tabla.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              {[10, 20, 50, 100, 200].map(size => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => {
+                    setExpDefaultPageSize(size);
+                    localStorage.setItem("exp-default-page-size", String(size));
+                    showNotification(`Paginación por defecto establecida en ${size} expedientes.`, "success");
+                  }}
+                  style={{
+                    padding: "12px 24px",
+                    fontSize: "1rem",
+                    fontWeight: expDefaultPageSize === size ? 800 : 500,
+                    border: `2px solid ${expDefaultPageSize === size ? "var(--primary)" : "var(--border-light)"}`,
+                    borderRadius: "var(--radius-md)",
+                    background: expDefaultPageSize === size
+                      ? "linear-gradient(135deg, rgba(var(--primary-rgb), 0.2), rgba(var(--secondary-rgb), 0.1))"
+                      : "rgba(255, 255, 255, 0.02)",
+                    color: expDefaultPageSize === size ? "var(--primary)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    boxShadow: expDefaultPageSize === size ? "0 0 0 3px rgba(var(--primary-rgb), 0.15)" : "none",
+                    position: "relative"
+                  }}
+                >
+                  {size}
+                  {expDefaultPageSize === size && (
+                    <span style={{
+                      position: "absolute",
+                      top: "-8px",
+                      right: "-8px",
+                      background: "var(--primary)",
+                      color: "#fff",
+                      fontSize: "0.6rem",
+                      padding: "2px 5px",
+                      borderRadius: "999px",
+                      fontWeight: 700,
+                      letterSpacing: "0.04em"
+                    }}>✓ ACTIVO</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              padding: "12px 16px",
+              background: "rgba(var(--primary-rgb), 0.05)",
+              border: "1px solid rgba(var(--primary-rgb), 0.15)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "0.85rem",
+              color: "var(--text-secondary)"
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>
+                Actualmente configurado en <strong style={{ color: "var(--primary)" }}>{expDefaultPageSize}</strong> expedientes por página.
+                Este valor se aplica al cargar la pestaña de expedientes por primera vez.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+

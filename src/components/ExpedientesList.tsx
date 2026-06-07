@@ -106,9 +106,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   const [statsYear, setStatsYear] = useState<number>(todayDate.getFullYear());
   const [statsMonth, setStatsMonth] = useState<number>(todayDate.getMonth() + 1);
 
-  // Estados de paginación
+  // Estados de paginación (lee preferencia guardada en configuración)
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("exp-default-page-size");
+      if (stored) return Number(stored);
+    }
+    return 20;
+  });
   
   // Modales y estados para fechas inline
   const [editDateModal, setEditDateModal] = useState<{
