@@ -266,57 +266,71 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
             VO
           </h4>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px", height: "100%", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>
               Crea un expediente rápido para un vehículo usado (sin marca/modelo preasignados).
             </div>
 
-            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-              {tiposVenta.map((tv) => {
-                const isThisLoading = loadingModelId === "VO" && loadingTipoVentaId === tv.id_tipo_de_venta;
-                return (
-                  <button
-                    key={tv.id_tipo_de_venta}
-                    onClick={() => handleQuickCreate(null, "Vehículo Usado (VO)", tv.id_tipo_de_venta, tv.nombre_tipo_venta, "usado")}
-                    disabled={loadingModelId !== null}
-                    style={{
-                      fontSize: "0.75rem",
-                      padding: "8px 4px",
-                      flex: "1 1 0px",
-                      minWidth: "0",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "4px",
-                      background: isThisLoading ? "rgba(255, 255, 255, 0.2)" : (tv.color || "#3b82f6"),
-                      color: "#ffffff",
-                      border: "1px solid rgba(255, 255, 255, 0.15)",
-                      borderRadius: "4px",
-                      cursor: loadingModelId !== null ? "not-allowed" : "pointer",
-                      transition: "all 0.2s ease",
-                      opacity: loadingModelId !== null && !isThisLoading ? 0.5 : 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis"
-                    }}
-                    title={`Crear rápido VO - ${tv.nombre_tipo_venta}`}
-                    className="glass-panel-interactive"
-                  >
-                    {isThisLoading ? (
-                      <span className="spinner-mini" style={{
-                        width: "10px",
-                        height: "10px",
-                        border: "2px solid rgba(255,255,255,0.3)",
-                        borderTop: "2px solid var(--text-primary)",
-                        borderRadius: "50%",
-                        display: "inline-block",
-                        animation: "spin 0.8s linear infinite"
-                      }}></span>
-                    ) : null}
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{tv.nombre_tipo_venta}</span>
-                  </button>
-                );
-              })}
+            <div className="glass-panel-interactive" style={{
+              padding: "16px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              background: "rgba(255, 255, 255, 0.02)",
+              border: "1px solid var(--border-light)",
+              width: "100%"
+            }}>
+              <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text-primary)" }}>
+                Vehículo Usado (VO)
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                {tiposVenta.map((tv) => {
+                  const isThisLoading = loadingModelId === "VO" && loadingTipoVentaId === tv.id_tipo_de_venta;
+                  return (
+                    <button
+                      key={tv.id_tipo_de_venta}
+                      onClick={() => handleQuickCreate(null, "Vehículo Usado (VO)", tv.id_tipo_de_venta, tv.nombre_tipo_venta, "usado")}
+                      disabled={loadingModelId !== null}
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "8px 4px",
+                        flex: "1 1 0px",
+                        minWidth: "0",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "4px",
+                        background: isThisLoading ? "rgba(255, 255, 255, 0.2)" : (tv.color || "#3b82f6"),
+                        color: "#ffffff",
+                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                        borderRadius: "4px",
+                        cursor: loadingModelId !== null ? "not-allowed" : "pointer",
+                        transition: "all 0.2s ease",
+                        opacity: loadingModelId !== null && !isThisLoading ? 0.5 : 1,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis"
+                      }}
+                      title={`Crear rápido VO - ${tv.nombre_tipo_venta}`}
+                      className="glass-panel-interactive"
+                    >
+                      {isThisLoading ? (
+                        <span className="spinner-mini" style={{
+                          width: "10px",
+                          height: "10px",
+                          border: "2px solid rgba(255,255,255,0.3)",
+                          borderTop: "2px solid var(--text-primary)",
+                          borderRadius: "50%",
+                          display: "inline-block",
+                          animation: "spin 0.8s linear infinite"
+                        }}></span>
+                      ) : null}
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{tv.nombre_tipo_venta}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
