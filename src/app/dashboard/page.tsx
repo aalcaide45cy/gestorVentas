@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { expedientes, clientes, marcas, modelos } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
+import RecentExpedientesTable from "@/components/RecentExpedientesTable";
 import { formatDate } from "@/lib/date-utils";
 
 export default async function DashboardPage() {
@@ -226,120 +227,7 @@ export default async function DashboardPage() {
               </Link>
             </div>
 
-            <div className="table-container">
-              <table className="table-premium">
-                <thead>
-                  <tr>
-                    <th>Cliente</th>
-                    <th>Marca</th>
-                    <th>Modelo</th>
-                    <th>T. Venta</th>
-                    <th>Estado</th>
-                    <th>Vendedor</th>
-                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
-                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
-                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. RCI</th>
-                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Mat</th>
-                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Entrega</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dbExpedientesRecientes.map((exp) => (
-                    <tr key={exp.id_expediente}>
-                      <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
-                        {exp.cliente?.nombre || "Sin Cliente"}
-                      </td>
-                      <td>
-                        {exp.modelo?.marca?.nombre || (
-                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>
-                        )}
-                      </td>
-                      <td>
-                        {exp.modelo ? (
-                          <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                            {exp.modelo.nombre_modelo}
-                          </div>
-                        ) : (
-                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
-                        )}
-                      </td>
-                      <td>
-                        {exp.tipoDeVenta ? (
-                          <span className="badge" style={{
-                            fontSize: "0.7rem",
-                            padding: "3px 8px",
-                            backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
-                            color: "#fff"
-                          }}>
-                            {exp.tipoDeVenta.nombre_tipo_venta}
-                          </span>
-                        ) : (
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
-                        )}
-                      </td>
-                      <td>
-                        {exp.estadoVehiculo ? (
-                          <span className={`badge badge-${exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
-                            {exp.estadoVehiculo.nombre_estado_vehiculo}
-                          </span>
-                        ) : (
-                          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
-                        )}
-                      </td>
-                      <td>
-                        <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
-                      </td>
-                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
-                      </td>
-                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
-                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_afectacion)}</span>
-                      </td>
-                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_rci)}</span>
-                      </td>
-                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
-                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_matriculacion)}</span>
-                      </td>
-                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_entrega)}</span>
-                      </td>
-                      <td>
-                        <Link
-                          href={`/dashboard/expedientes/editar/${exp.id_expediente}`}
-                          style={{
-                            color: "var(--text-primary)",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            padding: "6px 12px",
-                            borderRadius: "var(--radius-sm)",
-                            background: "rgba(255, 255, 255, 0.05)",
-                            border: "1px solid var(--border-light)",
-                            cursor: "pointer",
-                            fontSize: "0.8rem",
-                            textDecoration: "none",
-                            fontWeight: 600,
-                            transition: "all 0.2s ease"
-                          }}
-                          className="glass-panel-interactive"
-                        >
-                          ✏️ Editar
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                  {dbExpedientesRecientes.length === 0 && (
-                    <tr>
-                      <td colSpan={12} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
-                        No hay expedientes de venta registrados en la base de datos.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <RecentExpedientesTable initialExpedientes={dbExpedientesRecientes} />
           </div>
 
           <QuickExpedienteCreator marcas={dbMarcasAccesoRapido} tiposVenta={dbTiposVenta} />

@@ -1,0 +1,545 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/date-utils";
+
+interface Cliente {
+  id: number;
+  dni: string | null;
+  nombre: string | null;
+}
+
+interface Marca {
+  id_marca: number;
+  nombre: string;
+}
+
+interface Modelo {
+  id_modelo: number;
+  nombre_modelo: string;
+  marca?: Marca | null;
+}
+
+interface TipoDeVenta {
+  id_tipo_de_venta: number;
+  nombre_tipo_venta: string;
+  color: string | null;
+}
+
+interface EstadoVehiculo {
+  id_estado_vehiculo: number;
+  nombre_estado_vehiculo: string;
+}
+
+interface Usuario {
+  id_usuario: number;
+  nombre: string | null;
+}
+
+interface Expediente {
+  id_expediente: number;
+  id_usuario: number | null;
+  id_cliente: number | null;
+  id_modelo: number | null;
+  id_tienda: number | null;
+  fecha_expediente: string | null;
+  fecha_afectacion: string | null;
+  fecha_matriculacion: string | null;
+  fecha_entrega: string | null;
+  fecha_rci: string | null;
+  matricula?: string | null;
+  vin?: string | null;
+  cliente?: Cliente | null;
+  modelo?: Modelo | null;
+  tipoDeVenta?: TipoDeVenta | null;
+  estadoVehiculo?: EstadoVehiculo | null;
+  usuario?: Usuario | null;
+}
+
+interface RecentExpedientesTableProps {
+  initialExpedientes: Expediente[];
+}
+
+export default function RecentExpedientesTable({ initialExpedientes }: RecentExpedientesTableProps) {
+  const router = useRouter();
+  const [expedientesList, setExpedientesList] = useState<Expediente[]>(initialExpedientes);
+
+  useEffect(() => {
+    setExpedientesList(initialExpedientes);
+  }, [initialExpedientes]);
+
+  const [editDateModal, setEditDateModal] = useState<{
+    expediente: Expediente;
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci";
+    displayName: string;
+  } | null>(null);
+
+  const [deleteDateModal, setDeleteDateModal] = useState<{
+    expediente: Expediente;
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci";
+    displayName: string;
+  } | null>(null);
+
+  const [inputDate, setInputDate] = useState("");
+  const [inputMatricula, setInputMatricula] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const showNotification = (text: string, type: "success" | "error") => {
+    if (type === "success") {
+      setSuccess(text);
+      setTimeout(() => setSuccess(null), 3000);
+    } else {
+      setError(text);
+      setTimeout(() => setError(null), 4000);
+    }
+  };
+
+  const handleOpenEditDate = (
+    exp: Expediente,
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    displayName: string
+  ) => {
+    const today = new Date().toISOString().split("T")[0];
+    setInputDate(exp[field] || today);
+    setInputMatricula(exp.matricula || "");
+    setEditDateModal({ expediente: exp, fieldName: field, displayName });
+  };
+
+  const handleSaveDate = async () => {
+    if (!editDateModal) return;
+    setLoading(true);
+    setError(null);
+
+    const { expediente, fieldName, displayName } = editDateModal;
+    const updatePayload: any = {
+      [fieldName]: inputDate || null,
+    };
+
+    if (fieldName === "fecha_matriculacion") {
+      updatePayload.matricula = inputMatricula || null;
+      if (!expediente.fecha_rci) {
+        updatePayload.fecha_rci = inputDate || null;
+      }
+    }
+
+    try {
+      const response = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          expediente: updatePayload,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Error al actualizar la fecha");
+      }
+
+      setExpedientesList(prev => prev.map(e => e.id_expediente === expediente.id_expediente ? {
+        ...e,
+        ...updatePayload,
+      } : e));
+
+      showNotification(`Fecha de ${displayName} guardada correctamente.`, "success");
+      setEditDateModal(null);
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Ocurrió un error al guardar la fecha.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenDeleteDate = (
+    exp: Expediente,
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    displayName: string
+  ) => {
+    setDeleteDateModal({ expediente: exp, fieldName: field, displayName });
+  };
+
+  const handleDeleteDate = async () => {
+    if (!deleteDateModal) return;
+    setLoading(true);
+    setError(null);
+
+    const { expediente, fieldName, displayName } = deleteDateModal;
+
+    try {
+      const response = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          expediente: {
+            [fieldName]: null,
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Error al eliminar la fecha");
+      }
+
+      setExpedientesList(prev => prev.map(e => e.id_expediente === expediente.id_expediente ? {
+        ...e,
+        [fieldName]: null,
+      } : e));
+
+      showNotification(`Fecha de ${displayName} eliminada correctamente.`, "success");
+      setDeleteDateModal(null);
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Ocurrió un error al eliminar la fecha.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderDateField = (
+    exp: Expediente,
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    displayName: string,
+    backgroundColor?: string
+  ) => {
+    const val = exp[field];
+    return (
+      <td style={{ textAlign: "center", backgroundColor }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            <span style={{ fontSize: "0.85rem", color: val ? "var(--text-primary)" : "var(--text-muted)", fontWeight: val ? 500 : 400 }}>
+              {formatDate(val)}
+            </span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              <button
+                onClick={() => handleOpenEditDate(exp, field, displayName)}
+                style={{
+                  border: "none",
+                  background: "rgba(255, 255, 255, 0.05)",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  padding: "4px 6px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.2s"
+                }}
+                title={`Modificar fecha de ${displayName}`}
+                className="glass-panel-interactive"
+              >
+                ✏️
+              </button>
+              {val && (
+                <button
+                  onClick={() => handleOpenDeleteDate(exp, field, displayName)}
+                  style={{
+                    border: "none",
+                    background: "rgba(239, 68, 68, 0.05)",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s"
+                  }}
+                  title={`Eliminar fecha de ${displayName}`}
+                  className="glass-panel-interactive"
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </td>
+    );
+  };
+
+  return (
+    <>
+      {error && (
+        <div className="glass-panel" style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10000,
+          boxShadow: "var(--shadow-lg)",
+          padding: "12px 24px",
+          color: "var(--danger)",
+          borderLeft: "4px solid var(--danger)",
+          background: "rgba(239, 68, 68, 0.95)",
+          backdropFilter: "blur(8px)",
+          minWidth: "300px",
+          textAlign: "center",
+          animation: "fadeIn 0.3s ease"
+        }}>
+          ⚠️ {error}
+        </div>
+      )}
+      {success && (
+        <div className="glass-panel" style={{
+          position: "fixed",
+          top: "20px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10000,
+          boxShadow: "var(--shadow-lg)",
+          padding: "12px 24px",
+          color: "var(--success)",
+          borderLeft: "4px solid var(--success)",
+          background: "rgba(16, 185, 129, 0.95)",
+          backdropFilter: "blur(8px)",
+          minWidth: "300px",
+          textAlign: "center",
+          animation: "fadeIn 0.3s ease"
+        }}>
+          ✓ {success}
+        </div>
+      )}
+
+      <div className="table-container">
+        <table className="table-premium">
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>Marca</th>
+              <th>Modelo</th>
+              <th>T. Venta</th>
+              <th>Estado</th>
+              <th>Vendedor</th>
+              <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
+              <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
+              <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. RCI</th>
+              <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Mat</th>
+              <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Entrega</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expedientesList.map((exp) => (
+              <tr key={exp.id_expediente}>
+                <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
+                  {exp.cliente?.nombre || "Sin Cliente"}
+                </td>
+                <td>
+                  {exp.modelo?.marca?.nombre || (
+                    <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>
+                  )}
+                </td>
+                <td>
+                  {exp.modelo ? (
+                    <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                      {exp.modelo.nombre_modelo}
+                    </div>
+                  ) : (
+                    <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
+                  )}
+                </td>
+                <td>
+                  {exp.tipoDeVenta ? (
+                    <span className="badge" style={{
+                      fontSize: "0.7rem",
+                      padding: "3px 8px",
+                      backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
+                      color: "#fff"
+                    }}>
+                      {exp.tipoDeVenta.nombre_tipo_venta}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                  )}
+                </td>
+                <td>
+                  {exp.estadoVehiculo ? (
+                    <span className={`badge badge-${exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
+                      {exp.estadoVehiculo.nombre_estado_vehiculo}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                  )}
+                </td>
+                <td>
+                  <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
+                </td>
+                <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                  <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
+                </td>
+                {renderDateField(exp, "fecha_afectacion", "Afectación", "rgba(128, 128, 128, 0.09)")}
+                {renderDateField(exp, "fecha_rci", "RCI", "rgba(128, 128, 128, 0.03)")}
+                {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.09)")}
+                {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.03)")}
+                <td>
+                  <Link
+                    href={`/dashboard/expedientes/editar/${exp.id_expediente}`}
+                    style={{
+                      color: "var(--text-primary)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "6px 12px",
+                      borderRadius: "var(--radius-sm)",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid var(--border-light)",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                      textDecoration: "none",
+                      fontWeight: 600,
+                      transition: "all 0.2s ease"
+                    }}
+                    className="glass-panel-interactive"
+                  >
+                    ✏️ Editar
+                  </Link>
+                </td>
+              </tr>
+            ))}
+            {expedientesList.length === 0 && (
+              <tr>
+                <td colSpan={12} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
+                  No hay expedientes de venta registrados en la base de datos.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* MODAL PARA EDITAR FECHA */}
+      {editDateModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "400px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              Establecer fecha de {editDateModal.displayName}
+            </h3>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Selecciona Fecha</label>
+              <input
+                type="date"
+                className="form-input"
+                value={inputDate}
+                onChange={e => setInputDate(e.target.value)}
+              />
+            </div>
+
+            {editDateModal.fieldName === "fecha_matriculacion" && (
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Matrícula (Opcional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={inputMatricula}
+                  onChange={e => setInputMatricula(e.target.value)}
+                  placeholder="Ej. 1234ABC"
+                />
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setEditDateModal(null)}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveDate}
+                disabled={loading}
+              >
+                {loading ? "Guardando..." : "Aceptar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA ELIMINAR FECHA */}
+      {deleteDateModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "400px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              ¿Eliminar fecha de {deleteDateModal.displayName}?
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>
+              Esta acción borrará la fecha registrada para este expediente. ¿Deseas continuar?
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setDeleteDateModal(null)}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleDeleteDate}
+                disabled={loading}
+                style={{ backgroundColor: "var(--danger)", borderColor: "var(--danger)" }}
+              >
+                {loading ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
