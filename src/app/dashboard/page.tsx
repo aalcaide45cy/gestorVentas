@@ -64,7 +64,8 @@ export default async function DashboardPage() {
         }
       },
       tipoDeVenta: true,
-      estadoVehiculo: true
+      estadoVehiculo: true,
+      usuario: true
     }
   });
 
@@ -230,46 +231,80 @@ export default async function DashboardPage() {
                 <thead>
                   <tr>
                     <th>Cliente</th>
-                    <th>Vehículo</th>
-                    <th>Método de Venta</th>
-                    <th>Estado Vehículo</th>
-                    <th>Fecha</th>
+                    <th>Marca</th>
+                    <th>Modelo</th>
+                    <th>T. Venta</th>
+                    <th>Estado</th>
+                    <th>Vendedor</th>
+                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Exp.</th>
+                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Afect</th>
+                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. RCI</th>
+                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>F. Mat</th>
+                    <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>F. Entrega</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {dbExpedientesRecientes.map((exp) => (
                     <tr key={exp.id_expediente}>
+                      <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
+                        {exp.cliente?.nombre || "Sin Cliente"}
+                      </td>
                       <td>
-                        <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{exp.cliente?.nombre || "Sin Cliente"}</div>
-                        {exp.cliente?.dni && <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.cliente.dni}</div>}
+                        {exp.modelo?.marca?.nombre || (
+                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>
+                        )}
                       </td>
                       <td>
                         {exp.modelo ? (
-                          <>
-                            <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>{exp.modelo.nombre_modelo}</div>
-                            <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{exp.modelo.marca?.nombre}</div>
-                          </>
-                        ) : "N/D"}
+                          <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                            {exp.modelo.nombre_modelo}
+                          </div>
+                        ) : (
+                          <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
+                        )}
                       </td>
                       <td>
                         {exp.tipoDeVenta ? (
                           <span className="badge" style={{
                             fontSize: "0.7rem",
+                            padding: "3px 8px",
                             backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
-                            color: "#fff",
-                            padding: "4px 8px"
+                            color: "#fff"
                           }}>
                             {exp.tipoDeVenta.nombre_tipo_venta}
                           </span>
-                        ) : "N/D"}
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                        )}
                       </td>
                       <td>
-                        <span className={`badge badge-${exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`}>
-                          {exp.estadoVehiculo?.nombre_estado_vehiculo || "N/D"}
-                        </span>
+                        {exp.estadoVehiculo ? (
+                          <span className={`badge badge-${exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
+                            {exp.estadoVehiculo.nombre_estado_vehiculo}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                        )}
                       </td>
-                      <td>{exp.fecha_expediente ? formatDate(exp.fecha_expediente) : "N/D"}</td>
+                      <td>
+                        <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
+                      </td>
+                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
+                      </td>
+                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
+                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_afectacion)}</span>
+                      </td>
+                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_rci)}</span>
+                      </td>
+                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)" }}>
+                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_matriculacion)}</span>
+                      </td>
+                      <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                        <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_entrega)}</span>
+                      </td>
                       <td>
                         <Link
                           href={`/dashboard/expedientes/editar/${exp.id_expediente}`}
@@ -297,7 +332,7 @@ export default async function DashboardPage() {
                   ))}
                   {dbExpedientesRecientes.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
+                      <td colSpan={12} style={{ textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", padding: "20px" }}>
                         No hay expedientes de venta registrados en la base de datos.
                       </td>
                     </tr>
