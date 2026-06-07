@@ -1055,7 +1055,21 @@ export default function AdminCatalogosForm({
             <select
               className="form-select"
               value={nuevoModeloMarcaId}
-              onChange={e => setNuevoModeloMarcaId(e.target.value ? Number(e.target.value) : "")}
+              onChange={e => {
+                const val = e.target.value ? Number(e.target.value) : "";
+                setNuevoModeloMarcaId(val);
+                if (val !== "") {
+                  const marca = marcas.find(m => m.id_marca === val);
+                  if (marca) {
+                    const nombreNorm = marca.nombre.toLowerCase().trim();
+                    if (nombreNorm === "renault" || nombreNorm === "dacia") {
+                      setNuevoModeloAccesoRapido(true);
+                      return;
+                    }
+                  }
+                }
+                setNuevoModeloAccesoRapido(false);
+              }}
               required
               style={{ flex: 1, minWidth: "160px" }}
             >
