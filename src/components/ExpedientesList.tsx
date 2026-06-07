@@ -26,6 +26,7 @@ interface Modelo {
   id_modelo: number;
   nombre_modelo: string;
   marca?: Marca | null;
+  marca_id?: number | null;
   acceso_rapido?: boolean | null;
   orden_acceso_rapido?: number | null;
 }
@@ -62,6 +63,8 @@ interface Expediente {
   id_tipo_de_venta: number | null;
   id_estado_vehiculo: number | null;
   vin: string | null;
+  valor_objetivo?: number | null;
+  min_coches_multiplicador?: number | null;
   
   cliente?: Cliente | null;
   modelo?: Modelo | null;
@@ -111,6 +114,49 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   const todayDate = new Date();
   const [statsYear, setStatsYear] = useState<number>(todayDate.getFullYear());
   const [statsMonth, setStatsMonth] = useState<number>(todayDate.getMonth() + 1);
+
+  const [planes, setPlanes] = useState<any[]>([]);
+  const [activePlan, setActivePlan] = useState<any | null>(null);
+
+  useEffect(() => {
+    const fetchPlanes = async () => {
+      try {
+        const res = await fetch("/api/comisiones/planes");
+        const result = await res.json();
+        if (result.success) {
+          setPlanes(result.data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchPlanes();
+  }, []);
+
+  useEffect(() => {
+    if (planes.length === 0) {
+      setActivePlan(null);
+      return;
+    }
+    const targetDateStr = `${statsYear}-${String(statsMonth).padStart(2, "0")}-01`;
+    const matched = planes.find(p => p.fecha_inicio <= targetDateStr && p.fecha_fin >= targetDateStr);
+    if (matched) {
+      const fetchPlanDetails = async () => {
+        try {
+          const res = await fetch(`/api/comisiones/planes?id=${matched.id_plan}`);
+          const result = await res.json();
+          if (result.success) {
+            setActivePlan(result.data);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchPlanDetails();
+    } else {
+      setActivePlan(null);
+    }
+  }, [planes, statsYear, statsMonth]);
 
   // Estados de paginación (lee preferencia guardada en configuración)
   const [currentPage, setCurrentPage] = useState(1);
@@ -773,11 +819,17 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
     let matriculadosVN = 0;
     let matriculadosVNFinanciados = 0;
 
+    let objetivoComputado = 0;
+    const matriculadosList: any[] = [];
+    const pendientesList: any[] = [];
+
     expedientes.forEach(exp => {
       const tipoVentaNombre = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
       const isContado = tipoVentaNombre.includes("contado");
       const isCredito = tipoVentaNombre.includes("credito") || tipoVentaNombre.includes("crédito");
       const isPreference = tipoVentaNombre.includes("preference") || tipoVentaNombre.includes("box");
+
+      let isMatriculadoThisMonth = false;
 
       // Matriculados
       if (exp.fecha_matriculacion) {
@@ -785,6 +837,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
         if (y === statsYear && m === statsMonth) {
+          isMatriculadoThisMonth = true;
           matriculados++;
           if (isContado) matriculadosContado++;
           else if (isCredito) matriculadosCredito++;
@@ -795,6 +848,26 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
           if (isVN) {
             matriculadosVN++;
           }
+
+          // Calcular valor objetivo estimado para este expediente
+          let val = 1.0;
+          if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+            val = Number(exp.valor_objetivo);
+          } else if (activePlan) {
+            const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
+            if (brandId) {
+              const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
+              if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+                val = Number(brandIntervention.valor_objetivo_defecto);
+              }
+            }
+          }
+          
+          objetivoComputado += val;
+          matriculadosList.push({
+            ...exp,
+            valorObjetivoEstimado: val
+          });
         }
       }
 
@@ -835,6 +908,26 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
           else if (isPreference) pedidosPreference++;
         }
       }
+
+      // Pendientes de matriculación (pipeline)
+      if (!isMatriculadoThisMonth) {
+        let isRelatedThisMonth = false;
+        if (exp.fecha_expediente) {
+          const parts = exp.fecha_expediente.split("-");
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
+        }
+        if (exp.fecha_afectacion) {
+          const parts = exp.fecha_afectacion.split("-");
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
+        }
+        if (isRelatedThisMonth) {
+          pendientesList.push(exp);
+        }
+      }
     });
 
     return {
@@ -849,7 +942,10 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
       pedidosCredito,
       pedidosPreference,
       matriculadosVN,
-      matriculadosVNFinanciados
+      matriculadosVNFinanciados,
+      objetivoComputado,
+      matriculadosList,
+      pendientesList
     };
   };
 
@@ -1549,72 +1645,233 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "15px" }}>
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>AFECTADOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{stats.afectados}</h3>
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", justifyContent: "center" }}>
-              <span>Total de afectaciones</span>
+        {/* NUEVA MAQUETACIÓN: RESUMEN Y TRAMOS DE COMISIÓN */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {/* Fila de Tarjetas Clásicas */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px" }}>
+            <div className="glass-panel-interactive" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>AFECTADOS EN EL MES</span>
+              <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--primary)", fontWeight: "bold" }}>{stats.afectados}</h3>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Total de afectaciones en el mes</span>
             </div>
-          </div>
-          
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>MATRICULADOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{stats.matriculados}</h3>
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Contado:</span> <strong>{stats.matriculadosContado}</strong>
+
+            <div className="glass-panel-interactive" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>MATRICULADOS EN EL MES</span>
+              <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{stats.matriculados}</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                <span>Cont/Créd/Pref:</span>
+                <strong>{stats.matriculadosContado}/{stats.matriculadosCredito}/{stats.matriculadosPreference}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Crédito:</span> <strong>{stats.matriculadosCredito}</strong>
+            </div>
+
+            <div className="glass-panel-interactive" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>TASA INT. FINANCIERA</span>
+              <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>
+                {stats.matriculadosVN > 0 ? `${((stats.matriculadosVNFinanciados / stats.matriculadosVN) * 100).toFixed(1)}%` : "0.0%"}
+              </h3>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                <span>VN Finan/Total:</span>
+                <strong>{stats.matriculadosVNFinanciados}/{stats.matriculadosVN}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Preference:</span> <strong>{stats.matriculadosPreference}</strong>
+            </div>
+
+            <div className="glass-panel-interactive" style={{ padding: "16px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>PEDIDOS EN EL MES</span>
+              <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--warning)", fontWeight: "bold" }}>{stats.pedidos}</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                <span>Cont/Créd/Pref:</span>
+                <strong>{stats.pedidosContado}/{stats.pedidosCredito}/{stats.pedidosPreference}</strong>
               </div>
             </div>
           </div>
 
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>TASA INT. FINANCIERA</span>
-            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--secondary)", fontWeight: "bold" }}>
-              {stats.matriculadosVN > 0 ? `${((stats.matriculadosVNFinanciados / stats.matriculadosVN) * 100).toFixed(1)}%` : "0.0%"}
-            </h3>
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Matr. VN:</span> <strong>{stats.matriculadosVN}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>VN Financiados:</span> <strong>{stats.matriculadosVNFinanciados}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Tasa Global:</span> <strong>{stats.matriculados > 0 ? `${(((stats.matriculadosCredito + stats.matriculadosPreference) / stats.matriculados) * 100).toFixed(1)}%` : "0.0%"}</strong>
-              </div>
-            </div>
-          </div>
+          {/* Información del Plan y Tramos */}
+          {activePlan ? (() => {
+            const X = activePlan.objetivo_base + activePlan.arrastre;
+            const diff = stats.objetivoComputado - X;
+            let tramo = "X-4";
+            if (diff >= 3) tramo = "X+3";
+            else if (diff === 2) tramo = "X+2";
+            else if (diff === 1) tramo = "X+1";
+            else if (diff === 0) tramo = "X";
+            else if (diff === -1) tramo = "X-1";
+            else if (diff === -2) tramo = "X-2";
+            else if (diff === -3) tramo = "X-3";
+            else tramo = "X-4";
 
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>ENTREGADOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--accent)", fontWeight: "bold" }}>{stats.entregados}</h3>
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", justifyContent: "center" }}>
-              <span>Total de entregas</span>
-            </div>
-          </div>
+            const tramosValidos = ["X-4", "X-3", "X-2", "X-1", "X", "X+1", "X+2", "X+3"];
+            const cumpleMinimoMat = stats.matriculados >= activePlan.min_matriculaciones;
 
-          <div className="glass-panel-interactive" style={{ padding: "16px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>PEDIDOS EN EL MES</span>
-            <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--warning)", fontWeight: "bold" }}>{stats.pedidos}</h3>
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "8px", marginTop: "8px", fontSize: "0.75rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "4px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Contado:</span> <strong>{stats.pedidosContado}</strong>
+            // Calcular diferencia para el siguiente tramo
+            let textoSiguiente = "";
+            if (tramo !== "X+3") {
+              const valorActual = stats.objetivoComputado;
+              let valorSiguiente = X;
+              if (tramo === "X-4") valorSiguiente = X - 3;
+              else if (tramo === "X-3") valorSiguiente = X - 2;
+              else if (tramo === "X-2") valorSiguiente = X - 1;
+              else if (tramo === "X-1") valorSiguiente = X;
+              else if (tramo === "X") valorSiguiente = X + 1;
+              else if (tramo === "X+1") valorSiguiente = X + 2;
+              else if (tramo === "X+2") valorSiguiente = X + 3;
+              
+              const faltan = valorSiguiente - valorActual;
+              textoSiguiente = `Faltan ${faltan.toFixed(1)} ud. para subir al tramo ${tramosValidos[tramosValidos.indexOf(tramo) + 1]}`;
+            } else {
+              textoSiguiente = "¡Estás en el tramo máximo de comisión!";
+            }
+
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "20px" }}>
+                {/* Panel de Tramos e Inferencia */}
+                <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h5 style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>🎯 Seguimiento de Tramos de Comisión</h5>
+                    <span className="badge badge-tienda" style={{ fontSize: "0.75rem", backgroundColor: "rgba(59, 130, 246, 0.15)", color: "#3b82f6" }}>
+                      Plan: {activePlan.nombre}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "16px", alignItems: "center", background: "rgba(255,255,255,0.01)", padding: "12px", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>PUNTOS HOY</span>
+                      <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary)" }}>{stats.objetivoComputado.toFixed(1)}</div>
+                    </div>
+                    <div style={{ height: "40px", width: "1px", background: "var(--border-light)" }}></div>
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>OBJETIVO (X)</span>
+                      <div style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--text-primary)" }}>{X}</div>
+                    </div>
+                    <div style={{ height: "40px", width: "1px", background: "var(--border-light)" }}></div>
+                    <div>
+                      <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>TRAMO ALCANZADO</span>
+                      <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--success)" }}>Tramo {tramo}</div>
+                    </div>
+                  </div>
+
+                  {/* Barra visual de tramos */}
+                  <div>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>Línea de Tramos:</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px", gap: "4px" }}>
+                      {tramosValidos.map(t => {
+                        const isCurrent = t === tramo;
+                        return (
+                          <div
+                            key={t}
+                            style={{
+                              flex: 1,
+                              textAlign: "center",
+                              padding: "6px 2px",
+                              fontSize: "0.75rem",
+                              fontWeight: isCurrent ? 700 : 400,
+                              borderRadius: "4px",
+                              background: isCurrent ? "var(--success)" : "rgba(255,255,255,0.03)",
+                              color: isCurrent ? "#ffffff" : "var(--text-muted)",
+                              border: isCurrent ? "none" : "1px solid var(--border-light)",
+                              transition: "all 0.3s ease",
+                              boxShadow: isCurrent ? "0 0 10px rgba(16, 185, 129, 0.4)" : "none"
+                            }}
+                          >
+                            {t}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "8px", textAlign: "right", fontStyle: "italic" }}>
+                      {textoSiguiente}
+                    </div>
+                  </div>
+
+                  {/* Mínimo de matriculaciones */}
+                  <div style={{
+                    padding: "12px",
+                    background: cumpleMinimoMat ? "rgba(16, 185, 129, 0.05)" : "rgba(239, 68, 68, 0.05)",
+                    border: `1px solid ${cumpleMinimoMat ? "rgba(16, 185, 129, 0.2)" : "rgba(239, 68, 68, 0.2)"}`,
+                    borderRadius: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between"
+                  }}>
+                    <div>
+                      <strong style={{ fontSize: "0.85rem", color: cumpleMinimoMat ? "var(--success)" : "var(--danger)" }}>
+                        {cumpleMinimoMat ? "✓ Mínimo de Matriculaciones Cumplido" : "⚠️ Mínimo de Matriculaciones NO Alcanzado"}
+                      </strong>
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                        Necesitas mínimo {activePlan.min_matriculaciones} matriculaciones. Llevas {stats.matriculados}.
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "1.1rem", fontWeight: "bold", color: "var(--text-primary)" }}>
+                      {stats.matriculados} / {activePlan.min_matriculaciones}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Desglose de Expedientes */}
+                <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <h5 style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>📂 Desglose de Expedientes en el Periodo</h5>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "250px", overflowY: "auto" }}>
+                    <div>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--success)" }}>✓ Sumando al Objetivo (Matriculados) ({stats.matriculadosList.length})</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                        {stats.matriculadosList.map((m: any) => (
+                          <div key={m.id_expediente} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", padding: "4px 8px", background: "rgba(255,255,255,0.01)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                            <div>
+                              <strong style={{ color: "var(--primary)" }}>#EXP-{String(m.id_expediente).padStart(4, "0")}</strong> - {m.cliente?.nombre || "Sin cliente"}
+                              <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
+                                {m.modelo?.nombre_modelo} ({m.modelo?.marca?.nombre || "VO"}) | F. Mat: {formatDate(m.fecha_matriculacion)}
+                              </div>
+                            </div>
+                            <span style={{ fontWeight: 700, color: "var(--success)" }}>+{m.valorObjetivoEstimado?.toFixed(1) || "1.0"}</span>
+                          </div>
+                        ))}
+                        {stats.matriculadosList.length === 0 && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "4px" }}>
+                            No hay expedientes matriculados en este periodo.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: "8px" }}>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--warning)" }}>⏳ Pendientes de Matriculación (Pipeline) ({stats.pendientesList.length})</span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
+                        {stats.pendientesList.map((p: any) => (
+                          <div key={p.id_expediente} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", padding: "4px 8px", background: "rgba(255,255,255,0.01)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                            <div>
+                              <strong style={{ color: "var(--warning)" }}>#EXP-{String(p.id_expediente).padStart(4, "0")}</strong> - {p.cliente?.nombre || "Sin cliente"}
+                              <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
+                                {p.modelo?.nombre_modelo} | F. Exp: {formatDate(p.fecha_expediente)}{p.fecha_afectacion ? ` | F. Afect: ${formatDate(p.fecha_afectacion)}` : ""}
+                              </div>
+                            </div>
+                            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Pedido/Afect.</span>
+                          </div>
+                        ))}
+                        {stats.pendientesList.length === 0 && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "4px" }}>
+                            No hay expedientes pendientes de matriculación.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Crédito:</span> <strong>{stats.pedidosCredito}</strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Preference:</span> <strong>{stats.pedidosPreference}</strong>
-              </div>
+            );
+          })() : (
+            <div style={{
+              padding: "24px",
+              textAlign: "center",
+              background: "rgba(255, 255, 255, 0.02)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "4px",
+              color: "var(--text-secondary)",
+              fontSize: "0.9rem"
+            }}>
+              💡 No hay ningún plan de comisiones aplicable para el período seleccionado ({statsMonth}/{statsYear}).
+              Configura un plan en la pestaña de comisiones para habilitar la barra de tramos de objetivos.
             </div>
-          </div>
+          )}
         </div>
       </div>
 
