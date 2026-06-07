@@ -224,6 +224,33 @@ export async function POST(req: NextRequest) {
         return actualRate >= targetRate;
       };
 
+      // Helper para obtener el valor objetivo original de un expediente (priorizando el del expediente y cayendo al default de la marca del plan)
+      const getOriginalValorObjetivo = (exp: any) => {
+        if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+          return Number(exp.valor_objetivo);
+        }
+        const brandId = exp.modelo?.marca_id;
+        if (brandId) {
+          const brandIntervention = plan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
+          if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+            return Number(brandIntervention.valor_objetivo_defecto);
+          }
+        }
+        return 1.0;
+      };
+
+      // Contar cuántos vehículos matriculados en este mes por el vendedor tienen valor original de objetivo/multiplicador superior a 1
+      let totalMultiplicadorMatriculados = 0;
+      vendedorExps.forEach((exp) => {
+        const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+        if (entraMatriculacion) {
+          const origVal = getOriginalValorObjetivo(exp);
+          if (origVal > 1.0) {
+            totalMultiplicadorMatriculados++;
+          }
+        }
+      });
+
       // --- Primera Pasada: Identificar tipos, calcular totalComputablesVendedor y matriculacionesRealesVendedor ---
       let totalComputablesVendedor = 0;
       let matriculacionesRealesVendedor = 0;
@@ -256,18 +283,29 @@ export async function POST(req: NextRequest) {
 
         // A. Cómputo objetivo base VN o VO
         if (entraMatriculacion) {
+          const originalVal = getOriginalValorObjetivo(exp);
+          let valObj = originalVal;
+          let sufijoDetalle = "";
+          if (originalVal > 1.0) {
+            const targetR = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
+              ? Number(exp.min_coches_multiplicador)
+              : (plan.min_coches_multiplicador || 0);
+            if (totalMultiplicadorMatriculados < targetR) {
+              valObj = 1.0;
+              sufijoDetalle = ` (Multiplicador desestimado: hecho ${totalMultiplicadorMatriculados}/${targetR} req.)`;
+            } else {
+              sufijoDetalle = ` (Multiplicador aplicado: hecho ${totalMultiplicadorMatriculados}/${targetR} req.)`;
+            }
+          }
+
           if (isVN) {
             const brandId = exp.modelo?.marca_id;
             const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
             const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
             if (modelRate) {
-              let valObj = modelRate.valor_objetivo;
-              if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
-                valObj = Number(exp.valor_objetivo);
-              }
               objValorExpediente += valObj;
               itemsDetalle.push({
-                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo}) [${tasaCumplida ? 'Tasa OK' : 'Tasa Baja'}]${exp.valor_objetivo !== null && exp.valor_objetivo !== undefined ? ' (Personalizado)' : ''}`,
+                concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo}) [${tasaCumplida ? 'Tasa OK' : 'Tasa Baja'}]${sufijoDetalle}`,
                 importe: 0,
                 afecta_objetivo: true,
                 valor_objetivo: valObj
@@ -277,13 +315,9 @@ export async function POST(req: NextRequest) {
             if (!isVOVendedor) {
               const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
               if (usedRate) {
-                let valObj = usedRate.valor_objetivo;
-                if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
-                  valObj = Number(exp.valor_objetivo);
-                }
                 objValorExpediente += valObj;
                 itemsDetalle.push({
-                  concepto: `Cómputo Base VO Tipo (${tipoUsado})${exp.valor_objetivo !== null && exp.valor_objetivo !== undefined ? ' (Personalizado)' : ''}`,
+                  concepto: `Cómputo Base VO Tipo (${tipoUsado})${sufijoDetalle}`,
                   importe: 0,
                   afecta_objetivo: true,
                   valor_objetivo: valObj
@@ -291,16 +325,9 @@ export async function POST(req: NextRequest) {
               }
             } else {
               voUnitCounter++;
-              const tier = matchedPatternTiers.find((t: any) => t.unidad === voUnitCounter)
-                || matchedPatternTiers[matchedPatternTiers.length - 1]
-                || { valor_objetivo: 1, importe: 150 };
-              let valObj = tier.valor_objetivo;
-              if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
-                valObj = Number(exp.valor_objetivo);
-              }
               objValorExpediente += valObj;
               itemsDetalle.push({
-                concepto: `Cómputo VO Progresivo (Unidad #${voUnitCounter})${exp.valor_objetivo !== null && exp.valor_objetivo !== undefined ? ' (Personalizado)' : ''}`,
+                concepto: `Cómputo VO Progresivo (Unidad #${voUnitCounter})${sufijoDetalle}`,
                 importe: 0,
                 afecta_objetivo: true,
                 valor_objetivo: valObj
@@ -390,15 +417,17 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      // Determinar tramo
-      let tramoAlcanzado: "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" = "X-3";
+      // Determinar tramo (rango X-4 a X+3)
+      let tramoAlcanzado: "X-4" | "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" | "X+3" = "X-4";
       const diff = totalComputablesVendedor - X;
-      if (diff >= 2) tramoAlcanzado = "X+2";
+      if (diff >= 3) tramoAlcanzado = "X+3";
+      else if (diff === 2) tramoAlcanzado = "X+2";
       else if (diff === 1) tramoAlcanzado = "X+1";
       else if (diff === 0) tramoAlcanzado = "X";
       else if (diff === -1) tramoAlcanzado = "X-1";
       else if (diff === -2) tramoAlcanzado = "X-2";
-      else tramoAlcanzado = "X-3";
+      else if (diff === -3) tramoAlcanzado = "X-3";
+      else tramoAlcanzado = "X-4";
 
       const cumpleMinimo = matriculacionesRealesVendedor >= plan.min_matriculaciones;
 
@@ -434,12 +463,14 @@ export async function POST(req: NextRequest) {
               const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
               const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
               if (modelRate) {
-                let rateImporte = modelRate.rate_x_minus_3;
-                if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
+                let rateImporte = modelRate.rate_x_minus_4;
+                if (tramoAlcanzado === "X-3") rateImporte = modelRate.rate_x_minus_3;
+                else if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
                 else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
                 else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
                 else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
                 else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
+                else if (tramoAlcanzado === "X+3") rateImporte = modelRate.rate_x_plus_3;
 
                 comisionBaseVN = rateImporte;
                 finalItems.push({
@@ -678,7 +709,7 @@ export async function POST(req: NextRequest) {
 
     // Determinar tramo global (el tramo predominante, o el del primer vendedor,
     // para rellenar la cabecera de la liquidación global, o simplemente ponemos "Calculado")
-    let tramoPredominante = "X-3";
+    let tramoPredominante = "X-4";
     if (linesToInsert.length > 0) {
       tramoPredominante = linesToInsert[0].tramo_vendedor;
     }

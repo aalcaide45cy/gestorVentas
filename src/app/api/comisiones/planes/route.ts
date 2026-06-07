@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { nombre, fecha_inicio, fecha_fin, objetivo_base, arrastre, min_matriculaciones, cloneFromId } = body;
+    const { nombre, fecha_inicio, fecha_fin, objetivo_base, arrastre, min_matriculaciones, min_coches_multiplicador, cloneFromId } = body;
 
     if (!nombre || !fecha_inicio || !fecha_fin) {
       return NextResponse.json({ message: "Faltan datos obligatorios (nombre, fecha de inicio y fin)" }, { status: 400 });
@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
         objetivo_base: objetivo_base !== undefined ? Number(objetivo_base) : 0,
         arrastre: arrastre !== undefined ? Number(arrastre) : 0,
         min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
+        min_coches_multiplicador: min_coches_multiplicador !== undefined ? Number(min_coches_multiplicador) : 0,
         estado: "borrador",
       }).returning();
 
@@ -157,12 +158,14 @@ export async function POST(req: NextRequest) {
             id_plan: newId,
             id_modelo: r.id_modelo,
             tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
+            rate_x_minus_4: r.rate_x_minus_4,
             rate_x_minus_3: r.rate_x_minus_3,
             rate_x_minus_2: r.rate_x_minus_2,
             rate_x_minus_1: r.rate_x_minus_1,
             rate_x: r.rate_x,
             rate_x_plus_1: r.rate_x_plus_1,
             rate_x_plus_2: r.rate_x_plus_2,
+            rate_x_plus_3: r.rate_x_plus_3,
             valor_objetivo: r.valor_objetivo,
             activo: r.activo,
           }))
@@ -179,6 +182,7 @@ export async function POST(req: NextRequest) {
             id_plan: newId,
             id_marca: i.id_marca,
             tasa_intervencion: i.tasa_intervencion,
+            valor_objetivo_defecto: i.valor_objetivo_defecto,
           }))
         );
       }
@@ -314,6 +318,7 @@ export async function POST(req: NextRequest) {
         objetivo_base: objetivo_base ? Number(objetivo_base) : 12,
         arrastre: arrastre ? Number(arrastre) : 0,
         min_matriculaciones: min_matriculaciones ? Number(min_matriculaciones) : 6,
+        min_coches_multiplicador: min_coches_multiplicador ? Number(min_coches_multiplicador) : 0,
         estado: "borrador",
       }).returning();
 
@@ -341,12 +346,14 @@ export async function POST(req: NextRequest) {
             id_plan: newId,
             id_modelo: m.id_modelo,
             tasa_intervencion_cumplida: false,
+            rate_x_minus_4: 70,
             rate_x_minus_3: 80,
             rate_x_minus_2: 90,
             rate_x_minus_1: 100,
             rate_x: 120,
             rate_x_plus_1: 140,
             rate_x_plus_2: 160,
+            rate_x_plus_3: 180,
             valor_objetivo: 1,
             activo: true,
           });
@@ -355,12 +362,14 @@ export async function POST(req: NextRequest) {
             id_plan: newId,
             id_modelo: m.id_modelo,
             tasa_intervencion_cumplida: true,
+            rate_x_minus_4: 90,
             rate_x_minus_3: 100,
             rate_x_minus_2: 110,
             rate_x_minus_1: 120,
             rate_x: 140,
             rate_x_plus_1: 160,
             rate_x_plus_2: 180,
+            rate_x_plus_3: 200,
             valor_objetivo: 1,
             activo: true,
           });
@@ -372,7 +381,8 @@ export async function POST(req: NextRequest) {
       const interventionsToInsert = activeBrandIds.map(bId => ({
         id_plan: newId,
         id_marca: bId,
-        tasa_intervencion: 70
+        tasa_intervencion: 70,
+        valor_objetivo_defecto: 1.0
       }));
       if (interventionsToInsert.length > 0) {
         await db.insert(commissionBrandInterventionRates).values(interventionsToInsert);
@@ -447,6 +457,7 @@ export async function PUT(req: NextRequest) {
       objetivo_base,
       arrastre,
       min_matriculaciones,
+      min_coches_multiplicador,
       // Actualizaciones anidadas opcionales
       rates,
       financeRules,
@@ -472,6 +483,7 @@ export async function PUT(req: NextRequest) {
     if (objetivo_base !== undefined) updateData.objetivo_base = Number(objetivo_base);
     if (arrastre !== undefined) updateData.arrastre = Number(arrastre);
     if (min_matriculaciones !== undefined) updateData.min_matriculaciones = Number(min_matriculaciones);
+    if (min_coches_multiplicador !== undefined) updateData.min_coches_multiplicador = Number(min_coches_multiplicador);
 
     if (Object.keys(updateData).length > 0) {
       await db.update(commissionPlans).set(updateData).where(eq(commissionPlans.id_plan, Number(id_plan)));
@@ -486,12 +498,14 @@ export async function PUT(req: NextRequest) {
         id_plan: Number(id_plan),
         id_modelo: Number(r.id_modelo),
         tasa_intervencion_cumplida: !!r.tasa_intervencion_cumplida,
+        rate_x_minus_4: Number(r.rate_x_minus_4 ?? 0),
         rate_x_minus_3: Number(r.rate_x_minus_3 ?? 0),
         rate_x_minus_2: Number(r.rate_x_minus_2 ?? 0),
         rate_x_minus_1: Number(r.rate_x_minus_1 ?? 0),
         rate_x: Number(r.rate_x ?? 0),
         rate_x_plus_1: Number(r.rate_x_plus_1 ?? 0),
         rate_x_plus_2: Number(r.rate_x_plus_2 ?? 0),
+        rate_x_plus_3: Number(r.rate_x_plus_3 ?? 0),
         valor_objetivo: Number(r.valor_objetivo ?? 1),
         activo: r.activo !== undefined ? !!r.activo : true,
       }));
@@ -635,7 +649,8 @@ export async function PUT(req: NextRequest) {
           activeInterventions.map((i: any) => ({
             id_plan: Number(id_plan),
             id_marca: Number(i.id_marca),
-            tasa_intervencion: Number(i.tasa_intervencion ?? 70)
+            tasa_intervencion: Number(i.tasa_intervencion ?? 70),
+            valor_objetivo_defecto: i.valor_objetivo_defecto !== undefined ? Number(i.valor_objetivo_defecto) : 1.0
           }))
         );
       }

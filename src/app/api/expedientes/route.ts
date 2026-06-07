@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo, commissionPlans, commissionPlanModelRates } from "@/db/schema";
+import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo, commissionPlans, commissionPlanModelRates, modelos, commissionBrandInterventionRates } from "@/db/schema";
 import { eq, ilike, inArray, and, lte, gte } from "drizzle-orm";
 
 export async function POST(req: NextRequest) {
@@ -118,8 +118,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Determinar valor_objetivo por defecto de la tasa del plan activo
+    // Determinar valor_objetivo por defecto y min_coches_multiplicador de la tasa del plan activo
     let defaultValorObjetivo = 1;
+    let defaultMinCochesMultiplicador = 0;
+    
     if (expedienteData.id_modelo) {
       let activePlan = await db.query.commissionPlans.findFirst({
         where: and(
@@ -139,15 +141,22 @@ export async function POST(req: NextRequest) {
       }
 
       if (activePlan) {
-        const modelRate = await db.query.commissionPlanModelRates.findFirst({
-          where: and(
-            eq(commissionPlanModelRates.id_plan, activePlan.id_plan),
-            eq(commissionPlanModelRates.id_modelo, expedienteData.id_modelo),
-            eq(commissionPlanModelRates.activo, true)
-          )
+        defaultMinCochesMultiplicador = activePlan.min_coches_multiplicador || 0;
+        
+        const modelObj = await db.query.modelos.findFirst({
+          where: eq(modelos.id_modelo, expedienteData.id_modelo)
         });
-        if (modelRate) {
-          defaultValorObjetivo = Number(modelRate.valor_objetivo);
+        
+        if (modelObj?.marca_id) {
+          const brandIntervention = await db.query.commissionBrandInterventionRates.findFirst({
+            where: and(
+              eq(commissionBrandInterventionRates.id_plan, activePlan.id_plan),
+              eq(commissionBrandInterventionRates.id_marca, modelObj.marca_id)
+            )
+          });
+          if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+            defaultValorObjetivo = Number(brandIntervention.valor_objetivo_defecto);
+          }
         }
       }
     }
@@ -155,6 +164,10 @@ export async function POST(req: NextRequest) {
     const valorObjetivoToSave = (expedienteData.valor_objetivo !== undefined && expedienteData.valor_objetivo !== null)
       ? Number(expedienteData.valor_objetivo)
       : defaultValorObjetivo;
+
+    const minCochesMultiplicadorToSave = (expedienteData.min_coches_multiplicador !== undefined && expedienteData.min_coches_multiplicador !== null)
+      ? Number(expedienteData.min_coches_multiplicador)
+      : defaultMinCochesMultiplicador;
 
     // Crear el expediente
     const [nuevoExpediente] = await db.insert(expedientes).values({
@@ -172,6 +185,7 @@ export async function POST(req: NextRequest) {
       id_tipo_de_venta: expedienteData.id_tipo_de_venta || null,
       id_estado_vehiculo: estadoVehiculoId,
       valor_objetivo: valorObjetivoToSave,
+      min_coches_multiplicador: minCochesMultiplicadorToSave,
     }).returning();
 
     return NextResponse.json({ success: true, data: nuevoExpediente }, { status: 201 });
@@ -219,6 +233,7 @@ export async function PUT(req: NextRequest) {
       vin: expedienteData.vin !== undefined ? expedienteData.vin : undefined,
       id_cliente: id_cliente !== undefined ? id_cliente : undefined,
       valor_objetivo: expedienteData.valor_objetivo !== undefined ? (expedienteData.valor_objetivo !== null ? Number(expedienteData.valor_objetivo) : null) : undefined,
+      min_coches_multiplicador: expedienteData.min_coches_multiplicador !== undefined ? (expedienteData.min_coches_multiplicador !== null ? Number(expedienteData.min_coches_multiplicador) : 0) : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 
     return NextResponse.json({ success: true, message: "Expediente actualizado correctamente" }, { status: 200 });

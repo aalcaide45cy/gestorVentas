@@ -209,6 +209,11 @@ export default function EditarExpedienteForm({
       ? Number(expediente.valor_objetivo)
       : 1
   );
+  const [minCochesMultiplicador, setMinCochesMultiplicador] = useState<number>(
+    expediente.min_coches_multiplicador !== undefined && expediente.min_coches_multiplicador !== null
+      ? Number(expediente.min_coches_multiplicador)
+      : 0
+  );
   const [comisionBreakdown, setComisionBreakdown] = useState<any | null>(null);
   const [calculandoComision, setCalculandoComision] = useState(false);
 
@@ -299,6 +304,11 @@ export default function EditarExpedienteForm({
       : 1;
     if (valorObjetivo !== originalValorObjetivo) return true;
 
+    const originalMinCochesMultiplicador = expediente.min_coches_multiplicador !== null && expediente.min_coches_multiplicador !== undefined
+      ? Number(expediente.min_coches_multiplicador)
+      : 0;
+    if (minCochesMultiplicador !== originalMinCochesMultiplicador) return true;
+
     return false;
   };
 
@@ -330,7 +340,7 @@ export default function EditarExpedienteForm({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleAnchorClick, true);
     };
-  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, success]);
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, minCochesMultiplicador, success]);
 
   useEffect(() => {
     if (!modeloSeleccionado) {
@@ -358,6 +368,7 @@ export default function EditarExpedienteForm({
             matricula: matricula || null,
             vin: vin || null,
             valor_objetivo: valorObjetivo,
+            min_coches_multiplicador: minCochesMultiplicador,
             id_cliente: clienteAsignado ? clienteAsignado.id : null
           })
         });
@@ -389,6 +400,7 @@ export default function EditarExpedienteForm({
     fechaMatriculacion,
     fechaEntrega,
     valorObjetivo,
+    minCochesMultiplicador,
     clienteAsignado,
     matricula,
     vin
@@ -419,7 +431,8 @@ export default function EditarExpedienteForm({
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
-            valor_objetivo: valorObjetivo
+            valor_objetivo: valorObjetivo,
+            min_coches_multiplicador: minCochesMultiplicador,
           }
         })
       });
@@ -747,6 +760,19 @@ export default function EditarExpedienteForm({
               <label className="form-label">Fecha Entrega</label>
               <input type="date" className="form-input" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
             </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN NUEVA: COMISIONAMIENTO */}
+        <div className="glass-panel" style={{ padding: "32px", marginTop: "24px" }}>
+          <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+            Comisionamiento del Expediente
+          </h2>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px" }}>
             <div className="form-group">
               <label className="form-label">VAL. Obj. / Multiplicador</label>
               <select
@@ -764,6 +790,16 @@ export default function EditarExpedienteForm({
                 <option value={3.5}>3.5</option>
                 <option value={4}>4</option>
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Coches con Multiplicador Req. (Mes)</label>
+              <input
+                type="number"
+                className="form-input"
+                value={minCochesMultiplicador}
+                onChange={e => setMinCochesMultiplicador(Number(e.target.value))}
+                min={0}
+              />
             </div>
           </div>
         </div>

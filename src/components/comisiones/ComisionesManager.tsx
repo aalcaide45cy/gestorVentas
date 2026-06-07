@@ -55,6 +55,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [objetivoBase, setObjetivoBase] = useState(0);
   const [arrastre, setArrastre] = useState(0);
   const [minMatriculaciones, setMinMatriculaciones] = useState(6);
+  const [minCochesMultiplicador, setMinCochesMultiplicador] = useState(0);
 
   // Modelos y tarifas
   const [rates, setRates] = useState<any[]>([]);
@@ -98,13 +99,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // Clipboard para copiar/pegar valores de tarifas
   const [rateClipboard, setRateClipboard] = useState<{
-    valor_objetivo: number;
+    rate_x_minus_4: number;
     rate_x_minus_3: number;
     rate_x_minus_2: number;
     rate_x_minus_1: number;
     rate_x: number;
     rate_x_plus_1: number;
     rate_x_plus_2: number;
+    rate_x_plus_3: number;
     activo: boolean;
   } | null>(null);
 
@@ -182,6 +184,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setObjetivoBase(plan.objetivo_base);
         setArrastre(plan.arrastre);
         setMinMatriculaciones(plan.min_matriculaciones);
+        setMinCochesMultiplicador(plan.min_coches_multiplicador || 0);
 
         // Proactive Healing: Asegurar que cada modelo de marca activa tenga exactamente 2 filas (tasa cumplida y no cumplida)
         const initialRates = plan.rates || [];
@@ -197,12 +200,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               id_plan: id,
               id_modelo: m.id,
               tasa_intervencion_cumplida: false,
+              rate_x_minus_4: 70,
               rate_x_minus_3: 80,
               rate_x_minus_2: 90,
               rate_x_minus_1: 100,
               rate_x: 120,
               rate_x_plus_1: 140,
               rate_x_plus_2: 160,
+              rate_x_plus_3: 180,
               valor_objetivo: 1,
               activo: true,
             });
@@ -214,12 +219,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               id_plan: id,
               id_modelo: m.id,
               tasa_intervencion_cumplida: true,
+              rate_x_minus_4: 90,
               rate_x_minus_3: 100,
               rate_x_minus_2: 110,
               rate_x_minus_1: 120,
               rate_x: 140,
               rate_x_plus_1: 160,
               rate_x_plus_2: 180,
+              rate_x_plus_3: 200,
               valor_objetivo: 1,
               activo: true,
             });
@@ -274,6 +281,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           objetivo_base: objetivoBase,
           arrastre: arrastre,
           min_matriculaciones: minMatriculaciones,
+          min_coches_multiplicador: minCochesMultiplicador,
           rates,
           financeRules: {
             importe_normal: financeNormal,
@@ -929,6 +937,18 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     />
                   </div>
 
+                  <div className="form-group">
+                    <label className="form-label">Coches con Multiplicador Req. (Mes)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={minCochesMultiplicador}
+                      onChange={(e) => setMinCochesMultiplicador(Number(e.target.value))}
+                      disabled={planEstado === "cerrado" || !isAdmin}
+                      min={0}
+                    />
+                  </div>
+
                   <div style={{
                     padding: "16px 20px",
                     background: "rgba(124, 58, 237, 0.05)",
@@ -990,6 +1010,57 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     })}
                   </div>
                 </div>
+
+                {/* Bloque Derecho (Extremo): Valor Objetivo por Defecto */}
+                <div className="glass-panel" style={{ display: "flex", flexDirection: "column", gap: "20px", flex: 1, minWidth: "300px", maxWidth: "450px", padding: "24px", background: "rgba(255, 255, 255, 0.01)" }}>
+                  <h4 style={{ fontSize: "1.05rem", color: "var(--text-primary)", margin: 0 }}>Valor Objetivo por Defecto por Marca</h4>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.82rem", margin: 0 }}>
+                    Establece el valor objetivo / multiplicador por defecto que se asignará a cada expediente nuevo según su marca.
+                  </p>
+                  
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "8px" }}>
+                    {marcas.filter(m => !!m.sistema_comisiones).map((brand) => {
+                      const rateObj = brandInterventionRates.find(r => r.id_marca === brand.id) || {
+                        id_marca: brand.id,
+                        valor_objetivo_defecto: 1.0
+                      };
+
+                      const handleDefaultObjectiveChange = (newVal: number) => {
+                        const existingIdx = brandInterventionRates.findIndex(r => r.id_marca === brand.id);
+                        if (existingIdx !== -1) {
+                          const updated = [...brandInterventionRates];
+                          updated[existingIdx] = { ...updated[existingIdx], valor_objetivo_defecto: newVal };
+                          setBrandInterventionRates(updated);
+                        } else {
+                          setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, valor_objetivo_defecto: newVal }]);
+                        }
+                      };
+
+                      return (
+                        <div key={brand.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px" }}>
+                          <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--text-primary)" }}>{brand.nombre}</span>
+                          <select
+                            className="form-select"
+                            value={rateObj.valor_objetivo_defecto !== undefined ? rateObj.valor_objetivo_defecto : 1.0}
+                            onChange={(e) => handleDefaultObjectiveChange(Number(e.target.value))}
+                            disabled={planEstado === "cerrado" || !isAdmin}
+                            style={{ width: "90px", padding: "4px 8px" }}
+                          >
+                            <option value={0}>0</option>
+                            <option value={0.5}>0.5</option>
+                            <option value={1}>1</option>
+                            <option value={1.5}>1.5</option>
+                            <option value={2}>2</option>
+                            <option value={2.5}>2.5</option>
+                            <option value={3}>3</option>
+                            <option value={3.5}>3.5</option>
+                            <option value={4}>4</option>
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1027,13 +1098,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     // Clipboard: copiar valores de una línea
                     const handleCopyRate = (r: any) => {
                       setRateClipboard({
-                        valor_objetivo: r.valor_objetivo,
+                        rate_x_minus_4: r.rate_x_minus_4 || 0,
                         rate_x_minus_3: r.rate_x_minus_3 || 0,
                         rate_x_minus_2: r.rate_x_minus_2 || 0,
                         rate_x_minus_1: r.rate_x_minus_1 || 0,
                         rate_x: r.rate_x || 0,
                         rate_x_plus_1: r.rate_x_plus_1 || 0,
                         rate_x_plus_2: r.rate_x_plus_2 || 0,
+                        rate_x_plus_3: r.rate_x_plus_3 || 0,
                         activo: r.activo !== false,
                       });
                       showNotification("Valores copiados al portapapeles. Usa 📋 Pegar en otra línea.", "success");
@@ -1103,13 +1175,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 {isAdmin && planEstado !== "cerrado" && <th style={{ width: "50px", textAlign: "center" }}>Orden</th>}
                                 <th style={{ minWidth: "140px" }}>Modelo</th>
                                 <th>Tasa Intervención</th>
-                                <th style={{ width: "80px", textAlign: "center" }}>Val. Obj</th>
-                                <th style={{ width: "90px" }}>X - 3</th>
-                                <th style={{ width: "90px" }}>X - 2</th>
-                                <th style={{ width: "90px" }}>X - 1</th>
-                                <th style={{ width: "90px" }}>X</th>
-                                <th style={{ width: "90px" }}>X + 1</th>
-                                <th style={{ width: "90px" }}>X + 2</th>
+                                <th style={{ width: "80px" }}>X - 4</th>
+                                <th style={{ width: "80px" }}>X - 3</th>
+                                <th style={{ width: "80px" }}>X - 2</th>
+                                <th style={{ width: "80px" }}>X - 1</th>
+                                <th style={{ width: "80px" }}>X</th>
+                                <th style={{ width: "80px" }}>X + 1</th>
+                                <th style={{ width: "80px" }}>X + 2</th>
+                                <th style={{ width: "80px" }}>X + 3</th>
                                 <th style={{ width: "70px", textAlign: "center" }}>Activo</th>
                                 {isAdmin && planEstado !== "cerrado" && <th style={{ width: "150px" }}>Acciones</th>}
                               </tr>
@@ -1142,7 +1215,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 if (sortedModelIds.length === 0) {
                                   return (
                                     <tr>
-                                      <td colSpan={13} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
+                                      <td colSpan={15} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
                                         No hay modelos de {brand.nombre} configurados en este plan.
                                       </td>
                                     </tr>
@@ -1168,8 +1241,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                     rateLess = {
                                       id_modelo: modelId,
                                       tasa_intervencion_cumplida: false,
-                                      rate_x_minus_3: 80, rate_x_minus_2: 90, rate_x_minus_1: 100,
-                                      rate_x: 120, rate_x_plus_1: 140, rate_x_plus_2: 160,
+                                      rate_x_minus_4: 70, rate_x_minus_3: 80, rate_x_minus_2: 90, rate_x_minus_1: 100,
+                                      rate_x: 120, rate_x_plus_1: 140, rate_x_plus_2: 160, rate_x_plus_3: 180,
                                       valor_objetivo: 1, activo: true,
                                     };
                                   }
@@ -1177,8 +1250,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                     rateMore = {
                                       id_modelo: modelId,
                                       tasa_intervencion_cumplida: true,
-                                      rate_x_minus_3: 100, rate_x_minus_2: 110, rate_x_minus_1: 120,
-                                      rate_x: 140, rate_x_plus_1: 160, rate_x_plus_2: 180,
+                                      rate_x_minus_4: 90, rate_x_minus_3: 100, rate_x_minus_2: 110, rate_x_minus_1: 120,
+                                      rate_x: 140, rate_x_plus_1: 160, rate_x_plus_2: 180, rate_x_plus_3: 200,
                                       valor_objetivo: rateLess.valor_objetivo || 1,
                                       activo: rateLess.activo !== undefined ? rateLess.activo : true,
                                     };
@@ -1258,26 +1331,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         <td style={{ color: "var(--success)", fontWeight: 600, verticalAlign: "middle" }}>
                                           Tasa ≥ {targetIntervention}%
                                         </td>
-                                        <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                                          <select
-                                            className="form-select"
-                                            value={rateMore.valor_objetivo}
-                                            onChange={(e) => handleSpecificChange(rateMore, "valor_objetivo", Number(e.target.value))}
-                                            disabled={planEstado === "cerrado" || !isAdmin}
-                                            style={{ padding: "4px 8px", width: "70px", margin: "0 auto" }}
-                                          >
-                                            <option value={0}>0</option>
-                                            <option value={0.5}>0.5</option>
-                                            <option value={1}>1</option>
-                                            <option value={1.5}>1.5</option>
-                                            <option value={2}>2</option>
-                                            <option value={2.5}>2.5</option>
-                                            <option value={3}>3</option>
-                                            <option value={3.5}>3.5</option>
-                                            <option value={4}>4</option>
-                                          </select>
-                                        </td>
-                                        {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                        {["rate_x_minus_4", "rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2", "rate_x_plus_3"].map((col) => (
                                           <td key={col} style={{ borderBottom: "none" }}>
                                             <input
                                               type="number"
@@ -1285,7 +1339,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                               value={rateMore[col] || 0}
                                               onChange={(e) => handleSpecificChange(rateMore, col, Number(e.target.value))}
                                               disabled={planEstado === "cerrado" || !isAdmin}
-                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "75px" }}
                                             />
                                           </td>
                                         ))}
@@ -1317,26 +1371,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                         <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
                                           Tasa {"<"} {targetIntervention}%
                                         </td>
-                                        <td style={{ textAlign: "center", verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                          <select
-                                            className="form-select"
-                                            value={rateLess.valor_objetivo}
-                                            onChange={(e) => handleSpecificChange(rateLess, "valor_objetivo", Number(e.target.value))}
-                                            disabled={planEstado === "cerrado" || !isAdmin}
-                                            style={{ padding: "4px 8px", width: "70px", margin: "0 auto" }}
-                                          >
-                                            <option value={0}>0</option>
-                                            <option value={0.5}>0.5</option>
-                                            <option value={1}>1</option>
-                                            <option value={1.5}>1.5</option>
-                                            <option value={2}>2</option>
-                                            <option value={2.5}>2.5</option>
-                                            <option value={3}>3</option>
-                                            <option value={3.5}>3.5</option>
-                                            <option value={4}>4</option>
-                                          </select>
-                                        </td>
-                                        {["rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2"].map((col) => (
+                                        {["rate_x_minus_4", "rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2", "rate_x_plus_3"].map((col) => (
                                           <td key={col} style={{ borderBottom: "1px solid var(--border-light)" }}>
                                             <input
                                               type="number"
@@ -1344,7 +1379,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                               value={rateLess[col] || 0}
                                               onChange={(e) => handleSpecificChange(rateLess, col, Number(e.target.value))}
                                               disabled={planEstado === "cerrado" || !isAdmin}
-                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "80px" }}
+                                              style={{ padding: "4px 8px", fontSize: "0.85rem", width: "75px" }}
                                             />
                                           </td>
                                         ))}

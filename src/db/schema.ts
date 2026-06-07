@@ -118,6 +118,7 @@ export const expedientes = pgTable('expedientes', {
   id_estado_vehiculo: integer('id_estado_vehiculo').references(() => estadoVehiculo.id_estado_vehiculo),
   vin: varchar('vin', { length: 100 }),
   valor_objetivo: doublePrecision('valor_objetivo'),
+  min_coches_multiplicador: integer('min_coches_multiplicador').notNull().default(0),
 });
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===
@@ -235,6 +236,7 @@ export const commissionPlans = pgTable('commission_plans', {
   objetivo_base: integer('objetivo_base').notNull().default(0),
   arrastre: integer('arrastre').notNull().default(0),
   min_matriculaciones: integer('min_matriculaciones').notNull().default(6),
+  min_coches_multiplicador: integer('min_coches_multiplicador').notNull().default(0),
 });
 
 // 2. TABLA: COMMISSION_PLAN_MODEL_RATES (Tramos de comisión por modelo)
@@ -243,13 +245,15 @@ export const commissionPlanModelRates = pgTable('commission_plan_model_rates', {
   id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
   id_modelo: integer('id_modelo').references(() => modelos.id_modelo, { onDelete: 'cascade' }).notNull(),
   tasa_intervencion_cumplida: boolean('tasa_intervencion_cumplida').notNull().default(false), // false = inferior, true = superior/igual
+  rate_x_minus_4: integer('rate_x_minus_4').notNull().default(0),
   rate_x_minus_3: integer('rate_x_minus_3').notNull().default(0),
   rate_x_minus_2: integer('rate_x_minus_2').notNull().default(0),
   rate_x_minus_1: integer('rate_x_minus_1').notNull().default(0),
   rate_x: integer('rate_x').notNull().default(0),
   rate_x_plus_1: integer('rate_x_plus_1').notNull().default(0),
   rate_x_plus_2: integer('rate_x_plus_2').notNull().default(0),
-  valor_objetivo: doublePrecision('valor_objetivo').notNull().default(1), // valor computable objetivo (ej. 1 o 2)
+  rate_x_plus_3: integer('rate_x_plus_3').notNull().default(0),
+  valor_objetivo: doublePrecision('valor_objetivo').notNull().default(1), // valor computable objetivo (ej. 1 o 2) - Conservado para evitar conflictos interactivos de migración
   activo: boolean('activo').notNull().default(true),
 });
 
@@ -342,6 +346,7 @@ export const commissionBrandInterventionRates = pgTable('commission_brand_interv
   id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
   id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'cascade' }).notNull(),
   tasa_intervencion: integer('tasa_intervencion').notNull().default(70), // e.g. 70 para 70%
+  valor_objetivo_defecto: doublePrecision('valor_objetivo_defecto').notNull().default(1.0),
 });
 
 // 6. TABLA: COMMISSION_LIQUIDATIONS (Liquidación de un plan)
