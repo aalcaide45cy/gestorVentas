@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
       const [nuevo] = await db.insert(modelos).values({
         marca_id: Number(data.marca_id),
         nombre_modelo: data.nombre_modelo,
-        acceso_rapido: !!data.acceso_rapido
+        acceso_rapido: !!data.acceso_rapido,
+        orden_acceso_rapido: data.orden_acceso_rapido !== undefined ? Number(data.orden_acceso_rapido) : 0
       }).returning();
       return NextResponse.json({ success: true, data: nuevo }, { status: 201 });
     }

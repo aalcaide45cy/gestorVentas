@@ -216,6 +216,8 @@ export default function AdminCatalogosForm({
   const [nuevoModeloMarcaId, setNuevoModeloMarcaId] = useState<number | "">("");
   const [nuevoModeloNombre, setNuevoModeloNombre] = useState("");
   const [nuevoModeloAccesoRapido, setNuevoModeloAccesoRapido] = useState(false);
+  const [nuevoModeloOrden, setNuevoModeloOrden] = useState<number>(0);
+  const [tempOrders, setTempOrders] = useState<Record<number, number>>({});
   const [nuevoTipoVentaNombre, setNuevoTipoVentaNombre] = useState("");
   const [nuevoTipoVentaColor, setNuevoTipoVentaColor] = useState("#3b82f6");
   const [nuevoEstadoVehiculoNombre, setNuevoEstadoVehiculoNombre] = useState("");
@@ -500,7 +502,8 @@ export default function AdminCatalogosForm({
           tipo: "modelo",
           marca_id: nuevoModeloMarcaId,
           nombre_modelo: nuevoModeloNombre,
-          acceso_rapido: nuevoModeloAccesoRapido
+          acceso_rapido: nuevoModeloAccesoRapido,
+          orden_acceso_rapido: nuevoModeloOrden
         })
       });
 
@@ -511,13 +514,19 @@ export default function AdminCatalogosForm({
         if (m.id_marca === Number(nuevoModeloMarcaId)) {
           return {
             ...m,
-            modelos: [...m.modelos, { id_modelo: result.data.id_modelo, nombre_modelo: result.data.nombre_modelo, acceso_rapido: result.data.acceso_rapido }]
+            modelos: [...m.modelos, { 
+              id_modelo: result.data.id_modelo, 
+              nombre_modelo: result.data.nombre_modelo, 
+              acceso_rapido: result.data.acceso_rapido,
+              orden_acceso_rapido: result.data.orden_acceso_rapido 
+            }]
           };
         }
         return m;
       }));
       setNuevoModeloNombre("");
       setNuevoModeloAccesoRapido(false);
+      setNuevoModeloOrden(0);
       showNotification("Modelo creado correctamente", "success");
       router.refresh();
     } catch (err: any) {
@@ -1077,6 +1086,20 @@ export default function AdminCatalogosForm({
                 Acceso Rápido
               </label>
             </div>
+            {nuevoModeloAccesoRapido && (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "0.9rem", color: "var(--text-secondary)", fontWeight: 500 }}>Orden:</span>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={nuevoModeloOrden}
+                  onChange={e => setNuevoModeloOrden(Number(e.target.value))}
+                  disabled={loading}
+                  style={{ width: "80px", padding: "8px", textAlign: "center" }}
+                  min={0}
+                />
+              </div>
+            )}
             <button type="submit" className="btn btn-primary" disabled={loading || !nuevoModeloMarcaId}>
               + Crear Modelo
             </button>
@@ -1187,8 +1210,23 @@ export default function AdminCatalogosForm({
                                 <input
                                   type="number"
                                   className="form-input"
-                                  value={mod.orden_acceso_rapido || 0}
-                                  onChange={e => handleUpdateModelOrder(mod.id_modelo, Number(e.target.value), mod.id_marca)}
+                                  value={tempOrders[mod.id_modelo] !== undefined ? tempOrders[mod.id_modelo] : (mod.orden_acceso_rapido || 0)}
+                                  onChange={e => setTempOrders({ ...tempOrders, [mod.id_modelo]: Number(e.target.value) })}
+                                  onBlur={() => {
+                                    const val = tempOrders[mod.id_modelo];
+                                    if (val !== undefined && val !== mod.orden_acceso_rapido) {
+                                      handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
+                                    }
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") {
+                                      const val = tempOrders[mod.id_modelo];
+                                      if (val !== undefined && val !== mod.orden_acceso_rapido) {
+                                        handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
+                                      }
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
                                   style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }}
                                   disabled={loading}
                                 />
@@ -1312,8 +1350,23 @@ export default function AdminCatalogosForm({
                                 <input
                                   type="number"
                                   className="form-input"
-                                  value={mod.orden_acceso_rapido || 0}
-                                  onChange={e => handleUpdateModelOrder(mod.id_modelo, Number(e.target.value), mod.id_marca)}
+                                  value={tempOrders[mod.id_modelo] !== undefined ? tempOrders[mod.id_modelo] : (mod.orden_acceso_rapido || 0)}
+                                  onChange={e => setTempOrders({ ...tempOrders, [mod.id_modelo]: Number(e.target.value) })}
+                                  onBlur={() => {
+                                    const val = tempOrders[mod.id_modelo];
+                                    if (val !== undefined && val !== mod.orden_acceso_rapido) {
+                                      handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
+                                    }
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === "Enter") {
+                                      const val = tempOrders[mod.id_modelo];
+                                      if (val !== undefined && val !== mod.orden_acceso_rapido) {
+                                        handleUpdateModelOrder(mod.id_modelo, val, mod.id_marca);
+                                      }
+                                      (e.target as HTMLInputElement).blur();
+                                    }
+                                  }}
                                   style={{ width: "70px", padding: "4px 8px", fontSize: "0.85rem", textAlign: "center" }}
                                   disabled={loading}
                                 />
