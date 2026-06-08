@@ -349,6 +349,7 @@ export const commissionBrandInterventionRates = pgTable('commission_brand_interv
   id_marca: integer('id_marca').references(() => marcas.id_marca, { onDelete: 'cascade' }).notNull(),
   tasa_intervencion: integer('tasa_intervencion').notNull().default(70), // e.g. 70 para 70%
   valor_objetivo_defecto: doublePrecision('valor_objetivo_defecto').notNull().default(1.0),
+  tipo_tasa: varchar('tipo_tasa', { length: 50 }).default('porcentaje').notNull(),
 });
 
 // 6. TABLA: COMMISSION_LIQUIDATIONS (Liquidación de un plan)

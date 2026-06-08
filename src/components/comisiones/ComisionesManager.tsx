@@ -72,6 +72,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [newRuleImporte, setNewRuleImporte] = useState("100");
   const [newRuleTasaIntervencion, setNewRuleTasaIntervencion] = useState<string>("");
 
+  const [editingRuleIdx, setEditingRuleIdx] = useState<number | null>(null);
+  const [editingRuleName, setEditingRuleName] = useState("");
+  const [editingRuleType, setEditingRuleType] = useState("pedido");
+  const [editingRuleMarca, setEditingRuleMarca] = useState<string>("");
+  const [editingRuleModelo, setEditingRuleModelo] = useState<string>("");
+  const [editingRuleAfectaObj, setEditingRuleAfectaObj] = useState(false);
+  const [editingRuleValObj, setEditingRuleValObj] = useState("1");
+  const [editingRuleAfectaCom, setEditingRuleAfectaCom] = useState(true);
+  const [editingRuleImporte, setEditingRuleImporte] = useState("100");
+  const [editingRuleTasaIntervencion, setEditingRuleTasaIntervencion] = useState<string>("");
+
   // Bonus
   const [bonusRules, setBonusRules] = useState<any[]>([]);
   const [newBonusName, setNewBonusName] = useState("");
@@ -562,6 +573,49 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   const handleDeleteRule = (idx: number) => {
     setRules(rules.filter((_, i) => i !== idx));
+    if (editingRuleIdx === idx) {
+      setEditingRuleIdx(null);
+    }
+  };
+
+  const handleStartEditRule = (idx: number) => {
+    const r = rules[idx];
+    setEditingRuleIdx(idx);
+    setEditingRuleName(r.nombre);
+    setEditingRuleType(r.tipo_evento);
+    setEditingRuleMarca(r.id_marca ? String(r.id_marca) : "");
+    setEditingRuleModelo(r.id_modelo ? String(r.id_modelo) : "");
+    setEditingRuleAfectaObj(r.afecta_objetivo);
+    setEditingRuleValObj(String(r.valor_objetivo || 1));
+    setEditingRuleAfectaCom(r.afecta_comision);
+    setEditingRuleImporte(String(r.importe || 0));
+    setEditingRuleTasaIntervencion(r.tasa_intervencion_cumplida === null ? "" : String(r.tasa_intervencion_cumplida));
+  };
+
+  const handleSaveRuleEdit = (idx: number) => {
+    if (!editingRuleName.trim()) {
+      showNotification("Por favor, introduce un nombre para la regla", "error");
+      return;
+    }
+    const updatedRules = [...rules];
+    updatedRules[idx] = {
+      ...updatedRules[idx],
+      nombre: editingRuleName,
+      tipo_evento: editingRuleType,
+      id_marca: editingRuleMarca ? Number(editingRuleMarca) : null,
+      id_modelo: editingRuleModelo ? Number(editingRuleModelo) : null,
+      afecta_objetivo: editingRuleAfectaObj,
+      valor_objetivo: editingRuleAfectaObj ? Number(editingRuleValObj || 0) : 0,
+      afecta_comision: editingRuleAfectaCom,
+      importe: editingRuleAfectaCom ? Number(editingRuleImporte || 0) : 0,
+      tasa_intervencion_cumplida: editingRuleTasaIntervencion === "" ? null : (editingRuleTasaIntervencion === "true")
+    };
+    setRules(updatedRules);
+    setEditingRuleIdx(null);
+  };
+
+  const handleCancelRuleEdit = () => {
+    setEditingRuleIdx(null);
   };
 
   // --- CRUD local de bonus ---
@@ -1010,7 +1064,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     {marcas.filter(m => !!m.sistema_comisiones).map((brand) => {
                       const rateObj = brandInterventionRates.find(r => r.id_marca === brand.id) || {
                         id_marca: brand.id,
-                        tasa_intervencion: 70
+                        tasa_intervencion: 70,
+                        tipo_tasa: "porcentaje"
                       };
 
                       const handleInterventionChange = (newVal: number) => {
@@ -1020,7 +1075,18 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           updated[existingIdx] = { ...updated[existingIdx], tasa_intervencion: newVal };
                           setBrandInterventionRates(updated);
                         } else {
-                          setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, tasa_intervencion: newVal }]);
+                          setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, tasa_intervencion: newVal, tipo_tasa: "porcentaje" }]);
+                        }
+                      };
+
+                      const handleTipoTasaChange = (newTipo: string) => {
+                        const existingIdx = brandInterventionRates.findIndex(r => r.id_marca === brand.id);
+                        if (existingIdx !== -1) {
+                          const updated = [...brandInterventionRates];
+                          updated[existingIdx] = { ...updated[existingIdx], tipo_tasa: newTipo };
+                          setBrandInterventionRates(updated);
+                        } else {
+                          setBrandInterventionRates([...brandInterventionRates, { id_marca: brand.id, tasa_intervencion: 70, tipo_tasa: newTipo }]);
                         }
                       };
 
@@ -1034,11 +1100,19 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               value={rateObj.tasa_intervencion}
                               onChange={(e) => handleInterventionChange(Number(e.target.value))}
                               disabled={!isAdmin}
-                              style={{ width: "80px", textAlign: "right", padding: "6px" }}
+                              style={{ width: "70px", textAlign: "right", padding: "6px" }}
                               min={0}
-                              max={100}
                             />
-                            <span style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>%</span>
+                            <select
+                              className="form-select"
+                              value={rateObj.tipo_tasa || "porcentaje"}
+                              onChange={(e) => handleTipoTasaChange(e.target.value)}
+                              disabled={!isAdmin}
+                              style={{ width: "80px", padding: "4px", fontSize: "0.82rem" }}
+                            >
+                              <option value="porcentaje">%</option>
+                              <option value="unidades">uds</option>
+                            </select>
                           </div>
                         </div>
                       );
@@ -2102,8 +2176,134 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     </thead>
                     <tbody>
                       {rules.map((r, idx) => {
+                        const isEditing = editingRuleIdx === idx;
                         const mName = r.id_marca ? marcas.find(m => m.id === r.id_marca)?.nombre : "Todas";
                         const modName = r.id_modelo ? modelos.find(m => m.id === r.id_modelo)?.nombre : "Todos";
+                        
+                        if (isEditing) {
+                          return (
+                            <tr key={idx}>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  value={editingRuleName}
+                                  onChange={(e) => setEditingRuleName(e.target.value)}
+                                  style={{ width: "100%", padding: "4px 8px" }}
+                                />
+                              </td>
+                              <td>
+                                <select
+                                  className="form-select"
+                                  value={editingRuleType}
+                                  onChange={(e) => setEditingRuleType(e.target.value)}
+                                  style={{ padding: "4px 6px", fontSize: "0.82rem" }}
+                                >
+                                  <option value="pedido">Pedido</option>
+                                  <option value="afectacion">Afectación</option>
+                                  <option value="matriculacion">Matriculación</option>
+                                  <option value="financiacion">Financiación</option>
+                                  <option value="preference">Preference</option>
+                                </select>
+                              </td>
+                              <td>
+                                <select
+                                  className="form-select"
+                                  value={editingRuleMarca}
+                                  onChange={(e) => {
+                                    setEditingRuleMarca(e.target.value);
+                                    setEditingRuleModelo("");
+                                  }}
+                                  style={{ padding: "4px 6px", fontSize: "0.82rem" }}
+                                >
+                                  <option value="">Todas</option>
+                                  {marcas.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                                </select>
+                              </td>
+                              <td>
+                                <select
+                                  className="form-select"
+                                  value={editingRuleModelo}
+                                  onChange={(e) => setEditingRuleModelo(e.target.value)}
+                                  disabled={!editingRuleMarca}
+                                  style={{ padding: "4px 6px", fontSize: "0.82rem" }}
+                                >
+                                  <option value="">Todos</option>
+                                  {modelos.filter(m => m.marca_id === Number(editingRuleMarca)).map(m => (
+                                    <option key={m.id} value={m.id}>{m.nombre}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                <select
+                                  className="form-select"
+                                  value={editingRuleTasaIntervencion}
+                                  onChange={(e) => setEditingRuleTasaIntervencion(e.target.value)}
+                                  style={{ padding: "4px 6px", fontSize: "0.82rem" }}
+                                >
+                                  <option value="">Cualquiera</option>
+                                  <option value="true">Tasa ≥ Obj.</option>
+                                  <option value="false">Tasa &lt; Obj.</option>
+                                </select>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={editingRuleAfectaObj}
+                                    onChange={(e) => setEditingRuleAfectaObj(e.target.checked)}
+                                  />
+                                  {editingRuleAfectaObj && (
+                                    <input
+                                      type="number"
+                                      className="form-input"
+                                      value={editingRuleValObj}
+                                      onChange={(e) => setEditingRuleValObj(e.target.value)}
+                                      style={{ width: "60px", padding: "2px 4px", fontSize: "0.8rem", textAlign: "center" }}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={editingRuleAfectaCom}
+                                    onChange={(e) => setEditingRuleAfectaCom(e.target.checked)}
+                                  />
+                                  {editingRuleAfectaCom && (
+                                    <input
+                                      type="number"
+                                      className="form-input"
+                                      value={editingRuleImporte}
+                                      onChange={(e) => setEditingRuleImporte(e.target.value)}
+                                      style={{ width: "70px", padding: "2px 4px", fontSize: "0.8rem", textAlign: "center" }}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                  <button
+                                    onClick={() => handleSaveRuleEdit(idx)}
+                                    className="btn btn-primary"
+                                    style={{ padding: "4px 8px", fontSize: "0.75rem", borderRadius: "var(--radius-sm)" }}
+                                  >
+                                    OK
+                                  </button>
+                                  <button
+                                    onClick={handleCancelRuleEdit}
+                                    className="btn btn-secondary"
+                                    style={{ padding: "4px 8px", fontSize: "0.75rem", borderRadius: "var(--radius-sm)" }}
+                                  >
+                                    X
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+
                         return (
                           <tr key={idx}>
                             <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{r.nombre}</td>
@@ -2126,18 +2326,31 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               {r.afecta_comision ? `✅ (${r.importe} €)` : "❌ No"}
                             </td>
                             <td>
-                              <button
-                                onClick={() => handleDeleteRule(idx)}
-                                disabled={!isAdmin}
-                                className="btn"
-                                style={{
-                                  padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
-                                  background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
-                                  borderRadius: "var(--radius-sm)", cursor: "pointer"
-                                }}
-                              >
-                                Quitar
-                              </button>
+                              <div style={{ display: "flex", gap: "6px" }}>
+                                <button
+                                  onClick={() => handleStartEditRule(idx)}
+                                  disabled={!isAdmin}
+                                  className="btn btn-secondary"
+                                  style={{
+                                    padding: "4px 8px", fontSize: "0.75rem",
+                                    borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                  }}
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRule(idx)}
+                                  disabled={!isAdmin}
+                                  className="btn"
+                                  style={{
+                                    padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                    background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                    borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                  }}
+                                >
+                                  Quitar
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );

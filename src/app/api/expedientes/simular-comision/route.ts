@@ -231,10 +231,16 @@ export async function POST(req: NextRequest) {
       if (total === 0) return true;
       
       const financiados = financiadosPorMarca[brandId] || 0;
-      const actualRate = (financiados / total) * 100;
+      const brandInt = plan.brandInterventionRates?.find((i: any) => i.id_marca === brandId);
+      const targetRate = brandInt?.tasa_intervencion ?? 70;
+      const tipoTasa = brandInt?.tipo_tasa ?? "porcentaje";
       
-      const targetRate = plan.brandInterventionRates?.find((i: any) => i.id_marca === brandId)?.tasa_intervencion ?? 70;
-      return actualRate >= targetRate;
+      if (tipoTasa === "unidades") {
+        return financiados >= targetRate;
+      } else {
+        const actualRate = (financiados / total) * 100;
+        return actualRate >= targetRate;
+      }
     };
 
     // Helper para obtener el valor objetivo original de un expediente (priorizando el del expediente y cayendo al default de la marca del plan)
@@ -325,13 +331,12 @@ export async function POST(req: NextRequest) {
             ? Number(exp.min_coches_multiplicador)
             : 0;
 
-          if (targetCupo > 0) {
+          if (targetCupo > 0 && originalVal > 1) {
             const countOfSameCupo = cupoCounts[targetCupo] || 0;
             if (countOfSameCupo >= targetCupo) {
               // Cupo cumplido!
-              const finalVal = Math.max(originalVal, targetCupo);
-              objValorExpediente = finalVal;
-              sufijoDetalle = ` (Cupo ${targetCupo} cumplido: suma +${finalVal})`;
+              objValorExpediente = originalVal;
+              sufijoDetalle = ` (Cupo ${targetCupo} cumplido: suma +${originalVal})`;
             } else {
               // Cupo no cumplido!
               objValorExpediente = 1.0;

@@ -474,13 +474,29 @@ export default function EditarExpedienteForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-      {error && (
-        <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
-          <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
-          {error}
-        </div>
-      )}
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-start" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => router.push("/dashboard/expedientes")}
+          style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Volver a Expedientes
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        {error && (
+          <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
+            <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
+            {error}
+          </div>
+        )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "32px" }}>
         {/* SECCIÓN 1: DATOS DEL CLIENTE */}
@@ -980,21 +996,36 @@ export default function EditarExpedienteForm({
         )}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "16px", marginTop: "8px" }}>
-        <button type="button" className="btn btn-secondary" onClick={() => router.back()} disabled={loading}>
-          Cancelar
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", marginTop: "8px" }}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => router.push("/dashboard/expedientes")}
+          style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px" }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
+          Volver a Expedientes
         </button>
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? "Guardando..." : "Guardar Cambios"}
-          {!loading && (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
-            </svg>
-          )}
-        </button>
+        <div style={{ display: "flex", gap: "16px" }}>
+          <button type="button" className="btn btn-secondary" onClick={() => router.back()} disabled={loading}>
+            Cancelar
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
+            {loading ? "Guardando..." : "Guardar Cambios"}
+            {!loading && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
     </form>
+    </div>
   );
 }

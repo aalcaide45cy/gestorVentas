@@ -73,12 +73,19 @@ interface Expediente {
   usuario?: Usuario | null;
 }
 
+interface Tienda {
+  id_tienda: number;
+  nombre: string;
+  ciudad: string | null;
+}
+
 interface ExpedientesListProps {
   expedientesIniciales: Expediente[];
   userRole: string;
+  tiendas?: Tienda[];
 }
 
-export default function ExpedientesList({ expedientesIniciales, userRole }: ExpedientesListProps) {
+export default function ExpedientesList({ expedientesIniciales, userRole, tiendas = [] }: ExpedientesListProps) {
   const router = useRouter();
   const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciales);
   const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
@@ -192,6 +199,16 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
   const [clientSearchResults, setClientSearchResults] = useState<any[]>([]);
   const [searchingClient, setSearchingClient] = useState(false);
 
+  // Estados de creación rápida de cliente
+  const [assignClientModalTab, setAssignClientModalTab] = useState<"buscar" | "crear">("buscar");
+  const [newClientNombre, setNewClientNombre] = useState("");
+  const [newClientDni, setNewClientDni] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientTelefono, setNewClientTelefono] = useState("");
+  const [newClientTiendaId, setNewClientTiendaId] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [createClientError, setCreateClientError] = useState<string | null>(null);
+
   const showNotification = (text: string, type: "success" | "error") => {
     if (type === "success") {
       setSuccess(text);
@@ -270,6 +287,49 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
       showNotification(e.message || "Error al asignar el cliente.", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateAndAssignClient = async () => {
+    if (!newClientNombre.trim()) {
+      setCreateClientError("El nombre es obligatorio.");
+      return;
+    }
+    setCreatingClient(true);
+    setCreateClientError(null);
+    try {
+      const res = await fetch("/api/clientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: newClientNombre,
+          dni: newClientDni || null,
+          tienda_id: newClientTiendaId ? Number(newClientTiendaId) : null,
+          emails: newClientEmail ? [{ email: newClientEmail, tipo: "Principal" }] : [],
+          telefonos: newClientTelefono ? [{ telefono: newClientTelefono, tipo: "Principal" }] : []
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Error al crear el cliente.");
+      }
+
+      const createdClient = data.data;
+      // Asignar el cliente creado al expediente
+      await handleAssignClient(createdClient);
+
+      // Limpiar formulario de creación de cliente
+      setNewClientNombre("");
+      setNewClientDni("");
+      setNewClientEmail("");
+      setNewClientTelefono("");
+      setNewClientTiendaId("");
+      setAssignClientModalTab("buscar");
+    } catch (err: any) {
+      setCreateClientError(err.message || "Error interno al crear el cliente.");
+    } finally {
+      setCreatingClient(false);
     }
   };
 
@@ -990,10 +1050,10 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
           const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
             ? Number(exp.min_coches_multiplicador)
             : 0;
-          if (targetCupo > 0) {
+          if (targetCupo > 0 && originalVal > 1) {
             const countOfSameCupo = cupoCounts[targetCupo] || 0;
             if (countOfSameCupo >= targetCupo) {
-              val = Math.max(originalVal, targetCupo);
+              val = originalVal;
             } else {
               val = 1.0;
             }
@@ -1985,17 +2045,56 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                     <div>
                       <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--success)" }}>✓ Sumando al Objetivo (Matriculados) ({stats.matriculadosList.length})</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
-                        {stats.matriculadosList.map((m: any) => (
-                          <div key={m.id_expediente} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", padding: "4px 8px", background: "rgba(255,255,255,0.01)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
-                            <div>
-                              <strong style={{ color: "var(--primary)" }}>#EXP-{String(m.id_expediente).padStart(4, "0")}</strong> - {m.cliente?.nombre || "Sin cliente"}
-                              <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
-                                {m.modelo?.nombre_modelo} ({m.modelo?.marca?.nombre || "VO"}) | F. Mat: {formatDate(m.fecha_matriculacion)}
+                        {stats.matriculadosList.map((m: any) => {
+                          const tipoVenta = m.tipoDeVenta?.nombre_tipo_venta || "N/D";
+                          const esFinanciado = m.fecha_rci ? true : false;
+                          return (
+                            <Link
+                              href={`/dashboard/expedientes/editar/${m.id_expediente}`}
+                              key={m.id_expediente}
+                              className="glass-panel-interactive"
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                fontSize: "0.8rem",
+                                padding: "8px 12px",
+                                background: "rgba(255,255,255,0.01)",
+                                borderRadius: "4px",
+                                border: "1px solid var(--border-light)",
+                                cursor: "pointer",
+                                textDecoration: "none",
+                                transition: "all 0.2s ease"
+                              }}
+                            >
+                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "85%" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                  <strong style={{ color: "var(--primary)" }}>#EXP-{String(m.id_expediente).padStart(4, "0")}</strong>
+                                  <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "150px" }}>
+                                    {m.cliente?.nombre || "Sin cliente"}
+                                  </span>
+                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                                    ({m.cliente?.dni || "S/D"})
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                                  <span>{m.modelo?.nombre_modelo} ({m.modelo?.marca?.nombre || "VO"})</span>
+                                  <span style={{ color: "var(--border-light)" }}>|</span>
+                                  <span className="badge" style={{ fontSize: "0.65rem", padding: "1px 4px", background: "rgba(59, 130, 246, 0.1)", color: "#3b82f6" }}>{tipoVenta}</span>
+                                  {esFinanciado && (
+                                    <span className="badge" style={{ fontSize: "0.65rem", padding: "1px 4px", background: "rgba(16, 185, 129, 0.1)", color: "var(--success)" }}>F. RCI</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>
+                                  F. Mat: {formatDate(m.fecha_matriculacion)} | F. Pedido: {formatDate(m.fecha_expediente)}
+                                </div>
                               </div>
-                            </div>
-                            <span style={{ fontWeight: 700, color: "var(--success)" }}>+{m.valorObjetivoEstimado?.toFixed(1) || "1.0"}</span>
-                          </div>
-                        ))}
+                              <span style={{ fontWeight: 700, color: "var(--success)", fontSize: "0.95rem" }}>
+                                +{m.valorObjetivoEstimado?.toFixed(1) || "1.0"}
+                              </span>
+                            </Link>
+                          );
+                        })}
                         {stats.matriculadosList.length === 0 && (
                           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "4px" }}>
                             No hay expedientes matriculados en este periodo.
@@ -2007,17 +2106,56 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                     <div style={{ marginTop: "8px" }}>
                       <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--warning)" }}>⏳ Pendientes de Matriculación (Pipeline) ({stats.pendientesList.length})</span>
                       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "6px" }}>
-                        {stats.pendientesList.map((p: any) => (
-                          <div key={p.id_expediente} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", padding: "4px 8px", background: "rgba(255,255,255,0.01)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
-                            <div>
-                              <strong style={{ color: "var(--warning)" }}>#EXP-{String(p.id_expediente).padStart(4, "0")}</strong> - {p.cliente?.nombre || "Sin cliente"}
-                              <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)" }}>
-                                {p.modelo?.nombre_modelo} | F. Exp: {formatDate(p.fecha_expediente)}{p.fecha_afectacion ? ` | F. Afect: ${formatDate(p.fecha_afectacion)}` : ""}
+                        {stats.pendientesList.map((p: any) => {
+                          const tipoVenta = p.tipoDeVenta?.nombre_tipo_venta || "N/D";
+                          const esFinanciado = p.fecha_rci ? true : false;
+                          return (
+                            <Link
+                              href={`/dashboard/expedientes/editar/${p.id_expediente}`}
+                              key={p.id_expediente}
+                              className="glass-panel-interactive"
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                fontSize: "0.8rem",
+                                padding: "8px 12px",
+                                background: "rgba(255,255,255,0.01)",
+                                borderRadius: "4px",
+                                border: "1px solid var(--border-light)",
+                                cursor: "pointer",
+                                textDecoration: "none",
+                                transition: "all 0.2s ease"
+                              }}
+                            >
+                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "85%" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                  <strong style={{ color: "var(--warning)" }}>#EXP-{String(p.id_expediente).padStart(4, "0")}</strong>
+                                  <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "150px" }}>
+                                    {p.cliente?.nombre || "Sin cliente"}
+                                  </span>
+                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                                    ({p.cliente?.dni || "S/D"})
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                                  <span>{p.modelo?.nombre_modelo} ({p.modelo?.marca?.nombre || "VO"})</span>
+                                  <span style={{ color: "var(--border-light)" }}>|</span>
+                                  <span className="badge" style={{ fontSize: "0.65rem", padding: "1px 4px", background: "rgba(245, 158, 11, 0.1)", color: "var(--warning)" }}>{tipoVenta}</span>
+                                  {esFinanciado && (
+                                    <span className="badge" style={{ fontSize: "0.65rem", padding: "1px 4px", background: "rgba(16, 185, 129, 0.1)", color: "var(--success)" }}>F. RCI</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>
+                                  F. Pedido: {formatDate(p.fecha_expediente)}{p.fecha_afectacion ? ` | F. Afect: ${formatDate(p.fecha_afectacion)}` : ""}
+                                </div>
                               </div>
-                            </div>
-                            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Pedido/Afect.</span>
-                          </div>
-                        ))}
+                              <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontStyle: "italic", whiteSpace: "nowrap" }}>
+                                Pedido/Afect.
+                              </span>
+                            </Link>
+                          );
+                        })}
                         {stats.pendientesList.length === 0 && (
                           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "4px" }}>
                             No hay expedientes pendientes de matriculación.
@@ -2145,59 +2283,176 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
               Asignar Cliente al Expediente
             </h3>
 
-            <div className="form-group" style={{ marginBottom: 0, position: "relative" }}>
-              <label className="form-label">🔍 Buscar Cliente (Nombre o DNI)</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Escribe al menos 2 caracteres..."
-                value={clientSearchQuery}
-                onChange={e => handleSearchClientsForAssign(e.target.value)}
-                autoFocus
-              />
-              {searchingClient && (
-                <div style={{ position: "absolute", right: "12px", bottom: "10px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                  Buscando...
-                </div>
-              )}
+            {/* Pestañas del Modal */}
+            <div style={{ display: "flex", borderBottom: "1px solid var(--border-light)", gap: "8px", marginBottom: "8px" }}>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 12px",
+                  background: "none",
+                  border: "none",
+                  color: assignClientModalTab === "buscar" ? "var(--primary)" : "var(--text-secondary)",
+                  borderBottom: assignClientModalTab === "buscar" ? "2px solid var(--primary)" : "none",
+                  fontWeight: assignClientModalTab === "buscar" ? 700 : 400,
+                  cursor: "pointer",
+                  fontSize: "0.9rem"
+                }}
+                onClick={() => setAssignClientModalTab("buscar")}
+              >
+                Buscar Existente
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 12px",
+                  background: "none",
+                  border: "none",
+                  color: assignClientModalTab === "crear" ? "var(--primary)" : "var(--text-secondary)",
+                  borderBottom: assignClientModalTab === "crear" ? "2px solid var(--primary)" : "none",
+                  fontWeight: assignClientModalTab === "crear" ? 700 : 400,
+                  cursor: "pointer",
+                  fontSize: "0.9rem"
+                }}
+                onClick={() => {
+                  setAssignClientModalTab("crear");
+                  if (tiendas && tiendas.length > 0 && !newClientTiendaId) {
+                    setNewClientTiendaId(String(tiendas[0].id_tienda));
+                  }
+                }}
+              >
+                ➕ Crear Nuevo Cliente
+              </button>
             </div>
 
-            {clientSearchResults.length > 0 ? (
-              <div style={{
-                maxHeight: "200px",
-                overflowY: "auto",
-                border: "1px solid var(--border-light)",
-                borderRadius: "var(--radius-sm)",
-                background: "rgba(255, 255, 255, 0.02)"
-              }}>
-                {clientSearchResults.map(c => (
-                  <div
-                    key={c.id}
-                    onClick={() => handleAssignClient(c)}
-                    className="glass-panel-interactive"
-                    style={{
-                      padding: "10px 16px",
-                      cursor: "pointer",
-                      borderBottom: "1px solid var(--border-light)",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      borderRadius: 0
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{c.nombre}</div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>DNI: {c.dni || "N/D"}</div>
+            {assignClientModalTab === "buscar" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="form-group" style={{ marginBottom: 0, position: "relative" }}>
+                  <label className="form-label">🔍 Buscar Cliente (Nombre o DNI)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Escribe al menos 2 caracteres..."
+                    value={clientSearchQuery}
+                    onChange={e => handleSearchClientsForAssign(e.target.value)}
+                    autoFocus
+                  />
+                  {searchingClient && (
+                    <div style={{ position: "absolute", right: "12px", bottom: "10px", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                      Buscando...
                     </div>
-                    <span style={{ fontSize: "0.8rem", color: "var(--primary)", fontWeight: 600 }}>Seleccionar →</span>
+                  )}
+                </div>
+
+                {clientSearchResults.length > 0 ? (
+                  <div style={{
+                    maxHeight: "180px",
+                    overflowY: "auto",
+                    border: "1px solid var(--border-light)",
+                    borderRadius: "var(--radius-sm)",
+                    background: "rgba(255, 255, 255, 0.02)"
+                  }}>
+                    {clientSearchResults.map(c => (
+                      <div
+                        key={c.id}
+                        onClick={() => handleAssignClient(c)}
+                        className="glass-panel-interactive"
+                        style={{
+                          padding: "10px 16px",
+                          cursor: "pointer",
+                          borderBottom: "1px solid var(--border-light)",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          borderRadius: 0
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{c.nombre}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>DNI: {c.dni || "N/D"}</div>
+                        </div>
+                        <span style={{ fontSize: "0.8rem", color: "var(--primary)", fontWeight: 600 }}>Seleccionar →</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : clientSearchQuery.trim().length >= 2 && !searchingClient ? (
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", textAlign: "center", padding: "12px" }}>
+                    No se encontraron clientes para "{clientSearchQuery}"
+                  </div>
+                ) : null}
               </div>
-            ) : clientSearchQuery.trim().length >= 2 && !searchingClient ? (
-              <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", textAlign: "center", padding: "12px" }}>
-                No se encontraron clientes para "{clientSearchQuery}"
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {createClientError && (
+                  <div style={{ color: "var(--danger)", fontSize: "0.8rem", padding: "6px 8px", background: "rgba(239, 68, 68, 0.05)", borderRadius: "4px" }}>
+                    ⚠️ {createClientError}
+                  </div>
+                )}
+                
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: "0.8rem" }}>Nombre Completo *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej. Juan Pérez"
+                    value={newClientNombre}
+                    onChange={e => setNewClientNombre(e.target.value)}
+                    style={{ padding: "6px 10px" }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: "0.8rem" }}>DNI / NIE</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej. 12345678Z"
+                    value={newClientDni}
+                    onChange={e => setNewClientDni(e.target.value)}
+                    style={{ padding: "6px 10px" }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: "0.8rem" }}>Teléfono</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej. 600123456"
+                    value={newClientTelefono}
+                    onChange={e => setNewClientTelefono(e.target.value)}
+                    style={{ padding: "6px 10px" }}
+                  />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: "0.8rem" }}>Email</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="Ej. juan@correo.com"
+                    value={newClientEmail}
+                    onChange={e => setNewClientEmail(e.target.value)}
+                    style={{ padding: "6px 10px" }}
+                  />
+                </div>
+
+                {tiendas.length > 0 && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Tienda Asociada</label>
+                    <select
+                      className="form-select"
+                      value={newClientTiendaId}
+                      onChange={e => setNewClientTiendaId(e.target.value)}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      {tiendas.map(t => (
+                        <option key={t.id_tienda} value={t.id_tienda}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
-            ) : null}
+            )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
               <button
@@ -2207,11 +2462,28 @@ export default function ExpedientesList({ expedientesIniciales, userRole }: Expe
                   setAssigningClientExpId(null);
                   setClientSearchQuery("");
                   setClientSearchResults([]);
+                  setNewClientNombre("");
+                  setNewClientDni("");
+                  setNewClientEmail("");
+                  setNewClientTelefono("");
+                  setNewClientTiendaId("");
+                  setAssignClientModalTab("buscar");
+                  setCreateClientError(null);
                 }}
-                disabled={loading}
+                disabled={loading || creatingClient}
               >
                 Cancelar
               </button>
+              {assignClientModalTab === "crear" && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleCreateAndAssignClient}
+                  disabled={creatingClient}
+                >
+                  {creatingClient ? "Creando..." : "Crear y Asignar"}
+                </button>
+              )}
             </div>
           </div>
         </div>
