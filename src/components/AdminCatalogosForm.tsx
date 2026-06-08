@@ -22,6 +22,7 @@ interface DropdownItem {
   nombre: string;
   color?: string | null;
   predeterminado?: boolean | null;
+  orden?: number | null;
 }
 
 interface TiendaItem {
@@ -189,6 +190,9 @@ export default function AdminCatalogosForm({
     if (sortField === "nombre") {
       aVal = a.nombre;
       bVal = b.nombre;
+    } else if (sortField === "orden") {
+      aVal = a.orden || 0;
+      bVal = b.orden || 0;
     }
     
     if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
@@ -220,6 +224,8 @@ export default function AdminCatalogosForm({
   const [tempOrders, setTempOrders] = useState<Record<number, number>>({});
   const [nuevoTipoVentaNombre, setNuevoTipoVentaNombre] = useState("");
   const [nuevoTipoVentaColor, setNuevoTipoVentaColor] = useState("#3b82f6");
+  const [nuevoTipoVentaOrden, setNuevoTipoVentaOrden] = useState<number>(0);
+  const [tempPagosOrders, setTempPagosOrders] = useState<Record<number, number>>({});
   const [nuevoEstadoVehiculoNombre, setNuevoEstadoVehiculoNombre] = useState("");
   const [nuevoEstadoVehiculoPredeterminado, setNuevoEstadoVehiculoPredeterminado] = useState(false);
   const [nuevaTiendaNombre, setNuevaTiendaNombre] = useState("");
@@ -315,7 +321,7 @@ export default function AdminCatalogosForm({
             modelos: m.modelos.map(mod => mod.id_modelo === editingId ? { ...mod, nombre_modelo: result.data.nombre_modelo } : mod)
           })));
         } else if (payloadType === "tipo_venta") {
-          setTiposVenta(tiposVenta.map(tv => tv.id === editingId ? { ...tv, nombre: result.data.nombre_tipo_venta, color: result.data.color } : tv));
+          setTiposVenta(tiposVenta.map(tv => tv.id === editingId ? { ...tv, nombre: result.data.nombre_tipo_venta, color: result.data.color, orden: result.data.orden } : tv));
         } else if (payloadType === "estado_vehiculo") {
           if (result.data.predeterminado) {
             setEstadosVehiculo(estadosVehiculo.map(ev => ev.id === editingId ? { ...ev, nombre: result.data.nombre_estado_vehiculo, predeterminado: true } : { ...ev, predeterminado: false }));
@@ -489,6 +495,57 @@ export default function AdminCatalogosForm({
     }
   };
 
+  const handleSavePagosOrders = async () => {
+    const changes = tiposVenta.filter(tv => {
+      const tempVal = tempPagosOrders[tv.id];
+      return tempVal !== undefined && tempVal !== tv.orden;
+    });
+
+    if (changes.length === 0) {
+      showNotification("No hay cambios en el orden para guardar", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await Promise.all(changes.map(async (tv) => {
+        const nuevoOrden = tempPagosOrders[tv.id];
+        const res = await fetch("/api/admin/catalogos", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            tipo: "tipo_venta", 
+            id: tv.id, 
+            orden: nuevoOrden, 
+            nombre_tipo_venta: tv.nombre 
+          })
+        });
+        if (!res.ok) throw new Error(`Error al actualizar el tipo de venta ${tv.nombre}`);
+      }));
+
+      setTiposVenta(prevTipos => prevTipos.map(tv => {
+        const tempVal = tempPagosOrders[tv.id];
+        if (tempVal !== undefined) {
+          return { ...tv, orden: tempVal };
+        }
+        return tv;
+      }));
+
+      const updatedTempOrders = { ...tempPagosOrders };
+      changes.forEach(c => {
+        delete updatedTempOrders[c.id];
+      });
+      setTempPagosOrders(updatedTempOrders);
+
+      showNotification("Orden de pagos actualizado correctamente", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleToggleEstadoPredeterminado = async (idEstado: number, estadoActual: boolean) => {
     if (estadoActual) return; // Ya es predeterminado
     setLoading(true);
@@ -645,7 +702,8 @@ export default function AdminCatalogosForm({
         body: JSON.stringify({ 
           tipo: "tipo_venta", 
           nombre_tipo_venta: nuevoTipoVentaNombre,
-          color: nuevoTipoVentaColor
+          color: nuevoTipoVentaColor,
+          orden: nuevoTipoVentaOrden
         })
       });
 
@@ -655,10 +713,12 @@ export default function AdminCatalogosForm({
       setTiposVenta([...tiposVenta, { 
         id: result.data.id_tipo_de_venta, 
         nombre: result.data.nombre_tipo_venta,
-        color: result.data.color
+        color: result.data.color,
+        orden: result.data.orden
       }]);
       setNuevoTipoVentaNombre("");
       setNuevoTipoVentaColor("#3b82f6");
+      setNuevoTipoVentaOrden(0);
       showNotification("Tipo de venta creado", "success");
       router.refresh();
     } catch (err: any) {
@@ -1620,7 +1680,20 @@ export default function AdminCatalogosForm({
       {/* PESTAÑA: PAGOS */}
       {activeTab === "pagos" && (
         <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "24px" }}>
-          <h3 style={{ fontSize: "1.15rem" }}>Tipos de Venta (Pagos)</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ fontSize: "1.15rem", margin: 0 }}>Tipos de Venta (Pagos)</h3>
+            {tiposVenta.some(tv => tempPagosOrders[tv.id] !== undefined && tempPagosOrders[tv.id] !== tv.orden) && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSavePagosOrders}
+                disabled={loading}
+                style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+              >
+                💾 Guardar Cambios de Orden
+              </button>
+            )}
+          </div>
 
           <form onSubmit={handleCrearTipoVenta} style={{ display: "flex", gap: "15px", alignItems: "center", flexWrap: "wrap" }}>
             <input
@@ -1643,6 +1716,17 @@ export default function AdminCatalogosForm({
                 title="Elige el color para este tipo de pago"
               />
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label style={{ fontSize: "0.85rem", fontWeight: 600 }}>Orden Dashboard:</label>
+              <input
+                type="number"
+                className="form-input"
+                value={nuevoTipoVentaOrden}
+                onChange={e => setNuevoTipoVentaOrden(Number(e.target.value))}
+                style={{ width: "80px", padding: "6px" }}
+                min={0}
+              />
+            </div>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               + Crear Tipo Pago
             </button>
@@ -1656,6 +1740,9 @@ export default function AdminCatalogosForm({
                     Nombre Tipo Venta{sortField === "nombre" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
                   </th>
                   <th>Color Asignado</th>
+                  <th onClick={() => handleSort("orden")} style={{ cursor: "pointer", userSelect: "none", width: "180px" }}>
+                    Orden Dashboard{sortField === "orden" ? (sortOrder === "asc" ? " ▲" : " ▼") : " ↕"}
+                  </th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -1701,6 +1788,17 @@ export default function AdminCatalogosForm({
                           }}></span>
                           <span style={{ fontSize: "0.85rem", fontFamily: "monospace" }}>{t.color || "#3b82f6"}</span>
                         </div>
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={tempPagosOrders[t.id] !== undefined ? tempPagosOrders[t.id] : (t.orden || 0)}
+                          onChange={e => setTempPagosOrders({ ...tempPagosOrders, [t.id]: Number(e.target.value) })}
+                          style={{ width: "80px", padding: "4px 8px", fontSize: "0.85rem" }}
+                          min={0}
+                          disabled={loading}
+                        />
                       </td>
                       <td>
                         <div style={{ display: "flex", gap: "10px" }}>

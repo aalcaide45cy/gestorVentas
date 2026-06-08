@@ -92,6 +92,7 @@ export const tipoDeVenta = pgTable('tipo_de_venta', {
   id_tipo_de_venta: serial('id_tipo_de_venta').primaryKey(),
   nombre_tipo_venta: text('nombre_tipo_venta').notNull(),
   color: varchar('color', { length: 50 }).default('#3b82f6'),
+  orden: integer('orden').default(0).notNull(),
 });
 
 // TABLA: ESTADO_VEHICULO

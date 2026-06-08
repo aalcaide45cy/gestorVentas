@@ -24,7 +24,9 @@ export default async function DashboardPage() {
     }
   });
   const dbClientesAll = await db.query.clientes.findMany();
-  const dbTiposVenta = await db.query.tipoDeVenta.findMany();
+  const dbTiposVenta = await db.query.tipoDeVenta.findMany({
+    orderBy: (tv, { asc }) => [asc(tv.orden), asc(tv.nombre_tipo_venta)]
+  });
 
   const expedientesCount = dbExpedientesAll.length;
   const clientesCount = dbClientesAll.length;

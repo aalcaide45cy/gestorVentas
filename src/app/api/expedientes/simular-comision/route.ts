@@ -252,14 +252,25 @@ export async function POST(req: NextRequest) {
       return 1.0;
     };
 
-    // Contar cuántos vehículos matriculados en este mes por el vendedor tienen valor original de objetivo/multiplicador superior a 1
-    let totalMultiplicadorMatriculados = 0;
-    qualExpedientes.forEach((exp) => {
-      const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
-      if (entraMatriculacion) {
-        const origVal = getOriginalValorObjetivo(exp);
-        if (origVal > 1.0) {
-          totalMultiplicadorMatriculados++;
+    // Helper para obtener la fecha de actividad inicial (mínima entre fecha_expediente y fecha_afectacion, cayendo a fecha_matriculacion)
+    const getActivityDate = (e: any) => {
+      if (e.fecha_expediente && e.fecha_afectacion) {
+        return e.fecha_expediente < e.fecha_afectacion ? e.fecha_expediente : e.fecha_afectacion;
+      }
+      return e.fecha_expediente || e.fecha_afectacion || e.fecha_matriculacion || "";
+    };
+
+    // Pre-calcular la cantidad de expedientes en el período para cada valor de cupo (min_coches_multiplicador)
+    const cupoCounts: Record<number, number> = {};
+    qualExpedientes.forEach((e) => {
+      const actDate = getActivityDate(e);
+      const eEntraActivity = actDate && actDate >= startDate && actDate <= endDate;
+      if (eEntraActivity) {
+        const targetCupo = e.min_coches_multiplicador !== null && e.min_coches_multiplicador !== undefined
+          ? Number(e.min_coches_multiplicador)
+          : 0;
+        if (targetCupo > 0) {
+          cupoCounts[targetCupo] = (cupoCounts[targetCupo] || 0) + 1;
         }
       }
     });
@@ -274,6 +285,9 @@ export async function POST(req: NextRequest) {
       const entraAfectacion = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
       const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
       const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
+
+      const actDate = getActivityDate(exp);
+      const entraActivity = actDate && actDate >= startDate && actDate <= endDate;
 
       if (entraMatriculacion) {
         matriculacionesRealesVendedor++;
@@ -291,58 +305,79 @@ export async function POST(req: NextRequest) {
       }
 
       let objValorExpediente = 0;
+      let sufijoDetalle = "";
+      let afectoObjetivo = false;
       const itemsDetalle: any[] = [];
 
-      // A. Cómputo objetivo base VN o VO
-      if (entraMatriculacion) {
-        const originalVal = getOriginalValorObjetivo(exp);
-        let valObj = originalVal;
-        let sufijoDetalle = "";
-        if (originalVal > 1.0) {
-          const targetR = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
+      const originalVal = getOriginalValorObjetivo(exp);
+
+      if (originalVal === 0) {
+        if (entraMatriculacion) {
+          objValorExpediente = 1.0;
+          afectoObjetivo = true;
+          sufijoDetalle = " (VAL. Obj = 0: suma +1 por matriculación)";
+        }
+      } else {
+        // originalVal > 0
+        if (entraActivity) {
+          afectoObjetivo = true;
+          const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
             ? Number(exp.min_coches_multiplicador)
-            : (plan.min_coches_multiplicador || 0);
-          if (totalMultiplicadorMatriculados < targetR) {
-            valObj = 1.0;
-            sufijoDetalle = ` (Multiplicador desestimado: hecho ${totalMultiplicadorMatriculados}/${targetR} req.)`;
+            : 0;
+
+          if (targetCupo > 0) {
+            const countOfSameCupo = cupoCounts[targetCupo] || 0;
+            if (countOfSameCupo >= targetCupo) {
+              // Cupo cumplido!
+              const finalVal = Math.max(originalVal, targetCupo);
+              objValorExpediente = finalVal;
+              sufijoDetalle = ` (Cupo ${targetCupo} cumplido: suma +${finalVal})`;
+            } else {
+              // Cupo no cumplido!
+              objValorExpediente = 1.0;
+              sufijoDetalle = ` (Cupo ${targetCupo} no cumplido [hecho ${countOfSameCupo}/${targetCupo}]: cae a +1.0)`;
+            }
           } else {
-            sufijoDetalle = ` (Multiplicador aplicado: hecho ${totalMultiplicadorMatriculados}/${targetR} req.)`;
+            // Sin cupo requerido
+            objValorExpediente = originalVal;
+            sufijoDetalle = ` (Aporta su valor original: +${originalVal})`;
           }
         }
+      }
 
+      // A. Cómputo objetivo base VN o VO
+      if (afectoObjetivo) {
         if (isVN) {
           const brandId = exp.modelo?.marca_id;
           const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
           const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
           if (modelRate) {
-            objValorExpediente += valObj;
+            objValorExpediente = objValorExpediente; // ya establecido
             itemsDetalle.push({
               concepto: `Cómputo Base VN Modelo (${exp.modelo?.nombre_modelo}) [${tasaCumplida ? 'Tasa OK' : 'Tasa Baja'}]${sufijoDetalle}`,
               importe: 0,
               afecta_objetivo: true,
-              valor_objetivo: valObj
+              valor_objetivo: objValorExpediente
             });
           }
         } else if (tipoUsado) {
           if (!isVOVendedor) {
             const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
             if (usedRate) {
-              objValorExpediente += valObj;
               itemsDetalle.push({
                 concepto: `Cómputo Base VO Tipo (${tipoUsado})${sufijoDetalle}`,
                 importe: 0,
                 afecta_objetivo: true,
-                valor_objetivo: valObj
+                valor_objetivo: objValorExpediente
               });
             }
           } else {
             voUnitCounter++;
-            objValorExpediente += valObj;
             itemsDetalle.push({
               concepto: `Cómputo VO Progresivo (Unidad #${voUnitCounter})${sufijoDetalle}`,
               importe: 0,
               afecta_objetivo: true,
-              valor_objetivo: valObj
+              valor_objetivo: objValorExpediente
             });
           }
         }

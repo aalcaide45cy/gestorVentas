@@ -60,7 +60,9 @@ export default async function AdminPage() {
   });
 
   // 3. Obtener tipos de venta y estados de vehículos
-  const dbTiposVenta = await db.query.tipoDeVenta.findMany();
+  const dbTiposVenta = await db.query.tipoDeVenta.findMany({
+    orderBy: (tv, { asc }) => [asc(tv.orden), asc(tv.nombre_tipo_venta)]
+  });
   const dbEstadosVehiculo = await db.query.estadoVehiculo.findMany();
   const dbTiendas = await db.query.tiendas.findMany();
 
@@ -83,7 +85,8 @@ export default async function AdminPage() {
   const tiposVentaMapeados = dbTiposVenta.map(t => ({
     id: t.id_tipo_de_venta,
     nombre: t.nombre_tipo_venta,
-    color: t.color
+    color: t.color,
+    orden: t.orden
   }));
 
   const estadosVehiculoMapeados = dbEstadosVehiculo.map(ev => ({

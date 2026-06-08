@@ -312,6 +312,13 @@ export default function EditarExpedienteForm({
     return false;
   };
 
+  const isSameMonthPedidoMatricula = () => {
+    if (!fechaExpediente || !fechaMatriculacion) return false;
+    const expParts = fechaExpediente.split("-");
+    const matParts = fechaMatriculacion.split("-");
+    return expParts[0] === matParts[0] && expParts[1] === matParts[1];
+  };
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (checkIsDirty()) {
@@ -760,6 +767,28 @@ export default function EditarExpedienteForm({
               <label className="form-label">Fecha Entrega</label>
               <input type="date" className="form-input" value={fechaEntrega} onChange={e => setFechaEntrega(e.target.value)} />
             </div>
+
+            {isSameMonthPedidoMatricula() && (
+              <div className="glass-panel" style={{
+                gridColumn: "1 / -1",
+                padding: "16px 20px",
+                background: "rgba(16, 185, 129, 0.08)",
+                borderLeft: "4px solid var(--success)",
+                color: "var(--success)",
+                fontSize: "0.9rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginTop: "8px"
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
+                <span>✨ Pedido Realizado y Matriculado en el mismo mes</span>
+              </div>
+            )}
           </div>
         </div>
 

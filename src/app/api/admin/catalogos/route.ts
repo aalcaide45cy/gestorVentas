@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
       if (!data.nombre_tipo_venta) return NextResponse.json({ message: "El nombre es requerido" }, { status: 400 });
       const [nuevo] = await db.insert(tipoDeVenta).values({
         nombre_tipo_venta: data.nombre_tipo_venta,
-        color: data.color || '#3b82f6'
+        color: data.color || '#3b82f6',
+        orden: data.orden !== undefined ? Number(data.orden) : 0
       }).returning();
       return NextResponse.json({ success: true, data: nuevo }, { status: 201 });
     }
@@ -178,7 +179,8 @@ export async function PUT(req: NextRequest) {
       const [actualizado] = await db.update(tipoDeVenta)
         .set({ 
           nombre_tipo_venta: data.nombre_tipo_venta,
-          color: data.color !== undefined ? data.color : undefined
+          color: data.color !== undefined ? data.color : undefined,
+          orden: data.orden !== undefined ? Number(data.orden) : undefined
         })
         .where(eq(tipoDeVenta.id_tipo_de_venta, Number(id)))
         .returning();
