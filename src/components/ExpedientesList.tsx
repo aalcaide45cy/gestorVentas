@@ -936,9 +936,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   ];
 
   const currentYearNum = new Date().getFullYear();
-  const years = [currentYearNum, currentYearNum - 1, currentYearNum - 2];
-
-  const getMonthStats = () => {
+  const years = [currentYearNum, currentYearNum - 1, currentYearNum - 2];  const getMonthStats = () => {
     let matriculados = 0;
     let matriculadosContado = 0;
     let matriculadosCredito = 0;
@@ -985,6 +983,161 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       }
     });
 
+    // Listas detalladas con cálculos de comisiones
+    let totalBaseVN = 0;
+    let totalUsado = 0;
+    let totalFinanciacion = 0;
+    let totalPreference = 0;
+    let totalReglasBonus = 0;
+    let totalComisionGlobal = 0;
+
+    const computedDetailsList: any[] = [];
+
+    // Calcular Tasas Intervención por Marca para este período (basado en VN matriculados y fecha_rci)
+    const totalMatriculadosPorMarca: Record<number, number> = {};
+    const financiadosPorMarca: Record<number, number> = {};
+
+    expedientes.forEach((e) => {
+      const brandId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+      if (brandId) {
+        const stateName = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        if (isVN) {
+          const entraMat = e.fecha_matriculacion && e.fecha_matriculacion >= `${statsYear}-${String(statsMonth).padStart(2, "0")}-01` && e.fecha_matriculacion <= `${statsYear}-${String(statsMonth).padStart(2, "0")}-31`;
+          if (entraMat) {
+            totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
+          }
+          const entraRci = e.fecha_rci && e.fecha_rci >= `${statsYear}-${String(statsMonth).padStart(2, "0")}-01` && e.fecha_rci <= `${statsYear}-${String(statsMonth).padStart(2, "0")}-31`;
+          if (entraRci) {
+            const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+            const isFinanced = salesTypeName.includes("preference") || 
+                               salesTypeName.includes("crédito") || 
+                               salesTypeName.includes("credito") || 
+                               salesTypeName.includes("renting");
+            if (isFinanced) {
+              financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
+            }
+          }
+        }
+      }
+    });
+
+    const checkTasaCumplida = (brandId: number) => {
+      const total = totalMatriculadosPorMarca[brandId] || 0;
+      if (total === 0) return true;
+      const financiados = financiadosPorMarca[brandId] || 0;
+      if (!activePlan) return true;
+      const brandInt = activePlan.brandInterventionRates?.find((i: any) => i.id_marca === brandId);
+      const targetRate = brandInt?.tasa_intervencion ?? 70;
+      const tipoTasa = brandInt?.tipo_tasa ?? "porcentaje";
+      if (tipoTasa === "unidades") {
+        return financiados >= targetRate;
+      } else {
+        const actualRate = (financiados / total) * 100;
+        return actualRate >= targetRate;
+      }
+    };
+
+    // Usados count para aplicar tarifa primera / resto
+    const matriculatedUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+    expedientes.forEach((e) => {
+      const parts = e.fecha_matriculacion ? e.fecha_matriculacion.split("-") : [];
+      const y = parts.length > 0 ? parseInt(parts[0], 10) : 0;
+      const m = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+      const entraMat = (y === statsYear && m === statsMonth);
+      const stateName = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+      const isVN = stateName === "nuevo" || stateName === "demo";
+
+      if (entraMat && !isVN) {
+        let tipoUsado = "Usado";
+        if (stateName === "km0") tipoUsado = "KM0";
+        else if (stateName === "buyback" || stateName === "bb") tipoUsado = "BB";
+        else if (stateName === "seminuevo" || stateName === "vo") tipoUsado = "VO";
+        matriculatedUsedCounts[tipoUsado] = (matriculatedUsedCounts[tipoUsado] || 0) + 1;
+      }
+    });
+
+    const currentUsedProcessedIndex: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+
+    // Calcular primero el tramo de comisión que se alcanzará
+    // Para ello necesitamos el total de puntos computados en el mes
+    let totalComputablesTemp = 0;
+    expedientes.forEach(exp => {
+      const actDate = getActivityDate(exp);
+      let isActivityThisMonth = false;
+      if (actDate) {
+        const parts = actDate.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        isActivityThisMonth = (y === statsYear && m === statsMonth);
+      }
+      let isMatriculadoThisMonth = false;
+      if (exp.fecha_matriculacion) {
+        const parts = exp.fecha_matriculacion.split("-");
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        isMatriculadoThisMonth = (y === statsYear && m === statsMonth);
+      }
+
+      let originalVal = 1.0;
+      if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+        originalVal = Number(exp.valor_objetivo);
+      } else if (activePlan) {
+        const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
+        if (brandId) {
+          const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
+          if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+            originalVal = Number(brandIntervention.valor_objetivo_defecto);
+          }
+        }
+      }
+
+      let val = 0.0;
+      let afectoObjetivo = false;
+      if (originalVal === 0) {
+        if (isMatriculadoThisMonth) {
+          val = 1.0;
+          afectoObjetivo = true;
+        }
+      } else {
+        if (isActivityThisMonth) {
+          afectoObjetivo = true;
+          const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
+            ? Number(exp.min_coches_multiplicador)
+            : 0;
+          if (targetCupo > 0 && originalVal > 1) {
+            const countOfSameCupo = cupoCounts[targetCupo] || 0;
+            if (countOfSameCupo >= targetCupo) {
+              val = originalVal;
+            } else {
+              val = 1.0;
+            }
+          } else {
+            val = originalVal;
+          }
+        }
+      }
+      if (afectoObjetivo) {
+        totalComputablesTemp += val;
+      }
+    });
+
+    // Determinar tramo
+    let tramoAlcanzado: "X-4" | "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" | "X+3" = "X-4";
+    if (activePlan) {
+      const X = activePlan.objetivo_base + activePlan.arrastre;
+      const diff = totalComputablesTemp - X;
+      if (diff >= 3) tramoAlcanzado = "X+3";
+      else if (diff === 2) tramoAlcanzado = "X+2";
+      else if (diff === 1) tramoAlcanzado = "X+1";
+      else if (diff === 0) tramoAlcanzado = "X";
+      else if (diff === -1) tramoAlcanzado = "X-1";
+      else if (diff === -2) tramoAlcanzado = "X-2";
+      else if (diff === -3) tramoAlcanzado = "X-3";
+      else tramoAlcanzado = "X-4";
+    }
+
+    // Segunda pasada: Calcular comisiones por cada expediente
     expedientes.forEach(exp => {
       const tipoVentaNombre = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
       const isContado = tipoVentaNombre.includes("contado");
@@ -1074,13 +1227,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       // VN Financiados (según fecha_rci en el mes)
       const stateNameVN = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
       const isVNVeh = stateNameVN === "nuevo" || stateNameVN === "demo";
-      if (isVNVeh && (isCredito || isPreference) && exp.fecha_rci) {
+      const entraRci = exp.fecha_rci && (() => {
         const parts = exp.fecha_rci.split("-");
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) {
-          matriculadosVNFinanciados++;
-        }
+        return (y === statsYear && m === statsMonth);
+      })();
+
+      if (isVNVeh && (isCredito || isPreference) && entraRci) {
+        matriculadosVNFinanciados++;
       }
       // Entregados
       if (exp.fecha_entrega) {
@@ -1128,6 +1283,193 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           pendientesList.push(exp);
         }
       }
+
+      // --- CÁLCULOS ECONÓMICOS INDIVIDUALES PARA EL DESGLOSE DE COMISIONES ---
+      if (activePlan) {
+        let baseVN = 0;
+        let baseUsado = 0;
+        let baseFinanciacion = 0;
+        let basePreference = 0;
+        let reglasBonus = 0;
+
+        const isVN = stateNameVN === "nuevo" || stateNameVN === "demo";
+        let tipoUsado: "VO" | "KM0" | "BB" | "Usado" | null = null;
+        if (!isVN) {
+          const sName = stateNameVN;
+          if (sName === "km0") tipoUsado = "KM0";
+          else if (sName === "buyback" || sName === "bb") tipoUsado = "BB";
+          else if (sName === "seminuevo" || sName === "vo") tipoUsado = "VO";
+          else tipoUsado = "Usado";
+        }
+
+        const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+        const isCreditoVenta = (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado") || salesTypeNameLower.includes("renting")) && !salesTypeNameLower.includes("preference");
+        const isPreferenceVenta = salesTypeNameLower.includes("preference");
+
+        const entraPedido = exp.fecha_expediente && (() => {
+          const parts = exp.fecha_expediente.split("-");
+          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+        })();
+        const entraAfectacion = exp.fecha_afectacion && (() => {
+          const parts = exp.fecha_afectacion.split("-");
+          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+        })();
+
+        // 1. Comisión base VN/VO
+        if (isMatriculadoThisMonth) {
+          if (isVN) {
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
+            const modelRate = activePlan.rates?.find((r: any) => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
+            if (modelRate) {
+              let rateImporte = modelRate.rate_x_minus_4;
+              if (tramoAlcanzado === "X-3") rateImporte = modelRate.rate_x_minus_3;
+              else if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
+              else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
+              else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
+              else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
+              else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
+              else if (tramoAlcanzado === "X+3") rateImporte = modelRate.rate_x_plus_3;
+              baseVN = rateImporte;
+            }
+          } else if (tipoUsado) {
+            // Se trata como usado
+            const usedRate = activePlan.usedRates?.find((r: any) => r.tipo_usado === tipoUsado && r.activo);
+            if (usedRate) {
+              const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
+              const currentIdx = currentUsedProcessedIndex[tipoUsado]++;
+              if (totalUnitsOfType >= usedRate.min_aplicar) {
+                const isFirst = currentIdx === 0;
+                baseUsado = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
+              }
+            }
+          }
+        }
+
+        // 2. Comisión Financiación
+        if (entraRci && exp.id_tipo_de_venta) {
+          const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+          let matchedFinanceType = "";
+          if (salesTypeName.includes("preference")) {
+            matchedFinanceType = "Preference";
+          } else if (salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("financiado")) {
+            matchedFinanceType = "Crédito";
+          } else if (salesTypeName.includes("renting")) {
+            matchedFinanceType = "Renting";
+          } else if (salesTypeName.includes("contado")) {
+            matchedFinanceType = "Contado";
+          }
+
+          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+          if (matchedFinanceType && brandId) {
+            const finRate = activePlan.financeRates?.find(
+              (r: any) => r.id_marca === brandId && r.tipo_financiacion === matchedFinanceType
+            );
+            if (finRate) {
+              baseFinanciacion = finRate.importe;
+            }
+          }
+        }
+
+        // 3. Reglas Preference / BOX3
+        if (entraRci) {
+          activePlan.preferenceRules?.forEach((rule: any) => {
+            if (!rule.activa) return;
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+            const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+            let finMatches = true;
+            if (rule.tipo_financiacion) {
+              const ruleFin = rule.tipo_financiacion.toLowerCase();
+              const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+              finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
+            }
+
+            if (filterMarcaMatches && filterModeloMatches && finMatches) {
+              basePreference += rule.importe;
+            }
+          });
+        }
+
+        // 4. Reglas generales de comisión
+        activePlan.rules?.forEach((rule: any) => {
+          if (!rule.activa || !rule.afecta_comision) return;
+          const eventMatches = 
+            (rule.tipo_evento === "pedido" && entraPedido) ||
+            (rule.tipo_evento === "afectacion" && entraAfectacion) ||
+            (rule.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
+            ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+            (rule.tipo_evento === "preference" && entraRci && isPreferenceVenta);
+
+          if (!eventMatches) return;
+
+          if (rule.tasa_intervencion_cumplida !== null && rule.tasa_intervencion_cumplida !== undefined) {
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            if (!brandId) return;
+            const tasaCumplida = checkTasaCumplida(brandId);
+            if (tasaCumplida !== rule.tasa_intervencion_cumplida) return;
+          }
+
+          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+          const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+          const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+          if (filterMarcaMatches && filterModeloMatches) {
+            reglasBonus += rule.importe;
+          }
+        });
+
+        // 5. Bonus personalizados
+        activePlan.bonusRules?.forEach((bonus: any) => {
+          if (!bonus.activo || bonus.importe <= 0) return;
+          const eventMatches = 
+            (bonus.tipo_evento === "pedido" && entraPedido) ||
+            (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
+            (bonus.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
+            ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+            (bonus.tipo_evento === "preference" && entraRci && isPreferenceVenta);
+
+          if (!eventMatches) return;
+
+          if (bonus.tipo_vehiculo === "nuevo" && !isVN) return;
+          if (bonus.tipo_vehiculo === "usado" && isVN) return;
+
+          if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
+          if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
+
+          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+          const filterMarcaMatches = !bonus.id_marca || brandId === bonus.id_marca;
+          const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
+
+          if (filterMarcaMatches && filterModeloMatches) {
+            reglasBonus += bonus.importe;
+          }
+        });
+
+        const totalExp = baseVN + baseUsado + baseFinanciacion + basePreference + reglasBonus;
+
+        totalBaseVN += baseVN;
+        totalUsado += baseUsado;
+        totalFinanciacion += baseFinanciacion;
+        totalPreference += basePreference;
+        totalReglasBonus += reglasBonus;
+        totalComisionGlobal += totalExp;
+
+        computedDetailsList.push({
+          id_expediente: exp.id_expediente,
+          cliente: exp.cliente?.nombre || "Sin cliente",
+          modelo: exp.modelo?.nombre_modelo || "S/D",
+          marca: exp.modelo?.marca?.nombre || "VO",
+          baseVN,
+          baseUsado,
+          baseFinanciacion,
+          basePreference,
+          reglasBonus,
+          total: totalExp,
+          fechaRef: exp.fecha_matriculacion || exp.fecha_rci || exp.fecha_afectacion || exp.fecha_expediente
+        });
+      }
     });
 
     return {
@@ -1145,7 +1487,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       matriculadosVNFinanciados,
       objetivoComputado,
       matriculadosList,
-      pendientesList
+      pendientesList,
+      // Nuevos datos económicos agregados
+      totalBaseVN,
+      totalUsado,
+      totalFinanciacion,
+      totalPreference,
+      totalReglasBonus,
+      totalComisionGlobal,
+      computedDetailsList: computedDetailsList.filter(d => d.total > 0).sort((a,b) => b.total - a.total)
     };
   };
 
@@ -2037,8 +2387,56 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                   </div>
                 </div>
 
-                {/* Desglose de Expedientes */}
+                {/* Panel de Comisiones Acumuladas Estimadas */}
                 <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <h5 style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>💰 Comisiones Estimadas del Período</h5>
+                    <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: cumpleMinimoMat ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)", color: cumpleMinimoMat ? "var(--success)" : "var(--danger)" }}>
+                      {cumpleMinimoMat ? "Liquidables VN/VO" : "Penalizado (Min. Mat. 0€)"}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
+                    <div style={{ background: "rgba(255, 255, 255, 0.01)", padding: "10px", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", display: "block" }}>TOTAL ESTIMADO</span>
+                      <strong style={{ fontSize: "1.3rem", color: "var(--success)", fontWeight: 800 }}>
+                        {(cumpleMinimoMat ? stats.totalComisionGlobal : (stats.totalFinanciacion + stats.totalPreference + stats.totalReglasBonus)).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                      </strong>
+                    </div>
+                    <div style={{ background: "rgba(255, 255, 255, 0.01)", padding: "10px", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", display: "block" }}>COMISIÓN TEÓRICA</span>
+                      <strong style={{ fontSize: "1.3rem", color: "var(--text-primary)", fontWeight: 700 }}>
+                        {stats.totalComisionGlobal.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.78rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Base VN:</span>
+                      <strong style={{ color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalBaseVN.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Base VO / Usado:</span>
+                      <strong style={{ color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalUsado.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Incentivo Crédito/Finan:</span>
+                      <strong>{stats.totalFinanciacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Reglas Preference/BOX3:</span>
+                      <strong>{stats.totalPreference.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Reglas / Bonus Especiales:</span>
+                      <strong>{stats.totalReglasBonus.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Desglose de Expedientes */}
+                <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", gridColumn: "span 1" }}>
                   <h5 style={{ margin: 0, fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)" }}>📂 Desglose de Expedientes en el Periodo</h5>
                   
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px", maxHeight: "250px", overflowY: "auto" }}>
@@ -2048,6 +2446,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                         {stats.matriculadosList.map((m: any) => {
                           const tipoVenta = m.tipoDeVenta?.nombre_tipo_venta || "N/D";
                           const esFinanciado = m.fecha_rci ? true : false;
+                          const commDet = stats.computedDetailsList.find(d => d.id_expediente === m.id_expediente);
+                          const commTotal = commDet ? commDet.total : 0;
                           return (
                             <Link
                               href={`/dashboard/expedientes/editar/${m.id_expediente}`}
@@ -2067,14 +2467,11 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                                 transition: "all 0.2s ease"
                               }}
                             >
-                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "85%" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "70%" }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                                   <strong style={{ color: "var(--primary)" }}>#EXP-{String(m.id_expediente).padStart(4, "0")}</strong>
                                   <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "150px" }}>
                                     {m.cliente?.nombre || "Sin cliente"}
-                                  </span>
-                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                                    ({m.cliente?.dni || "S/D"})
                                   </span>
                                 </div>
                                 <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
@@ -2085,13 +2482,17 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                                     <span className="badge" style={{ fontSize: "0.65rem", padding: "1px 4px", background: "rgba(16, 185, 129, 0.1)", color: "var(--success)" }}>F. RCI</span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>
-                                  F. Mat: {formatDate(m.fecha_matriculacion)} | F. Pedido: {formatDate(m.fecha_expediente)}
-                                </div>
                               </div>
-                              <span style={{ fontWeight: 700, color: "var(--success)", fontSize: "0.95rem" }}>
-                                +{m.valorObjetivoEstimado?.toFixed(1) || "1.0"}
-                              </span>
+                              <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                <span style={{ fontWeight: 700, color: "var(--success)", fontSize: "0.95rem" }}>
+                                  +{m.valorObjetivoEstimado?.toFixed(1) || "1.0"}
+                                </span>
+                                {commTotal > 0 && (
+                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                                    {commTotal} €
+                                  </span>
+                                )}
+                              </div>
                             </Link>
                           );
                         })}
@@ -2134,9 +2535,6 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                                   <span style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "150px" }}>
                                     {p.cliente?.nombre || "Sin cliente"}
                                   </span>
-                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
-                                    ({p.cliente?.dni || "S/D"})
-                                  </span>
                                 </div>
                                 <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
                                   <span>{p.modelo?.nombre_modelo} ({p.modelo?.marca?.nombre || "VO"})</span>
@@ -2156,11 +2554,6 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                             </Link>
                           );
                         })}
-                        {stats.pendientesList.length === 0 && (
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "4px" }}>
-                            No hay expedientes pendientes de matriculación.
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
