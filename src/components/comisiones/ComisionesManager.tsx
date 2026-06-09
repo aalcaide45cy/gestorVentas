@@ -2058,7 +2058,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <option value="pedido">Pedido (Fecha de Pedido)</option>
                           <option value="afectacion">Afectación (Fecha de Afectación)</option>
                           <option value="matriculacion">Matriculación (Fecha de Matriculación)</option>
-                          <option value="financiacion">Financiación (Cualquier Financiación)</option>
+                          <option value="credito">Crédito (Financiación Normal)</option>
                           <option value="preference">Preference (Financiación Preference)</option>
                         </select>
                       </div>
@@ -2202,7 +2202,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   <option value="pedido">Pedido</option>
                                   <option value="afectacion">Afectación</option>
                                   <option value="matriculacion">Matriculación</option>
-                                  <option value="financiacion">Financiación</option>
+                                  <option value="credito">Crédito</option>
                                   <option value="preference">Preference</option>
                                 </select>
                               </td>
@@ -2307,7 +2307,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         return (
                           <tr key={idx}>
                             <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>{r.nombre}</td>
-                            <td><span className="badge badge-vendedor" style={{ fontSize: "0.7rem" }}>{r.tipo_evento}</span></td>
+                            <td><span className="badge badge-vendedor" style={{ fontSize: "0.7rem" }}>{r.tipo_evento === "credito" ? "crédito" : r.tipo_evento}</span></td>
                             <td>{mName}</td>
                             <td>{modName}</td>
                             <td>

@@ -279,6 +279,10 @@ export async function POST(req: NextRequest) {
         const actDate = getActivityDate(exp);
         const entraActivity = actDate && actDate >= startDate && actDate <= endDate;
 
+        const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+        const isCreditoVenta = (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado") || salesTypeNameLower.includes("renting")) && !salesTypeNameLower.includes("preference");
+        const isPreferenceVenta = salesTypeNameLower.includes("preference");
+
         if (entraMatriculacion) {
           matriculacionesRealesVendedor++;
         }
@@ -380,8 +384,8 @@ export async function POST(req: NextRequest) {
             (rule.tipo_evento === "pedido" && entraPedido) ||
             (rule.tipo_evento === "afectacion" && entraAfectacion) ||
             (rule.tipo_evento === "matriculacion" && entraMatriculacion) ||
-            (rule.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
-            (rule.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
+            ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+            (rule.tipo_evento === "preference" && entraRci && isPreferenceVenta);
 
           if (!eventMatches) return;
 
@@ -416,8 +420,8 @@ export async function POST(req: NextRequest) {
             (bonus.tipo_evento === "pedido" && entraPedido) ||
             (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
             (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
-            (bonus.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
-            (bonus.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
+            ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+            (bonus.tipo_evento === "preference" && entraRci && isPreferenceVenta);
 
           if (!eventMatches) return;
 
@@ -455,6 +459,8 @@ export async function POST(req: NextRequest) {
           entraRci,
           isVN,
           tipoUsado,
+          isCreditoVenta,
+          isPreferenceVenta,
           valorObjetivoCalculado: objValorExpediente,
           itemsDetalleInitial: itemsDetalle
         };
@@ -488,7 +494,7 @@ export async function POST(req: NextRequest) {
       let voUnitCounterPay = 0;
 
       // --- Segunda Pasada: Calcular comisiones económicas ---
-      expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, entraRci, isVN, tipoUsado, valorObjetivoCalculado, itemsDetalleInitial }) => {
+      expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, entraRci, isVN, tipoUsado, isCreditoVenta, isPreferenceVenta, valorObjetivoCalculado, itemsDetalleInitial }) => {
         let comisionBaseVN = 0;
         let comisionUsado = 0;
         let comisionFinanciacion = 0;
@@ -644,8 +650,8 @@ export async function POST(req: NextRequest) {
             (rule.tipo_evento === "pedido" && entraPedido) ||
             (rule.tipo_evento === "afectacion" && entraAfectacion) ||
             (rule.tipo_evento === "matriculacion" && entraMatriculacion) ||
-            (rule.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
-            (rule.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
+            ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+            (rule.tipo_evento === "preference" && entraRci && isPreferenceVenta);
 
           if (!eventMatches) return;
 
@@ -678,8 +684,8 @@ export async function POST(req: NextRequest) {
             (bonus.tipo_evento === "pedido" && entraPedido) ||
             (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
             (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
-            (bonus.tipo_evento === "financiacion" && entraRci && exp.id_tipo_de_venta) ||
-            (bonus.tipo_evento === "preference" && entraRci && exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() === "preference");
+            ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+            (bonus.tipo_evento === "preference" && entraRci && isPreferenceVenta);
 
           if (!eventMatches) return;
 
