@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
       return dateA.localeCompare(dateB);
     });
 
-    // Calcular Tasas Intervención por Marca (basado en matriculaciones y fecha RCI)
+    // Calcular Tasas Intervención por Marca (basado en matriculaciones y fecha RCI, simulando para pipeline)
     const totalMatriculadosPorMarca: Record<number, number> = {};
     const financiadosPorMarca: Record<number, number> = {};
 
@@ -204,23 +204,15 @@ export async function POST(req: NextRequest) {
         const isVN = stateName === "nuevo" || stateName === "demo";
         
         if (isVN) {
-          // Denominador: Coches matriculados en el mes
-          const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
-          if (entraMatriculacion) {
-            totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
-          }
+          totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
           
-          // Numerador: Coches con contratación de financiación (fecha_rci) en el mes
-          const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
-          if (entraRci) {
-            const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-            const isFinanced = salesTypeName.includes("preference") || 
-                               salesTypeName.includes("crédito") || 
-                               salesTypeName.includes("credito") || 
-                               salesTypeName.includes("renting");
-            if (isFinanced) {
-              financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
-            }
+          const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+          const isFinanced = salesTypeName.includes("preference") || 
+                             salesTypeName.includes("crédito") || 
+                             salesTypeName.includes("credito") || 
+                             salesTypeName.includes("renting");
+          if (isFinanced) {
+            financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
           }
         }
       }
@@ -486,10 +478,10 @@ export async function POST(req: NextRequest) {
 
     const cumpleMinimo = matriculacionesRealesVendedor >= plan.min_matriculaciones;
 
-    // Usados count
+    // Usados count (incluyendo estimación)
     const matriculatedUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
     expsClasificados.forEach((c) => {
-      if (c.entraMatriculacion && !c.isVN && c.tipoUsado) {
+      if (!c.isVN && c.tipoUsado) {
         matriculatedUsedCounts[c.tipoUsado] = (matriculatedUsedCounts[c.tipoUsado] || 0) + 1;
       }
     });
@@ -507,86 +499,85 @@ export async function POST(req: NextRequest) {
       let bonusAcumulado = 0;
 
       const finalItems = [...itemsDetalleInitial];
+      const isFinancedType = isCreditoVenta || isPreferenceVenta;
 
-      if (entraMatriculacion) {
-        if (isVN) {
-          if (!isVOVendedor) {
-            const brandId = exp.modelo?.marca_id;
-            const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
-            const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
-            if (modelRate) {
-              let rateImporte = modelRate.rate_x_minus_4;
-              if (tramoAlcanzado === "X-3") rateImporte = modelRate.rate_x_minus_3;
-              else if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
-              else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
-              else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
-              else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
-              else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
-              else if (tramoAlcanzado === "X+3") rateImporte = modelRate.rate_x_plus_3;
+      // 1. Comisión Base VN o VO/Usado (Simulamos matriculación para estimar)
+      if (isVN) {
+        if (!isVOVendedor) {
+          const brandId = exp.modelo?.marca_id;
+          const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
+          const modelRate = plan.rates.find(r => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
+          if (modelRate) {
+            let rateImporte = modelRate.rate_x_minus_4;
+            if (tramoAlcanzado === "X-3") rateImporte = modelRate.rate_x_minus_3;
+            else if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
+            else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
+            else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
+            else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
+            else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
+            else if (tramoAlcanzado === "X+3") rateImporte = modelRate.rate_x_plus_3;
 
-              comisionBaseVN = rateImporte;
+            comisionBaseVN = rateImporte;
+            finalItems.push({
+              concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Tramo ${tramoAlcanzado} (${tasaCumplida ? 'Tasa Int. OK' : 'Tasa Int. Baja'})`,
+              importe: rateImporte,
+              afecta_objetivo: false,
+              valor_objetivo: 0
+            });
+          }
+        } else {
+          finalItems.push({
+            concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Omitida (Vendedor de VO)`,
+            importe: 0,
+            afecta_objetivo: false,
+            valor_objetivo: 0
+          });
+        }
+      } else if (tipoUsado) {
+        if (!isVOVendedor) {
+          const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
+          if (usedRate) {
+            const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
+            const currentIdx = currentUsedProcessedIndex[tipoUsado]++;
+
+            if (totalUnitsOfType >= usedRate.min_aplicar) {
+              const isFirst = currentIdx === 0;
+              const rateImporte = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
+              comisionUsado = rateImporte;
+
               finalItems.push({
-                concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Tramo ${tramoAlcanzado} (${tasaCumplida ? 'Tasa Int. OK' : 'Tasa Int. Baja'})`,
+                concepto: `Comisión VO (${tipoUsado}) - Unidad ${currentIdx + 1} de ${totalUnitsOfType}`,
                 importe: rateImporte,
                 afecta_objetivo: false,
                 valor_objetivo: 0
               });
+            } else {
+              finalItems.push({
+                concepto: `Comisión VO (${tipoUsado}) - No aplica (mínimo no alcanzado: ${totalUnitsOfType}/${usedRate.min_aplicar})`,
+                importe: 0,
+                afecta_objetivo: false,
+                valor_objetivo: 0
+              });
             }
-          } else {
-            finalItems.push({
-              concepto: `Comisión Base VN (${exp.modelo?.nombre_modelo}) - Omitida (Vendedor de VO)`,
-              importe: 0,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
           }
-        } else if (tipoUsado) {
-          if (!isVOVendedor) {
-            const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
-            if (usedRate) {
-              const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
-              const currentIdx = currentUsedProcessedIndex[tipoUsado]++;
+        } else {
+          voUnitCounterPay++;
+          const tier = matchedPatternTiers.find((t: any) => t.unidad === voUnitCounterPay)
+            || matchedPatternTiers[matchedPatternTiers.length - 1]
+            || { valor_objetivo: 1, importe: 150 };
 
-              if (totalUnitsOfType >= usedRate.min_aplicar) {
-                const isFirst = currentIdx === 0;
-                const rateImporte = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
-                comisionUsado = rateImporte;
-
-                finalItems.push({
-                  concepto: `Comisión VO (${tipoUsado}) - Unidad ${currentIdx + 1} de ${totalUnitsOfType}`,
-                  importe: rateImporte,
-                  afecta_objetivo: false,
-                  valor_objetivo: 0
-                });
-              } else {
-                finalItems.push({
-                  concepto: `Comisión VO (${tipoUsado}) - No aplica (mínimo no alcanzado: ${totalUnitsOfType}/${usedRate.min_aplicar})`,
-                  importe: 0,
-                  afecta_objetivo: false,
-                  valor_objetivo: 0
-                });
-              }
-            }
-          } else {
-            voUnitCounterPay++;
-            const tier = matchedPatternTiers.find((t: any) => t.unidad === voUnitCounterPay)
-              || matchedPatternTiers[matchedPatternTiers.length - 1]
-              || { valor_objetivo: 1, importe: 150 };
-
-            comisionUsado = tier.importe;
-            finalItems.push({
-              concepto: `Comisión VO Progresiva (Unidad #${voUnitCounterPay}) - Patrón: ${patronName}`,
-              importe: tier.importe,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
-          }
+          comisionUsado = tier.importe;
+          finalItems.push({
+            concepto: `Comisión VO Progresiva (Unidad #${voUnitCounterPay}) - Patrón: ${patronName}`,
+            importe: tier.importe,
+            afecta_objetivo: false,
+            valor_objetivo: 0
+          });
         }
-
       }
 
-      // 2. Comisión por Financiación (configurable por Marca y Tipo Financiación) - Se abona según fecha RCI
-      if (entraRci && exp.id_tipo_de_venta) {
+      // 2. Comisión por Financiación (se calcula si es de tipo financiado, simulando RCI)
+      if (isFinancedType && exp.id_tipo_de_venta) {
         const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
         let matchedFinanceType = "";
         if (salesTypeName.includes("preference")) {
@@ -615,8 +606,8 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 3. Reglas Preference / BOX3 (commissionPreferenceRules) - Se aplican según fecha RCI
-      if (entraRci) {
+      // 3. Reglas Preference / BOX3 (se aplica si es de tipo preference, simulando RCI)
+      if (isPreferenceVenta) {
         plan.preferenceRules.forEach((rule) => {
           if (!rule.activa) return;
           const filterMarcaMatches = !rule.id_marca || exp.modelo?.marca_id === rule.id_marca;
@@ -641,14 +632,15 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // 4. Reglas generales de comisión
       plan.rules.forEach((rule) => {
         if (!rule.activa || !rule.afecta_comision) return;
         const eventMatches = 
           (rule.tipo_evento === "pedido" && entraPedido) ||
           (rule.tipo_evento === "afectacion" && entraAfectacion) ||
-          (rule.tipo_evento === "matriculacion" && entraMatriculacion) ||
-          ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
-          (rule.tipo_evento === "preference" && entraRci && isPreferenceVenta);
+          (rule.tipo_evento === "matriculacion" && true) ||
+          ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && isCreditoVenta) ||
+          (rule.tipo_evento === "preference" && isPreferenceVenta);
 
         if (!eventMatches) return;
 
@@ -666,14 +658,15 @@ export async function POST(req: NextRequest) {
         }
       });
 
+      // 5. Bonus personalizados
       plan.bonusRules.forEach((bonus) => {
         if (!bonus.activo || bonus.importe <= 0) return;
         const eventMatches = 
           (bonus.tipo_evento === "pedido" && entraPedido) ||
           (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
-          (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
-          ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
-          (bonus.tipo_evento === "preference" && entraRci && isPreferenceVenta);
+          (bonus.tipo_evento === "matriculacion" && true) ||
+          ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && isCreditoVenta) ||
+          (bonus.tipo_evento === "preference" && isPreferenceVenta);
 
         if (!eventMatches) return;
 
@@ -713,7 +706,7 @@ export async function POST(req: NextRequest) {
           planNombre: plan.nombre,
           entraPedido,
           entraAfectacion,
-          entraMatriculacion
+          entraMatriculacion: true // simulated for view
         };
       }
     });

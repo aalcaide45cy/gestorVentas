@@ -1,7 +1,7 @@
 import { syncUser } from "@/lib/auth-utils";
 import Link from "next/link";
 import { db } from "@/db";
-import { expedientes, clientes, marcas, modelos } from "@/db/schema";
+import { expedientes, clientes, marcas, modelos, tiendas } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import QuickExpedienteCreator from "@/components/QuickExpedienteCreator";
 import RecentExpedientesTable from "@/components/RecentExpedientesTable";
@@ -26,6 +26,9 @@ export default async function DashboardPage() {
   const dbClientesAll = await db.query.clientes.findMany();
   const dbTiposVenta = await db.query.tipoDeVenta.findMany({
     orderBy: (tv, { asc }) => [asc(tv.orden), asc(tv.nombre_tipo_venta)]
+  });
+  const dbTiendas = await db.query.tiendas.findMany({
+    orderBy: (t, { asc }) => [asc(t.nombre)]
   });
 
   const expedientesCount = dbExpedientesAll.length;
@@ -229,7 +232,7 @@ export default async function DashboardPage() {
               </Link>
             </div>
 
-            <RecentExpedientesTable initialExpedientes={dbExpedientesRecientes} />
+            <RecentExpedientesTable initialExpedientes={dbExpedientesRecientes} tiendas={dbTiendas} />
           </div>
 
           <QuickExpedienteCreator marcas={dbMarcasAccesoRapido} tiposVenta={dbTiposVenta} />
