@@ -666,7 +666,13 @@ export async function POST(req: NextRequest) {
           const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
 
           if (filterMarcaMatches && filterModeloMatches) {
-            bonusAcumulado += rule.importe;
+            if (rule.tipo_evento === "preference") {
+              comisionPreference += rule.importe;
+            } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
+              comisionFinanciacion += rule.importe;
+            } else {
+              bonusAcumulado += rule.importe;
+            }
             finalItems.push({
               concepto: `Regla Comisión: ${rule.nombre}`,
               importe: rule.importe,
