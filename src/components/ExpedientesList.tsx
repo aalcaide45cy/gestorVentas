@@ -1204,6 +1204,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         }
       });
 
+      objetivoComputado += sellerObjetivoComputado;
+
       // Determinar tramo del vendedor actual
       let sellerTramoAlcanzado: "X-4" | "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" | "X+3" = "X-4";
       if (activePlan) {
@@ -1585,20 +1587,6 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             matriculadosVNFinanciados++;
           }
         }
-
-        let originalVal = 1.0;
-        if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
-          originalVal = Number(exp.valor_objetivo);
-        } else if (activePlan) {
-          const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
-          if (brandId) {
-            const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
-            if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
-              originalVal = Number(brandIntervention.valor_objetivo_defecto);
-            }
-          }
-        }
-        objetivoComputado += originalVal;
 
         matriculadosList.push(exp);
       } else if (isRelatedThisMonth) {
