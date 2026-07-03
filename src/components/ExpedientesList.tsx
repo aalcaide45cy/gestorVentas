@@ -2595,26 +2595,37 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.78rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>Base VN:</span>
-                      <strong style={{ color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalBaseVN.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "0.78rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "var(--text-muted)", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)", textTransform: "uppercase", fontSize: "0.65rem" }}>
+                      <span style={{ flex: 1.2 }}>Concepto</span>
+                      <span style={{ flex: 1.5, textAlign: "center" }}>Detalle / Cant.</span>
+                      <span style={{ flex: 1, textAlign: "right" }}>Importe</span>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>Base VO / Usado:</span>
-                      <strong style={{ color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalUsado.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Base VN:</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosVN} uds en Tramo {tramo}</span>
+                      <strong style={{ flex: 1, textAlign: "right", color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalBaseVN.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>Incentivo Crédito/Finan:</span>
-                      <strong>{stats.totalFinanciacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Base VO / Usado:</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculados - stats.matriculadosVN} uds</span>
+                      <strong style={{ flex: 1, textAlign: "right", color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalUsado.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "4px", borderBottom: "1px solid var(--border-light)" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>Reglas Preference/BOX3:</span>
-                      <strong>{stats.totalPreference.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Crédito / Finan:</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosCredito} uds</span>
+                      <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalFinanciacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: "var(--text-secondary)" }}>Reglas / Bonus Especiales:</span>
-                      <strong>{stats.totalReglasBonus.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Preference/BOX3:</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosPreference} uds</span>
+                      <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalPreference.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Bonus Especiales:</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Campañas / Reglas</span>
+                      <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalReglasBonus.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
                   </div>
                 </div>

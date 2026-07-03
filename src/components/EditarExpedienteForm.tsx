@@ -341,6 +341,36 @@ export default function EditarExpedienteForm({
     setSaving(true);
     setError(null);
     try {
+      if (clienteAsignado && isClienteModificado()) {
+        const clientBody = {
+          id: clienteAsignado.id,
+          dni,
+          nombre,
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: emails.filter(e => e.email.trim() !== "").map(e => ({ email: e.email, tipo: e.tipo })),
+          telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo: t.tipo }))
+        };
+        const clientRes = await fetch("/api/clientes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(clientBody)
+        });
+        if (!clientRes.ok) {
+          const errorData = await clientRes.json();
+          throw new Error(errorData.message || "Error al actualizar los datos del cliente primero.");
+        }
+        setClienteAsignado({
+          ...clienteAsignado,
+          dni,
+          nombre,
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: emails.filter(e => e.email.trim() !== "").map(e => ({ email: e.email, tipo_email: e.tipo })),
+          telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo_telefono: t.tipo }))
+        });
+      }
+
       const response = await fetch("/api/expedientes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -496,6 +526,36 @@ export default function EditarExpedienteForm({
     setError(null);
 
     try {
+      if (clienteAsignado && isClienteModificado()) {
+        const clientBody = {
+          id: clienteAsignado.id,
+          dni,
+          nombre,
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: emails.filter(e => e.email.trim() !== "").map(e => ({ email: e.email, tipo: e.tipo })),
+          telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo: t.tipo }))
+        };
+        const clientRes = await fetch("/api/clientes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(clientBody)
+        });
+        if (!clientRes.ok) {
+          const errorData = await clientRes.json();
+          throw new Error(errorData.message || "Error al actualizar los datos del cliente primero.");
+        }
+        setClienteAsignado({
+          ...clienteAsignado,
+          dni,
+          nombre,
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: emails.filter(e => e.email.trim() !== "").map(e => ({ email: e.email, tipo_email: e.tipo })),
+          telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo_telefono: t.tipo }))
+        });
+      }
+
       const response = await fetch("/api/expedientes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
