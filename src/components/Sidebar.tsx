@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { UserButton, useClerk } from "@clerk/nextjs";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -16,6 +17,7 @@ export default function Sidebar({ user }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const { signOut } = useClerk();
+  const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
@@ -498,7 +500,10 @@ export default function Sidebar({ user }: SidebarProps) {
         }}
       >
         <button
-          onClick={() => signOut({ redirectUrl: "/sign-in" })}
+          onClick={async () => {
+            await signOut();
+            router.push("/sign-in");
+          }}
           className="glass-panel-interactive"
           style={{
             display: "flex",
