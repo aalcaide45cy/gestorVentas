@@ -31,7 +31,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [planData, setPlanData] = useState<any>(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "resumen" | "objetivo" | "modelos" | "usados" | "preference" | "reglas" | "bonus" | "liquidacion"
+    "resumen" | "objetivo" | "modelos" | "usados" | "preference" | "reglas" | "bonus" | "penalizaciones" | "liquidacion"
   >("resumen");
 
   // Estados para creación/clonación de planes
@@ -57,6 +57,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [arrastre, setArrastre] = useState(0);
   const [minMatriculaciones, setMinMatriculaciones] = useState(6);
   const [minCochesMultiplicador, setMinCochesMultiplicador] = useState(0);
+  const [penalizacionImporte, setPenalizacionImporte] = useState(0);
+  const [penalizacionTitulo, setPenalizacionTitulo] = useState("");
+  const [penalizacionDescripcion, setPenalizacionDescripcion] = useState("");
 
   // Modelos y tarifas
   const [rates, setRates] = useState<any[]>([]);
@@ -165,6 +168,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   // Filtro tipo vehiculo para Bonus
   const [newBonusTypeVehiculo, setNewBonusTypeVehiculo] = useState("cualquiera");
 
+  // Penalties rule creation states
+  const [newPenaltyName, setNewPenaltyName] = useState("");
+  const [newPenaltyDesc, setNewPenaltyDesc] = useState("");
+  const [newPenaltyType, setNewPenaltyType] = useState("pedido");
+  const [newPenaltyMarca, setNewPenaltyMarca] = useState("");
+  const [newPenaltyModelo, setNewPenaltyModelo] = useState("");
+  const [newPenaltyImporte, setNewPenaltyImporte] = useState("50");
+  const [newPenaltyStart, setNewPenaltyStart] = useState("");
+  const [newPenaltyEnd, setNewPenaltyEnd] = useState("");
+  const [newPenaltyTypeVehiculo, setNewPenaltyTypeVehiculo] = useState("cualquiera");
+
   // Estados para editar Bonus
   const [editingBonusIdx, setEditingBonusIdx] = useState<number | null>(null);
   const [editingBonusName, setEditingBonusName] = useState("");
@@ -246,6 +260,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setArrastre(plan.arrastre);
         setMinMatriculaciones(plan.min_matriculaciones);
         setMinCochesMultiplicador(plan.min_coches_multiplicador || 0);
+        setPenalizacionImporte(plan.penalizacion_importe || 0);
+        setPenalizacionTitulo(plan.penalizacion_titulo || "");
+        setPenalizacionDescripcion(plan.penalizacion_descripcion || "");
 
         const planDate = plan.fecha_inicio ? new Date(plan.fecha_inicio) : new Date();
         setBulkYear(planDate.getFullYear());
@@ -470,6 +487,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           arrastre: arrastre,
           min_matriculaciones: minMatriculaciones,
           min_coches_multiplicador: minCochesMultiplicador,
+          penalizacion_importe: penalizacionImporte,
+          penalizacion_titulo: penalizacionTitulo,
+          penalizacion_descripcion: penalizacionDescripcion,
           rates,
           financeRules: {
             importe_normal: financeNormal,
@@ -780,6 +800,38 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setNewBonusValObj("0");
     setNewBonusStart("");
     setNewBonusEnd("");
+  };
+
+  const handleAddPenalty = () => {
+    if (!newPenaltyName.trim()) {
+      showNotification("Por favor, introduce un nombre para la Penalización", "error");
+      return;
+    }
+    const newPenalty = {
+      nombre: newPenaltyName,
+      descripcion: newPenaltyDesc || null,
+      tipo_evento: newPenaltyType,
+      id_marca: newPenaltyMarca ? Number(newPenaltyMarca) : null,
+      id_modelo: newPenaltyModelo ? Number(newPenaltyModelo) : null,
+      importe: -Math.abs(Number(newPenaltyImporte || 0)),
+      afecta_objetivo: false,
+      valor_objetivo: 0,
+      fecha_inicio: newPenaltyStart || null,
+      fecha_fin: newPenaltyEnd || null,
+      activo: true,
+      tipo_vehiculo: newPenaltyTypeVehiculo,
+      es_penalizacion: true
+    };
+    setBonusRules([...bonusRules, newPenalty]);
+    setNewPenaltyName("");
+    setNewPenaltyDesc("");
+    setNewPenaltyType("pedido");
+    setNewPenaltyMarca("");
+    setNewPenaltyModelo("");
+    setNewPenaltyImporte("50");
+    setNewPenaltyStart("");
+    setNewPenaltyEnd("");
+    setNewPenaltyTypeVehiculo("cualquiera");
   };
 
   const handleDeleteBonus = (idx: number) => {
@@ -1102,6 +1154,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               { id: "usados", label: "🚙 Usados / VO" },
               { id: "reglas", label: "⚙️ Financ/Reglas" },
               { id: "bonus", label: "🎁 Bonus" },
+              { id: "penalizaciones", label: "⚠️ Penalizaciones" },
               { id: "liquidacion", label: "💰 Liquidación" }
             ].map((tab) => (
               <button
@@ -2701,6 +2754,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     </thead>
                     <tbody>
                       {bonusRules.map((b, idx) => {
+                        if (b.es_penalizacion) return null;
                         const mName = b.id_marca ? marcas.find(m => m.id === b.id_marca)?.nombre : "Todas";
                         const modName = b.id_modelo ? modelos.find(m => m.id === b.id_modelo)?.nombre : "Todos";
                         const isEditing = editingBonusIdx === idx;
@@ -2899,7 +2953,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           </tr>
                         );
                       })}
-                      {bonusRules.length === 0 && (
+                      {bonusRules.filter(b => !b.es_penalizacion).length === 0 && (
                         <tr>
                           <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: "24px" }}>
                             No hay bonus de campaña dinámicos configurados en el plan.
@@ -2912,7 +2966,265 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
             )}
 
+            {activeTab === "penalizaciones" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <h3 style={{ fontSize: "1.1rem", color: "var(--text-primary)", margin: 0 }}>⚠️ Penalización Única Global</h3>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+                    Establece un importe fijo de penalización que se restará de forma directa a las comisiones del total liquidado del mes.
+                  </p>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+                    <div className="form-group">
+                      <label className="form-label">Importe Fijo (se restará)</label>
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={Math.abs(penalizacionImporte)}
+                          onChange={(e) => setPenalizacionImporte(e.target.value ? -Math.abs(Number(e.target.value)) : 0)}
+                          placeholder="Ej. 9"
+                          disabled={!isAdmin}
+                          style={{ paddingRight: "30px" }}
+                        />
+                        <span style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }}>€</span>
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Título de la Penalización</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={penalizacionTitulo}
+                        onChange={(e) => setPenalizacionTitulo(e.target.value)}
+                        placeholder="Ej. Penalización retraso documentación"
+                        disabled={!isAdmin}
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: "span 2" }}>
+                      <label className="form-label">Descripción Detallada</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={penalizacionDescripcion}
+                        onChange={(e) => setPenalizacionDescripcion(e.target.value)}
+                        placeholder="Explicación del porqué de esta penalización que aparecerá al pasar el ratón"
+                        disabled={!isAdmin}
+                      />
+                    </div>
+                  </div>
+                </div>
 
+                <hr style={{ border: "0", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
+                <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>Reglas de Penalización Dinámicas</h3>
+                
+                {isAdmin && (
+                  <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
+                    <h4 style={{ margin: 0, fontSize: "1rem" }}>Añadir Regla de Penalización</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
+                      <div className="form-group">
+                        <label className="form-label">Nombre del Descuento/Penalización</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={newPenaltyName}
+                          onChange={(e) => setNewPenaltyName(e.target.value)}
+                          placeholder="Ej. Penalización VN sin matricular"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Descripción</label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={newPenaltyDesc}
+                          onChange={(e) => setNewPenaltyDesc(e.target.value)}
+                          placeholder="Breve explicación"
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Tipo de Evento</label>
+                        <select
+                          className="form-select"
+                          value={newPenaltyType}
+                          onChange={(e) => setNewPenaltyType(e.target.value)}
+                        >
+                          <option value="pedido">Pedido</option>
+                          <option value="afectacion">Afectación</option>
+                          <option value="matriculacion">Matriculación</option>
+                          <option value="financiacion">Financiación estándar (RCI)</option>
+                          <option value="preference">Preference / BOX3</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Tipo de Vehículo</label>
+                        <select
+                          className="form-select"
+                          value={newPenaltyTypeVehiculo}
+                          onChange={(e) => setNewPenaltyTypeVehiculo(e.target.value)}
+                        >
+                          <option value="cualquiera">Cualquiera</option>
+                          <option value="nuevo">Nuevo (VN)</option>
+                          <option value="usado">Usado (VO)</option>
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Marca (Opcional)</label>
+                        <select
+                          className="form-select"
+                          value={newPenaltyMarca}
+                          onChange={(e) => {
+                            setNewPenaltyMarca(e.target.value);
+                            setNewPenaltyModelo("");
+                          }}
+                        >
+                          <option value="">Cualquier marca</option>
+                          {marcas.map(m => (
+                            <option key={m.id} value={m.id}>{m.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Modelo (Opcional)</label>
+                        <select
+                          className="form-select"
+                          value={newPenaltyModelo}
+                          onChange={(e) => setNewPenaltyModelo(e.target.value)}
+                          disabled={!newPenaltyMarca}
+                        >
+                          <option value="">Cualquier modelo</option>
+                          {modelos
+                            .filter(m => m.marca_id === Number(newPenaltyMarca))
+                            .map(m => (
+                              <option key={m.id} value={m.id}>{m.nombre}</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Importe a Descontar (€)</label>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={newPenaltyImporte}
+                          onChange={(e) => setNewPenaltyImporte(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Fecha Inicio (Opcional)</label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={newPenaltyStart}
+                          onChange={(e) => setNewPenaltyStart(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Fecha Fin (Opcional)</label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={newPenaltyEnd}
+                          onChange={(e) => setNewPenaltyEnd(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddPenalty}
+                      className="btn btn-secondary"
+                      style={{ alignSelf: "flex-end", marginTop: "16px", padding: "10px 20px" }}
+                    >
+                      ➕ Añadir Regla Penalización
+                    </button>
+                  </div>
+                )}
+
+                <div className="table-container">
+                  <table className="table-premium" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border-light)", color: "var(--text-secondary)" }}>
+                        <th style={{ padding: "12px 16px", textAlign: "left" }}>Nombre / Concepto</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left" }}>Trigger</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left" }}>Vehículo</th>
+                        <th style={{ padding: "12px 16px", textAlign: "left" }}>Restricciones</th>
+                        <th style={{ padding: "12px 16px", textAlign: "right" }}>Descuento (€)</th>
+                        {isAdmin && <th style={{ padding: "12px 16px", textAlign: "center", width: "100px" }}>Acción</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bonusRules.filter(b => b.es_penalizacion).length > 0 ? (
+                        bonusRules
+                          .map((b, idx) => ({ rule: b, originalIndex: idx }))
+                          .filter(item => item.rule.es_penalizacion)
+                          .map((item) => {
+                            const b = item.rule;
+                            const idx = item.originalIndex;
+                            const marcaObj = b.id_marca ? marcas.find(m => m.id === b.id_marca) : null;
+                            const modeloObj = b.id_modelo ? modelos.find(m => m.id === b.id_modelo) : null;
+                            
+                            return (
+                              <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                                <td style={{ padding: "12px 16px" }}>
+                                  <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{b.nombre}</div>
+                                  {b.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{b.descripcion}</div>}
+                                </td>
+                                <td style={{ padding: "12px 16px" }}>
+                                  <span className="badge badge-tienda" style={{ textTransform: "capitalize" }}>
+                                    {b.tipo_evento === "financiacion" ? "Financiación estándar" : b.tipo_evento}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "12px 16px", textTransform: "capitalize" }}>{b.tipo_vehiculo || "cualquiera"}</td>
+                                <td style={{ padding: "12px 16px", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                                  {marcaObj && <div>Marca: {marcaObj.nombre}</div>}
+                                  {modeloObj && <div>Modelo: {modeloObj.nombre}</div>}
+                                  {b.fecha_inicio && <div>Desde: {b.fecha_inicio}</div>}
+                                  {b.fecha_fin && <div>Hasta: {b.fecha_fin}</div>}
+                                  {!marcaObj && !modeloObj && !b.fecha_inicio && !b.fecha_fin && <span>Sin restricciones adicionales</span>}
+                                </td>
+                                <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: "var(--danger)" }}>
+                                  -{Math.abs(b.importe)} €
+                                </td>
+                                {isAdmin && (
+                                  <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteBonus(idx)}
+                                      className="btn"
+                                      style={{
+                                        padding: "4px 8px", fontSize: "0.75rem", color: "var(--danger)",
+                                        background: "rgba(239, 68, 68, 0.05)", border: "1px solid rgba(239, 68, 68, 0.15)",
+                                        borderRadius: "var(--radius-sm)", cursor: "pointer"
+                                      }}
+                                    >
+                                      Quitar
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })
+                      ) : (
+                        <tr>
+                          <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary)" }}>
+                            No hay reglas de penalización dinámicas configuradas para este plan.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* TAB: LIQUIDACIÓN */}
             {activeTab === "liquidacion" && (
@@ -2989,9 +3301,48 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           Calculada el {formatDate(planData.liquidations[0].fecha_calculo)}
                         </div>
                       </div>
-                      <strong style={{ fontSize: "2rem", color: "var(--text-primary)" }}>
-                        {planData.liquidations[0].total_comision_economica.toLocaleString()} €
-                      </strong>
+                      {(() => {
+                        const lines = planData.liquidations[0].lines || [];
+                        const totalGeneradoTeorico = lines.reduce((sum: number, l: any) => sum + (l.total_generado || 0), 0);
+                        const penaltyAmt = planData.liquidations[0].penalizacion_importe_snapshot || 0;
+                        
+                        if (penaltyAmt < 0 && planData.liquidations[0].cumple_minimo_snapshot) {
+                          const penaltyTitle = planData.liquidations[0].penalizacion_titulo_snapshot || "Penalización";
+                          const penaltyDesc = planData.liquidations[0].penalizacion_descripcion_snapshot || "Sin descripción";
+                          return (
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "1.1rem" }}>
+                              <span style={{ color: "var(--text-secondary)" }}>{totalGeneradoTeorico.toLocaleString()} €</span>
+                              <span style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>
+                                -
+                              </span>
+                              <span 
+                                style={{ 
+                                  color: "var(--danger)", 
+                                  cursor: "help", 
+                                  borderBottom: "1px dashed var(--danger)",
+                                  fontSize: "0.95rem",
+                                  paddingBottom: "1px"
+                                }}
+                                title={`${penaltyTitle}: ${penaltyDesc}`}
+                              >
+                                Penalización: {penaltyAmt} €
+                              </span>
+                              <span style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>
+                                =
+                              </span>
+                              <strong style={{ fontSize: "2rem", color: "var(--success)" }}>
+                                {planData.liquidations[0].total_comision_economica.toLocaleString()} €
+                              </strong>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <strong style={{ fontSize: "2rem", color: "var(--text-primary)" }}>
+                            {planData.liquidations[0].total_comision_economica.toLocaleString()} €
+                          </strong>
+                        );
+                      })()}
                     </div>
 
                     {/* DETALLE INDIVIDUAL DE LINEAS */}
@@ -3088,6 +3439,31 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 </tr>
                               );
                             })}
+
+                            {planData.liquidations[0].lines && planData.liquidations[0].lines.length > 0 && (() => {
+                              const lines = planData.liquidations[0].lines;
+                              const totalObj = lines.reduce((sum: number, l: any) => sum + (l.valor_para_objetivo || 0), 0);
+                              const totalVN = lines.reduce((sum: number, l: any) => sum + (l.comision_base_vn || 0), 0);
+                              const totalUsado = lines.reduce((sum: number, l: any) => sum + (l.comision_usado || 0), 0);
+                              const totalFinan = lines.reduce((sum: number, l: any) => sum + (l.comision_financiacion || 0), 0);
+                              const totalPref = lines.reduce((sum: number, l: any) => sum + (l.comision_preference || 0), 0);
+                              const totalBonus = lines.reduce((sum: number, l: any) => sum + (l.bonus_acumulado || 0), 0);
+                              const totalGenerado = lines.reduce((sum: number, l: any) => sum + (l.total_generado || 0), 0);
+
+                              return (
+                                <tr style={{ borderTop: "2px solid var(--border-light)", background: "rgba(255, 255, 255, 0.04)", fontWeight: 700 }}>
+                                  <td colSpan={5} style={{ padding: "12px 16px", color: "var(--text-primary)" }}>TOTALES</td>
+                                  <td style={{ textAlign: "center" }}>+{totalObj}</td>
+                                  <td style={{ textAlign: "right" }}>{totalVN.toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right" }}>{totalUsado.toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right" }}>{totalFinan.toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right" }}>{totalPref.toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right", color: totalBonus >= 0 ? "var(--success)" : "var(--danger)" }}>{totalBonus.toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right", color: "var(--success)" }}>{totalGenerado.toLocaleString()} €</td>
+                                  <td></td>
+                                </tr>
+                              );
+                            })()}
                           </tbody>
                         </table>
                       </div>

@@ -1570,13 +1570,19 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
 
           if (filterMarcaMatches && filterModeloMatches) {
-            reglasBonus += rule.importe;
+            if (rule.tipo_evento === "preference") {
+              basePreference += rule.importe;
+            } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
+              baseFinanciacion += rule.importe;
+            } else {
+              reglasBonus += rule.importe;
+            }
           }
         });
 
-        // 5. Bonus personalizados
+        // 5. Bonus personalizados y Penalizaciones dinámicas
         activePlan.bonusRules?.forEach((bonus: any) => {
-          if (!bonus.activo || bonus.importe <= 0) return;
+          if (!bonus.activo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
           const eventMatches = 
             (bonus.tipo_evento === "pedido" && entraPedido) ||
             (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
@@ -1597,7 +1603,11 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
 
           if (filterMarcaMatches && filterModeloMatches) {
-            reglasBonus += bonus.importe;
+            if (bonus.es_penalizacion) {
+              reglasBonus -= Math.abs(bonus.importe);
+            } else {
+              reglasBonus += bonus.importe;
+            }
           }
         });
 

@@ -238,6 +238,9 @@ export const commissionPlans = pgTable('commission_plans', {
   arrastre: integer('arrastre').notNull().default(0),
   min_matriculaciones: integer('min_matriculaciones').notNull().default(6),
   min_coches_multiplicador: integer('min_coches_multiplicador').notNull().default(0),
+  penalizacion_importe: integer('penalizacion_importe').notNull().default(0),
+  penalizacion_titulo: text('penalizacion_titulo'),
+  penalizacion_descripcion: text('penalizacion_descripcion'),
 });
 
 // 2. TABLA: COMMISSION_PLAN_MODEL_RATES (Tramos de comisión por modelo)
@@ -290,6 +293,7 @@ export const commissionBonusRules = pgTable('commission_bonus_rules', {
   fecha_fin: date('fecha_fin'),
   activo: boolean('activo').notNull().default(true),
   tipo_vehiculo: varchar('tipo_vehiculo', { length: 50 }).notNull().default('cualquiera'), // nuevo, usado, cualquiera
+  es_penalizacion: boolean('es_penalizacion').notNull().default(false),
 });
 
 // 5. TABLA: COMMISSION_FINANCE_RULES (Reglas de financiación)
@@ -366,6 +370,9 @@ export const commissionLiquidations = pgTable('commission_liquidations', {
   matriculaciones_reales_snapshot: integer('matriculaciones_reales_snapshot').notNull().default(0),
   cumple_minimo_snapshot: boolean('cumple_minimo_snapshot').notNull().default(false),
   total_comision_economica: integer('total_comision_economica').notNull().default(0),
+  penalizacion_importe_snapshot: integer('penalizacion_importe_snapshot').notNull().default(0),
+  penalizacion_titulo_snapshot: text('penalizacion_titulo_snapshot'),
+  penalizacion_descripcion_snapshot: text('penalizacion_descripcion_snapshot'),
 });
 
 // 7. TABLA: COMMISSION_LIQUIDATION_LINES (Línea de desglose de liquidación por expediente)

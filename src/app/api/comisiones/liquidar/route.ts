@@ -684,7 +684,7 @@ export async function POST(req: NextRequest) {
 
         // 5. Evaluar bonus personalizados (para dinero)
         plan.bonusRules.forEach((bonus) => {
-          if (!bonus.activo || bonus.importe <= 0) return;
+          if (!bonus.activo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
 
           const eventMatches = 
             (bonus.tipo_evento === "pedido" && entraPedido) ||
@@ -707,13 +707,24 @@ export async function POST(req: NextRequest) {
           const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
 
           if (filterMarcaMatches && filterModeloMatches) {
-            bonusAcumulado += bonus.importe;
-            finalItems.push({
-              concepto: `Bonus Campaña: ${bonus.nombre}`,
-              importe: bonus.importe,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
+            if (bonus.es_penalizacion) {
+              const penaltyVal = -Math.abs(bonus.importe);
+              bonusAcumulado += penaltyVal;
+              finalItems.push({
+                concepto: `Penalización: ${bonus.nombre}`,
+                importe: penaltyVal,
+                afecta_objetivo: false,
+                valor_objetivo: 0
+              });
+            } else {
+              bonusAcumulado += bonus.importe;
+              finalItems.push({
+                concepto: `Bonus Campaña: ${bonus.nombre}`,
+                importe: bonus.importe,
+                afecta_objetivo: false,
+                valor_objetivo: 0
+              });
+            }
           }
         });
 
@@ -776,6 +787,8 @@ export async function POST(req: NextRequest) {
       tramoPredominante = linesToInsert[0].tramo_vendedor;
     }
 
+    const finalComision = Math.max(0, totalLiquidacionGlobal - Math.abs(plan.penalizacion_importe || 0));
+
     // A. Insertar cabecera de liquidación
     const [insertedLiq] = await db.insert(commissionLiquidations).values({
       id_plan: planId,
@@ -788,7 +801,10 @@ export async function POST(req: NextRequest) {
       tramo_alcanzado_snapshot: tramoPredominante,
       matriculaciones_reales_snapshot: linesToInsert.filter(l => l.entra_por_matriculacion).length,
       cumple_minimo_snapshot: linesToInsert.every(l => l.cumple_minimo_vendedor),
-      total_comision_economica: totalLiquidacionGlobal,
+      total_comision_economica: finalComision,
+      penalizacion_importe_snapshot: -Math.abs(plan.penalizacion_importe || 0),
+      penalizacion_titulo_snapshot: plan.penalizacion_titulo || null,
+      penalizacion_descripcion_snapshot: plan.penalizacion_descripcion || null,
     }).returning();
 
     const newLiquidationId = insertedLiq.id_liquidation;

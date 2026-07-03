@@ -140,6 +140,9 @@ export async function POST(req: NextRequest) {
       if (cloneFromId) {
         // --- PROCESO DE CLONADO ---
         const sourcePlanId = Number(cloneFromId);
+        const sourcePlan = await tx.query.commissionPlans.findFirst({
+          where: eq(commissionPlans.id_plan, sourcePlanId)
+        });
         
         // 1. Insertar el nuevo plan copiando campos básicos
         const [insertedPlan] = await tx.insert(commissionPlans).values({
@@ -150,6 +153,9 @@ export async function POST(req: NextRequest) {
           arrastre: arrastre !== undefined ? Number(arrastre) : 0,
           min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
           min_coches_multiplicador: min_coches_multiplicador !== undefined ? Number(min_coches_multiplicador) : 0,
+          penalizacion_importe: sourcePlan?.penalizacion_importe ?? 0,
+          penalizacion_titulo: sourcePlan?.penalizacion_titulo ?? null,
+          penalizacion_descripcion: sourcePlan?.penalizacion_descripcion ?? null,
           estado: "activo",
         }).returning();
 
@@ -468,6 +474,9 @@ export async function PUT(req: NextRequest) {
       arrastre,
       min_matriculaciones,
       min_coches_multiplicador,
+      penalizacion_importe,
+      penalizacion_titulo,
+      penalizacion_descripcion,
       // Actualizaciones anidadas opcionales
       rates,
       financeRules,
@@ -494,6 +503,9 @@ export async function PUT(req: NextRequest) {
     if (arrastre !== undefined) updateData.arrastre = Number(arrastre);
     if (min_matriculaciones !== undefined) updateData.min_matriculaciones = Number(min_matriculaciones);
     if (min_coches_multiplicador !== undefined) updateData.min_coches_multiplicador = Number(min_coches_multiplicador);
+    if (penalizacion_importe !== undefined) updateData.penalizacion_importe = Number(penalizacion_importe);
+    if (penalizacion_titulo !== undefined) updateData.penalizacion_titulo = penalizacion_titulo;
+    if (penalizacion_descripcion !== undefined) updateData.penalizacion_descripcion = penalizacion_descripcion;
 
     if (Object.keys(updateData).length > 0) {
       await db.update(commissionPlans).set(updateData).where(eq(commissionPlans.id_plan, Number(id_plan)));
