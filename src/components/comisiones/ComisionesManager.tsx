@@ -3043,13 +3043,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   <td 
                                     style={{ 
                                       textAlign: "right",
-                                      cursor: line.bonus_acumulado > 0 ? "help" : "default",
-                                      borderBottom: line.bonus_acumulado > 0 ? "1px dashed rgba(255,255,255,0.3)" : "none",
-                                      paddingBottom: line.bonus_acumulado > 0 ? "2px" : "initial"
+                                      cursor: line.bonus_acumulado > 0 ? "help" : "default"
                                     }}
                                     title={bonusTooltip}
                                   >
-                                    {(line.bonus_acumulado || 0).toLocaleString()} €
+                                    {line.bonus_acumulado > 0 ? (
+                                      <span style={{ borderBottom: "1px dashed rgba(255,255,255,0.4)", paddingBottom: "1px" }}>
+                                        {(line.bonus_acumulado || 0).toLocaleString()} €
+                                      </span>
+                                    ) : (
+                                      "0 €"
+                                    )}
                                   </td>
                                   <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{(line.total_generado || 0).toLocaleString()} €</td>
                                   <td style={{ textAlign: "center" }}>
