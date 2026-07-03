@@ -1046,7 +1046,9 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   ];
 
   const currentYearNum = new Date().getFullYear();
-  const years = [currentYearNum, currentYearNum - 1, currentYearNum - 2];  const getMonthStats = () => {
+  const years = [currentYearNum, currentYearNum - 1, currentYearNum - 2];
+
+  const getMonthStats = () => {
     let matriculados = 0;
     let matriculadosContado = 0;
     let matriculadosCredito = 0;
@@ -1067,33 +1069,6 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     const matriculadosList: any[] = [];
     const pendientesList: any[] = [];
 
-    // Pre-calcular cupos en el cliente
-    const cupoCounts: Record<number, number> = {};
-    const getActivityDate = (e: any) => {
-      if (e.fecha_expediente && e.fecha_afectacion) {
-        return e.fecha_expediente < e.fecha_afectacion ? e.fecha_expediente : e.fecha_afectacion;
-      }
-      return e.fecha_expediente || e.fecha_afectacion || e.fecha_matriculacion || "";
-    };
-
-    expedientes.forEach((e) => {
-      const actDate = getActivityDate(e);
-      if (actDate) {
-        const parts = actDate.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) {
-          const targetCupo = e.min_coches_multiplicador !== null && e.min_coches_multiplicador !== undefined
-            ? Number(e.min_coches_multiplicador)
-            : 0;
-          if (targetCupo > 0) {
-            cupoCounts[targetCupo] = (cupoCounts[targetCupo] || 0) + 1;
-          }
-        }
-      }
-    });
-
-    // Listas detalladas con cálculos de comisiones
     let totalBaseVN = 0;
     let totalUsado = 0;
     let totalFinanciacion = 0;
@@ -1103,122 +1078,481 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
     const computedDetailsList: any[] = [];
 
-    // Calcular Tasas Intervención por Marca para este período (basado en VN matriculados y fecha_rci, simulando para pipeline)
-    const totalMatriculadosPorMarca: Record<number, number> = {};
-    const financiadosPorMarca: Record<number, number> = {};
+    const getActivityDate = (e: any) => {
+      if (e.fecha_expediente && e.fecha_afectacion) {
+        return e.fecha_expediente < e.fecha_afectacion ? e.fecha_expediente : e.fecha_afectacion;
+      }
+      return e.fecha_expediente || e.fecha_afectacion || e.fecha_matriculacion || "";
+    };
 
-    expedientes.forEach((e) => {
-      const brandId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
-      if (brandId) {
-        const stateName = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-        const isVN = stateName === "nuevo" || stateName === "demo";
-        if (isVN) {
-          const partsMat = e.fecha_matriculacion ? e.fecha_matriculacion.split("-") : [];
-          const entraMat = (partsMat.length > 1 && parseInt(partsMat[0], 10) === statsYear && parseInt(partsMat[1], 10) === statsMonth);
+    // 1. Filtrar expedientes que pertenezcan a este período
+    const periodExpedientes = expedientes.filter((e) => {
+      const actDate = getActivityDate(e);
+      let isRelatedThisMonth = false;
+      if (actDate) {
+        const parts = actDate.split("-");
+        isRelatedThisMonth = (parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth);
+      }
+      let isMatriculadoThisMonth = false;
+      if (e.fecha_matriculacion) {
+        const parts = e.fecha_matriculacion.split("-");
+        isMatriculadoThisMonth = (parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth);
+      }
+      return isRelatedThisMonth || isMatriculadoThisMonth;
+    });
 
-          let isRelatedThisMonth = false;
-          if (e.fecha_expediente) {
-            const parts = e.fecha_expediente.split("-");
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10);
-            if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
-          }
-          if (e.fecha_afectacion) {
-            const parts = e.fecha_afectacion.split("-");
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10);
-            if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
-          }
+    // 2. Agrupar por vendedor
+    const expedientesByVendedor: Record<number, any[]> = {};
+    periodExpedientes.forEach((e) => {
+      const idVendedor = e.id_usuario || 999999;
+      if (!expedientesByVendedor[idVendedor]) {
+        expedientesByVendedor[idVendedor] = [];
+      }
+      expedientesByVendedor[idVendedor].push(e);
+    });
 
-          const belongs = entraMat || isRelatedThisMonth;
+    // 3. Procesar cada vendedor de forma independiente para alinearse con el backend
+    for (const [idVendedorStr, vendedorExps] of Object.entries(expedientesByVendedor)) {
+      const isVOVendedor = vendedorExps[0]?.usuario?.tipo_vendedor === "VO";
+      const patronName = vendedorExps[0]?.usuario?.patron_vo || "Estándar VO";
 
-          if (belongs) {
-            totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
-            
-            const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-            const isFinancedType = salesTypeName.includes("preference") || 
-                                   salesTypeName.includes("crédito") || 
-                                   salesTypeName.includes("credito") || 
-                                   salesTypeName.includes("renting");
-            
-            const entraRci = e.fecha_rci && (() => {
-              const parts = e.fecha_rci.split("-");
-              return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
-            })();
-            
-            if (entraRci || isFinancedType) {
-              financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
-            }
+      let matchedPatternTiers: any[] = [];
+      if (isVOVendedor && activePlan) {
+        const dbPattern = activePlan.voPatterns?.find((vp: any) => vp.nombre === patronName && vp.activo);
+        if (dbPattern) {
+          try {
+            matchedPatternTiers = typeof dbPattern.tiers === "string" ? JSON.parse(dbPattern.tiers) : (dbPattern.tiers || []);
+          } catch (e) {
+            matchedPatternTiers = [];
           }
         }
       }
-    });
 
-    const checkTasaCumplida = (brandId: number) => {
-      const total = totalMatriculadosPorMarca[brandId] || 0;
-      if (total === 0) return true;
-      const financiados = financiadosPorMarca[brandId] || 0;
-      if (!activePlan) return true;
-      const brandInt = activePlan.brandInterventionRates?.find((i: any) => i.id_marca === brandId);
-      const targetRate = brandInt?.tasa_intervencion ?? 70;
-      const tipoTasa = brandInt?.tipo_tasa ?? "porcentaje";
-      if (tipoTasa === "unidades") {
-        return financiados >= targetRate;
-      } else {
-        const actualRate = (financiados / total) * 100;
-        return actualRate >= targetRate;
+      // Ordenar vendedorExps cronológicamente
+      vendedorExps.sort((a, b) => {
+        const dateA = a.fecha_matriculacion || a.fecha_afectacion || a.fecha_expediente || "";
+        const dateB = b.fecha_matriculacion || b.fecha_afectacion || b.fecha_expediente || "";
+        return dateA.localeCompare(dateB);
+      });
+
+      // Calcular cupos para el vendedor actual
+      const sellerCupoCounts: Record<number, number> = {};
+      vendedorExps.forEach((e) => {
+        const targetCupo = e.min_coches_multiplicador !== null && e.min_coches_multiplicador !== undefined
+          ? Number(e.min_coches_multiplicador)
+          : 0;
+        if (targetCupo > 0) {
+          sellerCupoCounts[targetCupo] = (sellerCupoCounts[targetCupo] || 0) + 1;
+        }
+      });
+
+      // Calcular objetivo del vendedor actual
+      let sellerObjetivoComputado = 0;
+      vendedorExps.forEach((exp) => {
+        const actDate = getActivityDate(exp);
+        let isActivityThisMonth = false;
+        if (actDate) {
+          const parts = actDate.split("-");
+          isActivityThisMonth = (parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth);
+        }
+        let isMatriculadoThisMonth = false;
+        if (exp.fecha_matriculacion) {
+          const parts = exp.fecha_matriculacion.split("-");
+          isMatriculadoThisMonth = (parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth);
+        }
+
+        let originalVal = 1.0;
+        if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+          originalVal = Number(exp.valor_objetivo);
+        } else if (activePlan) {
+          const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
+          if (brandId) {
+            const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
+            if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+              originalVal = Number(brandIntervention.valor_objetivo_defecto);
+            }
+          }
+        }
+
+        let val = 0.0;
+        let afectoObjetivo = false;
+        if (originalVal === 0) {
+          if (isMatriculadoThisMonth) {
+            val = 1.0;
+            afectoObjetivo = true;
+          }
+        } else {
+          if (isActivityThisMonth) {
+            afectoObjetivo = true;
+            const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
+              ? Number(exp.min_coches_multiplicador)
+              : 0;
+            if (targetCupo > 0 && originalVal > 1) {
+              const countOfSameCupo = sellerCupoCounts[targetCupo] || 0;
+              if (countOfSameCupo >= targetCupo) {
+                val = originalVal;
+              } else {
+                val = 1.0;
+              }
+            } else {
+              val = originalVal;
+            }
+          }
+        }
+        if (afectoObjetivo) {
+          sellerObjetivoComputado += val;
+        }
+      });
+
+      // Determinar tramo del vendedor actual
+      let sellerTramoAlcanzado: "X-4" | "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" | "X+3" = "X-4";
+      if (activePlan) {
+        const X_val = activePlan.objetivo_base + activePlan.arrastre;
+        const diff = sellerObjetivoComputado - X_val;
+        if (diff >= 3) sellerTramoAlcanzado = "X+3";
+        else if (diff === 2) sellerTramoAlcanzado = "X+2";
+        else if (diff === 1) sellerTramoAlcanzado = "X+1";
+        else if (diff === 0) sellerTramoAlcanzado = "X";
+        else if (diff === -1) sellerTramoAlcanzado = "X-1";
+        else if (diff === -2) sellerTramoAlcanzado = "X-2";
+        else if (diff === -3) sellerTramoAlcanzado = "X-3";
+        else sellerTramoAlcanzado = "X-4";
       }
-    };
 
-    // Usados count para aplicar tarifa primera / resto (incluyendo estimación)
-    const matriculatedUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
-    expedientes.forEach((e) => {
-      const parts = e.fecha_matriculacion ? e.fecha_matriculacion.split("-") : [];
-      const y = parts.length > 0 ? parseInt(parts[0], 10) : 0;
-      const m = parts.length > 1 ? parseInt(parts[1], 10) : 0;
-      const entraMat = (y === statsYear && m === statsMonth);
+      // Contadores de Usados del vendedor actual
+      const sellerUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+      vendedorExps.forEach((exp) => {
+        const isMatriculadoThisMonth = exp.fecha_matriculacion && (() => {
+          const parts = exp.fecha_matriculacion.split("-");
+          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+        })();
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        if (isMatriculadoThisMonth && !isVN) {
+          let tipoUsado = "Usado";
+          if (stateName === "km0") tipoUsado = "KM0";
+          else if (stateName === "buyback" || stateName === "bb") tipoUsado = "BB";
+          else if (stateName === "seminuevo" || stateName === "vo") tipoUsado = "VO";
+          sellerUsedCounts[tipoUsado] = (sellerUsedCounts[tipoUsado] || 0) + 1;
+        }
+      });
 
-      let isRelatedThisMonth = false;
-      if (e.fecha_expediente) {
-        const parts = e.fecha_expediente.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
-      }
-      if (e.fecha_afectacion) {
-        const parts = e.fecha_afectacion.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
-      }
+      const sellerUsedProcessedIdx: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+      let sellerVoUnitCounterPay = 0;
 
-      const belongs = entraMat || isRelatedThisMonth;
-      const stateName = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-      const isVN = stateName === "nuevo" || stateName === "demo";
+      // Calcular comisiones de los expedientes de este vendedor
+      let sellerMatriculadosMes = 0;
+      vendedorExps.forEach((exp) => {
+        const isMatriculadoThisMonth = exp.fecha_matriculacion && (() => {
+          const parts = exp.fecha_matriculacion.split("-");
+          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+        })();
+        if (isMatriculadoThisMonth) {
+          sellerMatriculadosMes++;
+        }
+      });
 
-      if (belongs && !isVN) {
-        let tipoUsado = "Usado";
-        if (stateName === "km0") tipoUsado = "KM0";
-        else if (stateName === "buyback" || stateName === "bb") tipoUsado = "BB";
-        else if (stateName === "seminuevo" || stateName === "vo") tipoUsado = "VO";
-        matriculatedUsedCounts[tipoUsado] = (matriculatedUsedCounts[tipoUsado] || 0) + 1;
-      }
-    });
+      const sellerCumpleMinimo = activePlan ? sellerMatriculadosMes >= activePlan.min_matriculaciones : false;
 
-    const currentUsedProcessedIndex: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
+      // Evaluar cada expediente
+      vendedorExps.forEach((exp) => {
+        const actDate = getActivityDate(exp);
+        let isRelatedThisMonth = false;
+        if (actDate) {
+          const parts = actDate.split("-");
+          isRelatedThisMonth = (parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth);
+        }
+        let isMatriculadoThisMonth = false;
+        if (exp.fecha_matriculacion) {
+          const parts = exp.fecha_matriculacion.split("-");
+          isMatriculadoThisMonth = (parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth);
+        }
 
-    // Calcular primero el tramo de comisión que se alcanzará
-    // Para ello necesitamos el total de puntos computados en el mes
-    let totalComputablesTemp = 0;
-    expedientes.forEach(exp => {
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        const entraRci = exp.fecha_rci && (() => {
+          const parts = exp.fecha_rci.split("-");
+          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+        })();
+
+        let baseVN = 0;
+        let baseUsado = 0;
+        let baseFinanciacion = 0;
+        let basePreference = 0;
+        let reglasBonus = 0;
+
+        if (activePlan) {
+          if (isVN) {
+            if (!isVOVendedor) {
+              const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+              // Simular checkTasaCumplida para el vendedor
+              const totalBrandMat = vendedorExps.filter(e => {
+                const bId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+                const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
+                const mat_e = e.fecha_matriculacion && (() => {
+                  const parts = e.fecha_matriculacion.split("-");
+                  return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+                })();
+                return bId === brandId && isVN_e && mat_e;
+              }).length;
+
+              const totalBrandFin = vendedorExps.filter(e => {
+                const bId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+                const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
+                const rci_e = e.fecha_rci && (() => {
+                  const parts = e.fecha_rci.split("-");
+                  return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+                })();
+                const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+                const isFinancedType = salesTypeName.includes("preference") || salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("renting");
+                return bId === brandId && isVN_e && (rci_e || isFinancedType);
+              }).length;
+
+              let tasaCumplida = true;
+              if (totalBrandMat > 0) {
+                const brandInt = activePlan.brandInterventionRates?.find((i: any) => i.id_marca === brandId);
+                const targetRate = brandInt?.tasa_intervencion ?? 70;
+                const tipoTasa = brandInt?.tipo_tasa ?? "porcentaje";
+                if (tipoTasa === "unidades") {
+                  tasaCumplida = totalBrandFin >= targetRate;
+                } else {
+                  tasaCumplida = ((totalBrandFin / totalBrandMat) * 100) >= targetRate;
+                }
+              }
+
+              const modelRate = activePlan.rates?.find((r: any) => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
+              if (modelRate) {
+                let rateImporte = modelRate.rate_x_minus_4;
+                if (sellerTramoAlcanzado === "X-3") rateImporte = modelRate.rate_x_minus_3;
+                else if (sellerTramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
+                else if (sellerTramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
+                else if (sellerTramoAlcanzado === "X") rateImporte = modelRate.rate_x;
+                else if (sellerTramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
+                else if (sellerTramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
+                else if (sellerTramoAlcanzado === "X+3") rateImporte = modelRate.rate_x_plus_3;
+                baseVN = rateImporte;
+              }
+            }
+          } else {
+            let tipoUsado: "VO" | "KM0" | "BB" | "Usado" | null = null;
+            const sName = stateName;
+            if (sName === "km0") tipoUsado = "KM0";
+            else if (sName === "buyback" || sName === "bb") tipoUsado = "BB";
+            else if (sName === "seminuevo" || sName === "vo") tipoUsado = "VO";
+            else tipoUsado = "Usado";
+
+            if (tipoUsado) {
+              if (!isVOVendedor) {
+                const usedRate = activePlan.usedRates?.find((r: any) => r.tipo_usado === tipoUsado && r.activo);
+                if (usedRate) {
+                  const totalUnitsOfType = sellerUsedCounts[tipoUsado] || 0;
+                  const currentIdx = sellerUsedProcessedIdx[tipoUsado]++;
+                  if (totalUnitsOfType >= usedRate.min_aplicar) {
+                    const isFirst = currentIdx === 0;
+                    baseUsado = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
+                  }
+                }
+              } else {
+                sellerVoUnitCounterPay++;
+                const tier = matchedPatternTiers.find((t: any) => t.unidad === sellerVoUnitCounterPay)
+                  || matchedPatternTiers[matchedPatternTiers.length - 1]
+                  || { valor_objetivo: 1, importe: 150 };
+                baseUsado = tier.importe;
+              }
+            }
+          }
+
+          // Comisión Financiación
+          const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+          const isCreditoVenta = (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado") || salesTypeNameLower.includes("renting")) && !salesTypeNameLower.includes("preference");
+          const isPreferenceVenta = salesTypeNameLower.includes("preference");
+          const isFinancedType = isCreditoVenta || isPreferenceVenta;
+
+          if (isFinancedType && exp.id_tipo_de_venta) {
+            let matchedFinanceType = "";
+            if (salesTypeNameLower.includes("preference")) matchedFinanceType = "Preference";
+            else if (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado")) matchedFinanceType = "Crédito";
+            else if (salesTypeNameLower.includes("renting")) matchedFinanceType = "Renting";
+            else if (salesTypeNameLower.includes("contado")) matchedFinanceType = "Contado";
+
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            if (matchedFinanceType && brandId) {
+              const finRate = activePlan.financeRates?.find(
+                (r: any) => r.id_marca === brandId && r.tipo_financiacion === matchedFinanceType
+              );
+              if (finRate) {
+                baseFinanciacion = finRate.importe;
+              }
+            }
+          }
+
+          // Reglas Preference / BOX3
+          if (isPreferenceVenta) {
+            activePlan.preferenceRules?.forEach((rule: any) => {
+              if (!rule.activa) return;
+              const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+              const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+              const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+              let finMatches = true;
+              if (rule.tipo_financiacion) {
+                const ruleFin = rule.tipo_financiacion.toLowerCase();
+                const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+                finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
+              }
+
+              if (filterMarcaMatches && filterModeloMatches && finMatches) {
+                basePreference += rule.importe;
+              }
+            });
+          }
+
+          // Reglas generales
+          const entraPedido = exp.fecha_expediente && (() => {
+            const parts = exp.fecha_expediente.split("-");
+            return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+          })();
+          const entraAfectacion = exp.fecha_afectacion && (() => {
+            const parts = exp.fecha_afectacion.split("-");
+            return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+          })();
+          const belongsToPeriod = isMatriculadoThisMonth || isRelatedThisMonth;
+
+          activePlan.rules?.forEach((rule: any) => {
+            if (!rule.activa || !rule.afecta_comision) return;
+            const eventMatches = 
+              (rule.tipo_evento === "pedido" && entraPedido) ||
+              (rule.tipo_evento === "afectacion" && entraAfectacion) ||
+              (rule.tipo_evento === "matriculacion" && belongsToPeriod) ||
+              ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && belongsToPeriod && isCreditoVenta) ||
+              (rule.tipo_evento === "preference" && belongsToPeriod && isPreferenceVenta);
+
+            if (!eventMatches) return;
+
+            if (rule.tasa_intervencion_cumplida !== null && rule.tasa_intervencion_cumplida !== undefined) {
+              const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+              if (!brandId) return;
+              const totalBrandMat = vendedorExps.filter(e => {
+                const bId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+                const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
+                const mat_e = e.fecha_matriculacion && (() => {
+                  const parts = e.fecha_matriculacion.split("-");
+                  return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+                })();
+                return bId === brandId && isVN_e && mat_e;
+              }).length;
+
+              const totalBrandFin = vendedorExps.filter(e => {
+                const bId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+                const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
+                const rci_e = e.fecha_rci && (() => {
+                  const parts = e.fecha_rci.split("-");
+                  return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+                })();
+                const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+                const isFinancedType = salesTypeName.includes("preference") || salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("renting");
+                return bId === brandId && isVN_e && (rci_e || isFinancedType);
+              }).length;
+
+              let tasaCumplida = true;
+              if (totalBrandMat > 0) {
+                const brandInt = activePlan.brandInterventionRates?.find((i: any) => i.id_marca === brandId);
+                const targetRate = brandInt?.tasa_intervencion ?? 70;
+                const tipoTasa = brandInt?.tipo_tasa ?? "porcentaje";
+                if (tipoTasa === "unidades") {
+                  tasaCumplida = totalBrandFin >= targetRate;
+                } else {
+                  tasaCumplida = ((totalBrandFin / totalBrandMat) * 100) >= targetRate;
+                }
+              }
+              if (tasaCumplida !== rule.tasa_intervencion_cumplida) return;
+            }
+
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+            const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+            if (filterMarcaMatches && filterModeloMatches) {
+              if (rule.tipo_evento === "preference") {
+                basePreference += rule.importe;
+              } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
+                baseFinanciacion += rule.importe;
+              } else {
+                reglasBonus += rule.importe;
+              }
+            }
+          });
+
+          // Bonus y penalizaciones dinámicas
+          activePlan.bonusRules?.forEach((bonus: any) => {
+            if (!bonus.activo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
+            const eventMatches = 
+              (bonus.tipo_evento === "pedido" && entraPedido) ||
+              (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
+              (bonus.tipo_evento === "matriculacion" && belongsToPeriod) ||
+              ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && belongsToPeriod && isCreditoVenta) ||
+              (bonus.tipo_evento === "preference" && belongsToPeriod && isPreferenceVenta);
+
+            if (!eventMatches) return;
+
+            if (bonus.tipo_vehiculo === "nuevo" && !isVN) return;
+            if (bonus.tipo_vehiculo === "usado" && isVN) return;
+
+            if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
+            if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
+
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const filterMarcaMatches = !bonus.id_marca || brandId === bonus.id_marca;
+            const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
+
+            if (filterMarcaMatches && filterModeloMatches) {
+              if (bonus.es_penalizacion) {
+                reglasBonus -= Math.abs(bonus.importe);
+              } else {
+                reglasBonus += bonus.importe;
+              }
+            }
+          });
+        }
+
+        const finalBaseVN = sellerCumpleMinimo ? baseVN : 0;
+        const finalBaseUsado = sellerCumpleMinimo ? baseUsado : 0;
+        const totalExp = finalBaseVN + finalBaseUsado + baseFinanciacion + basePreference + reglasBonus;
+
+        totalBaseVN += finalBaseVN;
+        totalUsado += finalBaseUsado;
+        totalFinanciacion += baseFinanciacion;
+        totalPreference += basePreference;
+        totalReglasBonus += reglasBonus;
+        totalComisionGlobal += totalExp;
+
+        computedDetailsList.push({
+          id_expediente: exp.id_expediente,
+          cliente: exp.cliente?.nombre || "Sin cliente",
+          modelo: exp.modelo?.nombre_modelo || "S/D",
+          marca: exp.modelo?.marca?.nombre || "VO",
+          baseVN: finalBaseVN,
+          baseUsado: finalBaseUsado,
+          baseFinanciacion,
+          basePreference,
+          reglasBonus,
+          total: totalExp,
+          fechaRef: exp.fecha_matriculacion || exp.fecha_rci || exp.fecha_afectacion || exp.fecha_expediente
+        });
+      });
+    }
+
+    // 4. Calcular contadores agregados para el panel superior e indicadores
+    expedientes.forEach((exp) => {
       const actDate = getActivityDate(exp);
-      let isActivityThisMonth = false;
+      let isRelatedThisMonth = false;
       if (actDate) {
         const parts = actDate.split("-");
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
-        isActivityThisMonth = (y === statsYear && m === statsMonth);
+        if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
       }
+
       let isMatriculadoThisMonth = false;
       if (exp.fecha_matriculacion) {
         const parts = exp.fecha_matriculacion.split("-");
@@ -1227,203 +1561,62 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         isMatriculadoThisMonth = (y === statsYear && m === statsMonth);
       }
 
-      let originalVal = 1.0;
-      if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
-        originalVal = Number(exp.valor_objetivo);
-      } else if (activePlan) {
-        const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
-        if (brandId) {
-          const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
-          if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
-            originalVal = Number(brandIntervention.valor_objetivo_defecto);
-          }
-        }
-      }
+      const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+      const isContado = salesTypeNameLower.includes("contado");
+      const isCredito = (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado") || salesTypeNameLower.includes("renting")) && !salesTypeNameLower.includes("preference");
+      const isPreference = salesTypeNameLower.includes("preference");
+      const isFinancedType = isCredito || isPreference;
 
-      let val = 0.0;
-      let afectoObjetivo = false;
-      if (originalVal === 0) {
-        if (isMatriculadoThisMonth) {
-          val = 1.0;
-          afectoObjetivo = true;
-        }
-      } else {
-        if (isActivityThisMonth) {
-          afectoObjetivo = true;
-          const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
-            ? Number(exp.min_coches_multiplicador)
-            : 0;
-          if (targetCupo > 0 && originalVal > 1) {
-            const countOfSameCupo = cupoCounts[targetCupo] || 0;
-            if (countOfSameCupo >= targetCupo) {
-              val = originalVal;
-            } else {
-              val = 1.0;
-            }
-          } else {
-            val = originalVal;
-          }
-        }
-      }
-      if (afectoObjetivo) {
-        totalComputablesTemp += val;
-      }
-    });
-
-    // Determinar tramo
-    let tramoAlcanzado: "X-4" | "X-3" | "X-2" | "X-1" | "X" | "X+1" | "X+2" | "X+3" = "X-4";
-    if (activePlan) {
-      const X = activePlan.objetivo_base + activePlan.arrastre;
-      const diff = totalComputablesTemp - X;
-      if (diff >= 3) tramoAlcanzado = "X+3";
-      else if (diff === 2) tramoAlcanzado = "X+2";
-      else if (diff === 1) tramoAlcanzado = "X+1";
-      else if (diff === 0) tramoAlcanzado = "X";
-      else if (diff === -1) tramoAlcanzado = "X-1";
-      else if (diff === -2) tramoAlcanzado = "X-2";
-      else if (diff === -3) tramoAlcanzado = "X-3";
-      else tramoAlcanzado = "X-4";
-    }
-
-    // Segunda pasada: Calcular comisiones por cada expediente
-    expedientes.forEach(exp => {
-      const tipoVentaNombre = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-      const isContado = tipoVentaNombre.includes("contado");
-      const isCredito = tipoVentaNombre.includes("credito") || tipoVentaNombre.includes("crédito");
-      const isPreference = tipoVentaNombre.includes("preference") || tipoVentaNombre.includes("box");
-
-      let isMatriculadoThisMonth = false;
-
-      // Matriculados
-      if (exp.fecha_matriculacion) {
-        const parts = exp.fecha_matriculacion.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) {
-          isMatriculadoThisMonth = true;
-          matriculados++;
-          if (isContado) matriculadosContado++;
-          else if (isCredito) matriculadosCredito++;
-          else if (isPreference) matriculadosPreference++;
-
-          const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-          const isVN = stateName === "nuevo" || stateName === "demo";
-          if (isVN) {
-            matriculadosVN++;
-          }
-        }
-      }
-
-      const actDate = getActivityDate(exp);
-      let isActivityThisMonth = false;
-      if (actDate) {
-        const parts = actDate.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        isActivityThisMonth = (y === statsYear && m === statsMonth);
-      }
-
-      // Calcular valor objetivo estimado original
-      let originalVal = 1.0;
-      if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
-        originalVal = Number(exp.valor_objetivo);
-      } else if (activePlan) {
-        const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
-        if (brandId) {
-          const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
-          if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
-            originalVal = Number(brandIntervention.valor_objetivo_defecto);
-          }
-        }
-      }
-
-      let val = 0.0;
-      let afectoObjetivo = false;
-
-      if (originalVal === 0) {
-        if (isMatriculadoThisMonth) {
-          val = 1.0;
-          afectoObjetivo = true;
-        }
-      } else {
-        if (isActivityThisMonth) {
-          afectoObjetivo = true;
-          const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
-            ? Number(exp.min_coches_multiplicador)
-            : 0;
-          if (targetCupo > 0 && originalVal > 1) {
-            const countOfSameCupo = cupoCounts[targetCupo] || 0;
-            if (countOfSameCupo >= targetCupo) {
-              val = originalVal;
-            } else {
-              val = 1.0;
-            }
-          } else {
-            val = originalVal;
-          }
-        }
-      }
-
-      if (afectoObjetivo) {
-        objetivoComputado += val;
-      }
-
-      // Pipeline/pendientes check
-      let isRelatedThisMonth = false;
-      if (exp.fecha_expediente) {
-        const parts = exp.fecha_expediente.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
-      }
-      if (exp.fecha_afectacion) {
-        const parts = exp.fecha_afectacion.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        if (y === statsYear && m === statsMonth) isRelatedThisMonth = true;
-      }
-
-      // Clasificación estricta en las listas
       if (isMatriculadoThisMonth) {
-        matriculadosList.push({
-          ...exp,
-          valorObjetivoEstimado: val
-        });
+        matriculados++;
+        if (isContado) matriculadosContado++;
+        else if (isCredito) matriculadosCredito++;
+        else if (isPreference) matriculadosPreference++;
+
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        if (isVN) {
+          matriculadosVN++;
+          const entraRci = exp.fecha_rci && (() => {
+            const parts = exp.fecha_rci.split("-");
+            return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+          })();
+          if (isFinancedType && entraRci) {
+            matriculadosVNFinanciados++;
+          }
+        }
+
+        let originalVal = 1.0;
+        if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+          originalVal = Number(exp.valor_objetivo);
+        } else if (activePlan) {
+          const brandId = exp.modelo?.marca?.id_marca || exp.modelo?.marca_id;
+          if (brandId) {
+            const brandIntervention = activePlan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
+            if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+              originalVal = Number(brandIntervention.valor_objetivo_defecto);
+            }
+          }
+        }
+        objetivoComputado += originalVal;
+
+        matriculadosList.push(exp);
       } else if (isRelatedThisMonth) {
-        pendientesList.push({
-          ...exp,
-          valorObjetivoEstimado: val
-        });
+        pendientesList.push(exp);
       }
 
-      // VN Financiados (según fecha_rci en el mes)
-      const stateNameVN = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-      const isVNVeh = stateNameVN === "nuevo" || stateNameVN === "demo";
-      const entraRci = exp.fecha_rci && (() => {
-        const parts = exp.fecha_rci.split("-");
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        return (y === statsYear && m === statsMonth);
-      })();
-
-      if (isVNVeh && (isCredito || isPreference) && entraRci) {
-        matriculadosVNFinanciados++;
-      }
-      // Entregados
       if (exp.fecha_entrega) {
         const parts = exp.fecha_entrega.split("-");
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
         if (y === statsYear && m === statsMonth) entregados++;
       }
-      // Afectados
       if (exp.fecha_afectacion) {
         const parts = exp.fecha_afectacion.split("-");
         const y = parseInt(parts[0], 10);
         const m = parseInt(parts[1], 10);
         if (y === statsYear && m === statsMonth) afectados++;
       }
-      // Pedidos
       if (exp.fecha_expediente) {
         const parts = exp.fecha_expediente.split("-");
         const y = parseInt(parts[0], 10);
@@ -1435,206 +1628,18 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           else if (isPreference) pedidosPreference++;
         }
       }
-
-      // --- CÁLCULOS ECONÓMICOS INDIVIDUALES PARA EL DESGLOSE DE COMISIONES ---
-      // Se estima la comisión para todos los que pertenezcan a este período (matriculados o pipeline/pedido)
-      const belongsToPeriod = isMatriculadoThisMonth || isRelatedThisMonth;
-
-      if (activePlan && belongsToPeriod) {
-        let baseVN = 0;
-        let baseUsado = 0;
-        let baseFinanciacion = 0;
-        let basePreference = 0;
-        let reglasBonus = 0;
-
-        const isVN = stateNameVN === "nuevo" || stateNameVN === "demo";
-        let tipoUsado: "VO" | "KM0" | "BB" | "Usado" | null = null;
-        if (!isVN) {
-          const sName = stateNameVN;
-          if (sName === "km0") tipoUsado = "KM0";
-          else if (sName === "buyback" || sName === "bb") tipoUsado = "BB";
-          else if (sName === "seminuevo" || sName === "vo") tipoUsado = "VO";
-          else tipoUsado = "Usado";
-        }
-
-        const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-        const isCreditoVenta = (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado") || salesTypeNameLower.includes("renting")) && !salesTypeNameLower.includes("preference");
-        const isPreferenceVenta = salesTypeNameLower.includes("preference");
-        const isFinancedType = isCreditoVenta || isPreferenceVenta;
-
-        const entraPedido = exp.fecha_expediente && (() => {
-          const parts = exp.fecha_expediente.split("-");
-          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
-        })();
-        const entraAfectacion = exp.fecha_afectacion && (() => {
-          const parts = exp.fecha_afectacion.split("-");
-          return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
-        })();
-
-        // 1. Comisión base VN/VO (Simulamos matriculación para estimar)
-        if (isVN) {
-          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-          const tasaCumplida = brandId ? checkTasaCumplida(brandId) : false;
-          const modelRate = activePlan.rates?.find((r: any) => r.id_modelo === exp.id_modelo && r.activo && r.tasa_intervencion_cumplida === tasaCumplida);
-          if (modelRate) {
-            let rateImporte = modelRate.rate_x_minus_4;
-            if (tramoAlcanzado === "X-3") rateImporte = modelRate.rate_x_minus_3;
-            else if (tramoAlcanzado === "X-2") rateImporte = modelRate.rate_x_minus_2;
-            else if (tramoAlcanzado === "X-1") rateImporte = modelRate.rate_x_minus_1;
-            else if (tramoAlcanzado === "X") rateImporte = modelRate.rate_x;
-            else if (tramoAlcanzado === "X+1") rateImporte = modelRate.rate_x_plus_1;
-            else if (tramoAlcanzado === "X+2") rateImporte = modelRate.rate_x_plus_2;
-            else if (tramoAlcanzado === "X+3") rateImporte = modelRate.rate_x_plus_3;
-            baseVN = rateImporte;
-          }
-        } else if (tipoUsado) {
-          // Se trata como usado
-          const usedRate = activePlan.usedRates?.find((r: any) => r.tipo_usado === tipoUsado && r.activo);
-          if (usedRate) {
-            const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
-            const currentIdx = currentUsedProcessedIndex[tipoUsado]++;
-            if (totalUnitsOfType >= usedRate.min_aplicar) {
-              const isFirst = currentIdx === 0;
-              baseUsado = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
-            }
-          }
-        }
-
-        // 2. Comisión Financiación (se calcula si es de tipo financiado, simulando RCI)
-        if (isFinancedType && exp.id_tipo_de_venta) {
-          const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-          let matchedFinanceType = "";
-          if (salesTypeName.includes("preference")) {
-            matchedFinanceType = "Preference";
-          } else if (salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("financiado")) {
-            matchedFinanceType = "Crédito";
-          } else if (salesTypeName.includes("renting")) {
-            matchedFinanceType = "Renting";
-          } else if (salesTypeName.includes("contado")) {
-            matchedFinanceType = "Contado";
-          }
-
-          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-          if (matchedFinanceType && brandId) {
-            const finRate = activePlan.financeRates?.find(
-              (r: any) => r.id_marca === brandId && r.tipo_financiacion === matchedFinanceType
-            );
-            if (finRate) {
-              baseFinanciacion = finRate.importe;
-            }
-          }
-        }
-
-        // 3. Reglas Preference / BOX3 (se calcula si es de tipo preference, simulando RCI)
-        if (isPreferenceVenta) {
-          activePlan.preferenceRules?.forEach((rule: any) => {
-            if (!rule.activa) return;
-            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-            const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
-            const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
-
-            let finMatches = true;
-            if (rule.tipo_financiacion) {
-              const ruleFin = rule.tipo_financiacion.toLowerCase();
-              const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-              finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
-            }
-
-            if (filterMarcaMatches && filterModeloMatches && finMatches) {
-              basePreference += rule.importe;
-            }
-          });
-        }
-
-        // 4. Reglas generales de comisión
-        activePlan.rules?.forEach((rule: any) => {
-          if (!rule.activa || !rule.afecta_comision) return;
-          const eventMatches = 
-            (rule.tipo_evento === "pedido" && entraPedido) ||
-            (rule.tipo_evento === "afectacion" && entraAfectacion) ||
-            (rule.tipo_evento === "matriculacion" && belongsToPeriod) ||
-            ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && belongsToPeriod && isCreditoVenta) ||
-            (rule.tipo_evento === "preference" && belongsToPeriod && isPreferenceVenta);
-
-          if (!eventMatches) return;
-
-          if (rule.tasa_intervencion_cumplida !== null && rule.tasa_intervencion_cumplida !== undefined) {
-            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-            if (!brandId) return;
-            const tasaCumplida = checkTasaCumplida(brandId);
-            if (tasaCumplida !== rule.tasa_intervencion_cumplida) return;
-          }
-
-          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-          const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
-          const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
-
-          if (filterMarcaMatches && filterModeloMatches) {
-            if (rule.tipo_evento === "preference") {
-              basePreference += rule.importe;
-            } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
-              baseFinanciacion += rule.importe;
-            } else {
-              reglasBonus += rule.importe;
-            }
-          }
-        });
-
-        // 5. Bonus personalizados y Penalizaciones dinámicas
-        activePlan.bonusRules?.forEach((bonus: any) => {
-          if (!bonus.activo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
-          const eventMatches = 
-            (bonus.tipo_evento === "pedido" && entraPedido) ||
-            (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
-            (bonus.tipo_evento === "matriculacion" && belongsToPeriod) ||
-            ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && belongsToPeriod && isCreditoVenta) ||
-            (bonus.tipo_evento === "preference" && belongsToPeriod && isPreferenceVenta);
-
-          if (!eventMatches) return;
-
-          if (bonus.tipo_vehiculo === "nuevo" && !isVN) return;
-          if (bonus.tipo_vehiculo === "usado" && isVN) return;
-
-          if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
-          if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
-
-          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-          const filterMarcaMatches = !bonus.id_marca || brandId === bonus.id_marca;
-          const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
-
-          if (filterMarcaMatches && filterModeloMatches) {
-            if (bonus.es_penalizacion) {
-              reglasBonus -= Math.abs(bonus.importe);
-            } else {
-              reglasBonus += bonus.importe;
-            }
-          }
-        });
-
-        const totalExp = baseVN + baseUsado + baseFinanciacion + basePreference + reglasBonus;
-
-        totalBaseVN += baseVN;
-        totalUsado += baseUsado;
-        totalFinanciacion += baseFinanciacion;
-        totalPreference += basePreference;
-        totalReglasBonus += reglasBonus;
-        totalComisionGlobal += totalExp;
-
-        computedDetailsList.push({
-          id_expediente: exp.id_expediente,
-          cliente: exp.cliente?.nombre || "Sin cliente",
-          modelo: exp.modelo?.nombre_modelo || "S/D",
-          marca: exp.modelo?.marca?.nombre || "VO",
-          baseVN,
-          baseUsado,
-          baseFinanciacion,
-          basePreference,
-          reglasBonus,
-          total: totalExp,
-          fechaRef: exp.fecha_matriculacion || exp.fecha_rci || exp.fecha_afectacion || exp.fecha_expediente
-        });
-      }
     });
+
+    // Deducción de penalización global fija si corresponde y se cumple mínimo de matriculaciones
+    let finalComisionConPenalizacion = totalComisionGlobal;
+    if (activePlan) {
+      const cumpleMinimoGlobal = matriculados >= activePlan.min_matriculaciones;
+      if (cumpleMinimoGlobal) {
+        finalComisionConPenalizacion = Math.max(0, totalComisionGlobal - Math.abs(activePlan.penalizacion_importe || 0));
+      } else {
+        finalComisionConPenalizacion = Math.max(0, totalComisionGlobal - Math.abs(activePlan.penalizacion_importe || 0));
+      }
+    }
 
     return {
       matriculados,
@@ -1652,13 +1657,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       objetivoComputado,
       matriculadosList,
       pendientesList,
-      // Nuevos datos económicos agregados
       totalBaseVN,
       totalUsado,
       totalFinanciacion,
       totalPreference,
       totalReglasBonus,
-      totalComisionGlobal,
+      totalComisionGlobal: finalComisionConPenalizacion,
       computedDetailsList: computedDetailsList.filter(d => d.total > 0).sort((a,b) => b.total - a.total)
     };
   };
