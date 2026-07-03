@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { formatDate } from "@/lib/date-utils";
 
 interface DropdownItem {
@@ -2911,13 +2912,31 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 <td style={{ textAlign: "right" }}>{(line.bonus_acumulado || 0).toLocaleString()} €</td>
                                 <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{(line.total_generado || 0).toLocaleString()} €</td>
                                 <td style={{ textAlign: "center" }}>
-                                  <button
-                                    onClick={() => setSelectedLineDetails(line)}
-                                    className="btn btn-secondary"
-                                    style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                                  >
-                                    🔍 Conceptos
-                                  </button>
+                                  <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                                    <button
+                                      onClick={() => setSelectedLineDetails(line)}
+                                      className="btn btn-secondary"
+                                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                    >
+                                      🔍 Conceptos
+                                    </button>
+                                    <Link
+                                      href={`/dashboard/expedientes/editar/${line.id_expediente}`}
+                                      target="_blank"
+                                      className="btn btn-primary"
+                                      style={{ 
+                                        padding: "4px 8px", 
+                                        fontSize: "0.75rem",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        textDecoration: "none",
+                                        color: "white"
+                                      }}
+                                    >
+                                      ✏️ Editar
+                                    </Link>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
