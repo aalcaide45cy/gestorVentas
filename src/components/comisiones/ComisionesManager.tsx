@@ -185,7 +185,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   // Cargar lista de planes
   const refreshPlanes = async () => {
     try {
-      const res = await fetch("/api/comisiones/planes");
+      const res = await fetch(`/api/comisiones/planes?t=${Date.now()}`);
       const result = await res.json();
       if (result.success) {
         setPlanes(result.data);
@@ -209,7 +209,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const loadPlanDetails = async (id: number, keepTab = false) => {
     setLoadingPlan(true);
     try {
-      const res = await fetch(`/api/comisiones/planes?id=${id}`);
+      const res = await fetch(`/api/comisiones/planes?id=${id}&t=${Date.now()}`);
       const result = await res.json();
       if (result.success) {
         const plan = result.data;
@@ -905,12 +905,51 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               >
                 ← Volver a Planes
               </button>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <h1 style={{ fontSize: "1.85rem" }}>{planName}</h1>
-              </div>
-              <p style={{ color: "var(--text-secondary)", marginTop: "4px", fontSize: "0.9rem" }}>
-                Periodo: <strong>{formatDate(planStart)}</strong> al <strong>{formatDate(planEnd)}</strong>
-              </p>
+              {isAdmin ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", width: "70px", fontWeight: 600 }}>Nombre:</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ fontSize: "1.1rem", fontWeight: 700, padding: "6px 12px", width: "320px", height: "36px" }}
+                      value={planName}
+                      onChange={(e) => setPlanName(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", width: "70px", fontWeight: 600 }}>F. Inicio:</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        style={{ padding: "4px 8px", width: "150px", height: "30px", fontSize: "0.85rem" }}
+                        value={planStart}
+                        onChange={(e) => setPlanStart(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600 }}>F. Fin:</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        style={{ padding: "4px 8px", width: "150px", height: "30px", fontSize: "0.85rem" }}
+                        value={planEnd}
+                        onChange={(e) => setPlanEnd(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <h1 style={{ fontSize: "1.85rem" }}>{planName}</h1>
+                  </div>
+                  <p style={{ color: "var(--text-secondary)", marginTop: "4px", fontSize: "0.9rem" }}>
+                    Periodo: <strong>{formatDate(planStart)}</strong> al <strong>{formatDate(planEnd)}</strong>
+                  </p>
+                </>
+              )}
             </div>
             {isAdmin && (
               <button

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+export const dynamic = 'force-dynamic';
+
 import { db } from "@/db";
 import {
   commissionPlans,
@@ -128,311 +130,314 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Faltan datos obligatorios (nombre, fecha de inicio y fin)" }, { status: 400 });
     }
 
-    let nuevoPlanId: number;
+    let nuevoPlanId: number = 0;
 
-    if (cloneFromId) {
-      // --- PROCESO DE CLONADO ---
-      const sourcePlanId = Number(cloneFromId);
-      
-      // 1. Insertar el nuevo plan copiando campos básicos
-      const [insertedPlan] = await db.insert(commissionPlans).values({
-        nombre,
-        fecha_inicio,
-        fecha_fin,
-        objetivo_base: objetivo_base !== undefined ? Number(objetivo_base) : 0,
-        arrastre: arrastre !== undefined ? Number(arrastre) : 0,
-        min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
-        min_coches_multiplicador: min_coches_multiplicador !== undefined ? Number(min_coches_multiplicador) : 0,
-        estado: "activo",
-      }).returning();
+    await db.transaction(async (tx) => {
+      if (cloneFromId) {
+        // --- PROCESO DE CLONADO ---
+        const sourcePlanId = Number(cloneFromId);
+        
+        // 1. Insertar el nuevo plan copiando campos básicos
+        const [insertedPlan] = await tx.insert(commissionPlans).values({
+          nombre,
+          fecha_inicio,
+          fecha_fin,
+          objetivo_base: objetivo_base !== undefined ? Number(objetivo_base) : 0,
+          arrastre: arrastre !== undefined ? Number(arrastre) : 0,
+          min_matriculaciones: min_matriculaciones !== undefined ? Number(min_matriculaciones) : 6,
+          min_coches_multiplicador: min_coches_multiplicador !== undefined ? Number(min_coches_multiplicador) : 0,
+          estado: "activo",
+        }).returning();
 
-      const newId = insertedPlan.id_plan;
+        const newId = insertedPlan.id_plan;
 
-      // 2. Clonar tarifas de modelos (rates)
-      const sourceRates = await db.query.commissionPlanModelRates.findMany({
-        where: eq(commissionPlanModelRates.id_plan, sourcePlanId)
-      });
-      if (sourceRates.length > 0) {
-        await db.insert(commissionPlanModelRates).values(
-          sourceRates.map(r => ({
-            id_plan: newId,
-            id_modelo: r.id_modelo,
-            tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
-            rate_x_minus_4: r.rate_x_minus_4,
-            rate_x_minus_3: r.rate_x_minus_3,
-            rate_x_minus_2: r.rate_x_minus_2,
-            rate_x_minus_1: r.rate_x_minus_1,
-            rate_x: r.rate_x,
-            rate_x_plus_1: r.rate_x_plus_1,
-            rate_x_plus_2: r.rate_x_plus_2,
-            rate_x_plus_3: r.rate_x_plus_3,
-            valor_objetivo: r.valor_objetivo,
-            activo: r.activo,
-          }))
-        );
-      }
-
-      // 2b. Clonar tasas de intervención de marcas (brandInterventionRates)
-      const sourceInterventions = await db.query.commissionBrandInterventionRates.findMany({
-        where: eq(commissionBrandInterventionRates.id_plan, sourcePlanId)
-      });
-      if (sourceInterventions.length > 0) {
-        await db.insert(commissionBrandInterventionRates).values(
-          sourceInterventions.map(i => ({
-            id_plan: newId,
-            id_marca: i.id_marca,
-            tasa_intervencion: i.tasa_intervencion,
-            valor_objetivo_defecto: i.valor_objetivo_defecto,
-          }))
-        );
-      }
-
-      // 3. Clonar reglas generales (rules)
-      const sourceRules = await db.query.commissionRules.findMany({
-        where: eq(commissionRules.id_plan, sourcePlanId)
-      });
-      if (sourceRules.length > 0) {
-        await db.insert(commissionRules).values(
-          sourceRules.map(r => ({
-            id_plan: newId,
-            nombre: r.nombre,
-            tipo_evento: r.tipo_evento,
-            id_marca: r.id_marca,
-            id_modelo: r.id_modelo,
-            afecta_objetivo: r.afecta_objetivo,
-            valor_objetivo: r.valor_objetivo,
-            afecta_comision: r.afecta_comision,
-            importe: r.importe,
-            activa: r.activa,
-            tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
-          }))
-        );
-      }
-
-      // 4. Clonar reglas de bonus (bonusRules)
-      const sourceBonus = await db.query.commissionBonusRules.findMany({
-        where: eq(commissionBonusRules.id_plan, sourcePlanId)
-      });
-      if (sourceBonus.length > 0) {
-        await db.insert(commissionBonusRules).values(
-          sourceBonus.map(b => ({
-            id_plan: newId,
-            nombre: b.nombre,
-            descripcion: b.descripcion,
-            tipo_evento: b.tipo_evento,
-            id_marca: b.id_marca,
-            id_modelo: b.id_modelo,
-            importe: b.importe,
-            afecta_objetivo: b.afecta_objetivo,
-            valor_objetivo: b.valor_objetivo,
-            fecha_inicio: b.fecha_inicio,
-            fecha_fin: b.fecha_fin,
-            activo: b.activo,
-            tipo_vehiculo: b.tipo_vehiculo,
-          }))
-        );
-      }
-
-      // 5. Clonar reglas de financiación (financeRules)
-      const sourceFinance = await db.query.commissionFinanceRules.findFirst({
-        where: eq(commissionFinanceRules.id_plan, sourcePlanId)
-      });
-      await db.insert(commissionFinanceRules).values({
-        id_plan: newId,
-        importe_normal: sourceFinance ? sourceFinance.importe_normal : 80,
-        importe_preference: sourceFinance ? sourceFinance.importe_preference : 120,
-      });
-
-      // 6. Clonar tarifas de usados (usedRates)
-      const sourceUsedRates = await db.query.commissionUsedRates.findMany({
-        where: eq(commissionUsedRates.id_plan, sourcePlanId)
-      });
-      if (sourceUsedRates.length > 0) {
-        await db.insert(commissionUsedRates).values(
-          sourceUsedRates.map(u => ({
-            id_plan: newId,
-            tipo_usado: u.tipo_usado,
-            importe_primera: u.importe_primera,
-            importe_resto: u.importe_resto,
-            valor_objetivo: u.valor_objetivo,
-            min_aplicar: u.min_aplicar,
-            activo: u.activo,
-          }))
-        );
-      }
-
-      // 7. Clonar tarifas de financiación por marca (financeRates)
-      const sourceFinanceRates = await db.query.commissionFinanceRates.findMany({
-        where: eq(commissionFinanceRates.id_plan, sourcePlanId)
-      });
-      if (sourceFinanceRates.length > 0) {
-        await db.insert(commissionFinanceRates).values(
-          sourceFinanceRates.map(f => ({
-            id_plan: newId,
-            id_marca: f.id_marca,
-            tipo_financiacion: f.tipo_financiacion,
-            importe: f.importe,
-          }))
-        );
-      }
-
-      // 8. Clonar reglas de preference/box3
-      const sourcePrefRules = await db.query.commissionPreferenceRules.findMany({
-        where: eq(commissionPreferenceRules.id_plan, sourcePlanId)
-      });
-      if (sourcePrefRules.length > 0) {
-        await db.insert(commissionPreferenceRules).values(
-          sourcePrefRules.map(p => ({
-            id_plan: newId,
-            nombre: p.nombre,
-            id_marca: p.id_marca,
-            id_modelo: p.id_modelo,
-            tipo_financiacion: p.tipo_financiacion,
-            importe: p.importe,
-            activa: p.activa,
-          }))
-        );
-      }
-
-      // 9. Clonar patrones de VO (voPatterns)
-      const sourceVoPatterns = await db.query.commissionVoPatterns.findMany({
-        where: eq(commissionVoPatterns.id_plan, sourcePlanId)
-      });
-      if (sourceVoPatterns.length > 0) {
-        await db.insert(commissionVoPatterns).values(
-          sourceVoPatterns.map(v => ({
-            id_plan: newId,
-            nombre: v.nombre,
-            activo: v.activo,
-            tiers: v.tiers,
-          }))
-        );
-      }
-
-      nuevoPlanId = newId;
-    } else {
-      // --- CREAR NUEVO PLAN VACÍO CON VALORES POR DEFECTO ---
-      const [insertedPlan] = await db.insert(commissionPlans).values({
-        nombre,
-        fecha_inicio,
-        fecha_fin,
-        objetivo_base: objetivo_base ? Number(objetivo_base) : 12,
-        arrastre: arrastre ? Number(arrastre) : 0,
-        min_matriculaciones: min_matriculaciones ? Number(min_matriculaciones) : 6,
-        min_coches_multiplicador: min_coches_multiplicador ? Number(min_coches_multiplicador) : 0,
-        estado: "activo",
-      }).returning();
-
-      const newId = insertedPlan.id_plan;
-
-      // Obtener marcas activas en el sistema de comisiones
-      const dbBrands = await db.query.marcas.findMany({
-        where: eq(marcas.sistema_comisiones, true)
-      });
-      const activeBrandIds = dbBrands.map(b => b.id_marca);
-
-      // Cargar modelos de marcas activas del sistema
-      let systemModels: any[] = [];
-      if (activeBrandIds.length > 0) {
-        systemModels = await db.query.modelos.findMany({
-          where: (mod, { inArray }) => inArray(mod.marca_id, activeBrandIds)
+        // 2. Clonar tarifas de modelos (rates)
+        const sourceRates = await tx.query.commissionPlanModelRates.findMany({
+          where: eq(commissionPlanModelRates.id_plan, sourcePlanId)
         });
-      }
+        if (sourceRates.length > 0) {
+          await tx.insert(commissionPlanModelRates).values(
+            sourceRates.map(r => ({
+              id_plan: newId,
+              id_modelo: r.id_modelo,
+              tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
+              rate_x_minus_4: r.rate_x_minus_4,
+              rate_x_minus_3: r.rate_x_minus_3,
+              rate_x_minus_2: r.rate_x_minus_2,
+              rate_x_minus_1: r.rate_x_minus_1,
+              rate_x: r.rate_x,
+              rate_x_plus_1: r.rate_x_plus_1,
+              rate_x_plus_2: r.rate_x_plus_2,
+              rate_x_plus_3: r.rate_x_plus_3,
+              valor_objetivo: r.valor_objetivo,
+              activo: r.activo,
+            }))
+          );
+        }
 
-      if (systemModels.length > 0) {
-        const ratesToInsert: any[] = [];
-        systemModels.forEach(m => {
-          // Fila 1: Tasa de intervención inferior
-          ratesToInsert.push({
-            id_plan: newId,
-            id_modelo: m.id_modelo,
-            tasa_intervencion_cumplida: false,
-            rate_x_minus_4: 70,
-            rate_x_minus_3: 80,
-            rate_x_minus_2: 90,
-            rate_x_minus_1: 100,
-            rate_x: 120,
-            rate_x_plus_1: 140,
-            rate_x_plus_2: 160,
-            rate_x_plus_3: 180,
-            valor_objetivo: 1,
-            activo: true,
-          });
-          // Fila 2: Tasa de intervención superior/igual
-          ratesToInsert.push({
-            id_plan: newId,
-            id_modelo: m.id_modelo,
-            tasa_intervencion_cumplida: true,
-            rate_x_minus_4: 90,
-            rate_x_minus_3: 100,
-            rate_x_minus_2: 110,
-            rate_x_minus_1: 120,
-            rate_x: 140,
-            rate_x_plus_1: 160,
-            rate_x_plus_2: 180,
-            rate_x_plus_3: 200,
-            valor_objetivo: 1,
-            activo: true,
-          });
+        // 2b. Clonar tasas de intervención de marcas (brandInterventionRates)
+        const sourceInterventions = await tx.query.commissionBrandInterventionRates.findMany({
+          where: eq(commissionBrandInterventionRates.id_plan, sourcePlanId)
         });
-        await db.insert(commissionPlanModelRates).values(ratesToInsert);
+        if (sourceInterventions.length > 0) {
+          await tx.insert(commissionBrandInterventionRates).values(
+            sourceInterventions.map(i => ({
+              id_plan: newId,
+              id_marca: i.id_marca,
+              tasa_intervencion: i.tasa_intervencion,
+              valor_objetivo_defecto: i.valor_objetivo_defecto,
+              tipo_tasa: i.tipo_tasa || 'porcentaje',
+            }))
+          );
+        }
+
+        // 3. Clonar reglas generales (rules)
+        const sourceRules = await tx.query.commissionRules.findMany({
+          where: eq(commissionRules.id_plan, sourcePlanId)
+        });
+        if (sourceRules.length > 0) {
+          await tx.insert(commissionRules).values(
+            sourceRules.map(r => ({
+              id_plan: newId,
+              nombre: r.nombre,
+              tipo_evento: r.tipo_evento,
+              id_marca: r.id_marca,
+              id_modelo: r.id_modelo,
+              afecta_objetivo: r.afecta_objetivo,
+              valor_objetivo: r.valor_objetivo,
+              afecta_comision: r.afecta_comision,
+              importe: r.importe,
+              activa: r.activa,
+              tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
+            }))
+          );
+        }
+
+        // 4. Clonar reglas de bonus (bonusRules)
+        const sourceBonus = await tx.query.commissionBonusRules.findMany({
+          where: eq(commissionBonusRules.id_plan, sourcePlanId)
+        });
+        if (sourceBonus.length > 0) {
+          await tx.insert(commissionBonusRules).values(
+            sourceBonus.map(b => ({
+              id_plan: newId,
+              nombre: b.nombre,
+              descripcion: b.descripcion,
+              tipo_evento: b.tipo_evento,
+              id_marca: b.id_marca,
+              id_modelo: b.id_modelo,
+              importe: b.importe,
+              afecta_objetivo: b.afecta_objetivo,
+              valor_objetivo: b.valor_objetivo,
+              fecha_inicio: b.fecha_inicio,
+              fecha_fin: b.fecha_fin,
+              activo: b.activo,
+              tipo_vehiculo: b.tipo_vehiculo,
+            }))
+          );
+        }
+
+        // 5. Clonar reglas de financiación (financeRules)
+        const sourceFinance = await tx.query.commissionFinanceRules.findFirst({
+          where: eq(commissionFinanceRules.id_plan, sourcePlanId)
+        });
+        await tx.insert(commissionFinanceRules).values({
+          id_plan: newId,
+          importe_normal: sourceFinance ? sourceFinance.importe_normal : 80,
+          importe_preference: sourceFinance ? sourceFinance.importe_preference : 120,
+        });
+
+        // 6. Clonar tarifas de usados (usedRates)
+        const sourceUsedRates = await tx.query.commissionUsedRates.findMany({
+          where: eq(commissionUsedRates.id_plan, sourcePlanId)
+        });
+        if (sourceUsedRates.length > 0) {
+          await tx.insert(commissionUsedRates).values(
+            sourceUsedRates.map(u => ({
+              id_plan: newId,
+              tipo_usado: u.tipo_usado,
+              importe_primera: u.importe_primera,
+              importe_resto: u.importe_resto,
+              valor_objetivo: u.valor_objetivo,
+              min_aplicar: u.min_aplicar,
+              activo: u.activo,
+            }))
+          );
+        }
+
+        // 7. Clonar tarifas de financiación por marca (financeRates)
+        const sourceFinanceRates = await tx.query.commissionFinanceRates.findMany({
+          where: eq(commissionFinanceRates.id_plan, sourcePlanId)
+        });
+        if (sourceFinanceRates.length > 0) {
+          await tx.insert(commissionFinanceRates).values(
+            sourceFinanceRates.map(f => ({
+              id_plan: newId,
+              id_marca: f.id_marca,
+              tipo_financiacion: f.tipo_financiacion,
+              importe: f.importe,
+            }))
+          );
+        }
+
+        // 8. Clonar reglas de preference/box3
+        const sourcePrefRules = await tx.query.commissionPreferenceRules.findMany({
+          where: eq(commissionPreferenceRules.id_plan, sourcePlanId)
+        });
+        if (sourcePrefRules.length > 0) {
+          await tx.insert(commissionPreferenceRules).values(
+            sourcePrefRules.map(p => ({
+              id_plan: newId,
+              nombre: p.nombre,
+              id_marca: p.id_marca,
+              id_modelo: p.id_modelo,
+              tipo_financiacion: p.tipo_financiacion,
+              importe: p.importe,
+              activa: p.activa,
+            }))
+          );
+        }
+
+        // 9. Clonar patrones de VO (voPatterns)
+        const sourceVoPatterns = await tx.query.commissionVoPatterns.findMany({
+          where: eq(commissionVoPatterns.id_plan, sourcePlanId)
+        });
+        if (sourceVoPatterns.length > 0) {
+          await tx.insert(commissionVoPatterns).values(
+            sourceVoPatterns.map(v => ({
+              id_plan: newId,
+              nombre: v.nombre,
+              activo: v.activo,
+              tiers: v.tiers,
+            }))
+          );
+        }
+
+        nuevoPlanId = newId;
+      } else {
+        // --- CREAR NUEVO PLAN VACÍO CON VALORES POR DEFECTO ---
+        const [insertedPlan] = await tx.insert(commissionPlans).values({
+          nombre,
+          fecha_inicio,
+          fecha_fin,
+          objetivo_base: objetivo_base ? Number(objetivo_base) : 12,
+          arrastre: arrastre ? Number(arrastre) : 0,
+          min_matriculaciones: min_matriculaciones ? Number(min_matriculaciones) : 6,
+          min_coches_multiplicador: min_coches_multiplicador ? Number(min_coches_multiplicador) : 0,
+          estado: "activo",
+        }).returning();
+
+        const newId = insertedPlan.id_plan;
+
+        // Obtener marcas activas en el sistema de comisiones
+        const dbBrands = await tx.query.marcas.findMany({
+          where: eq(marcas.sistema_comisiones, true)
+        });
+        const activeBrandIds = dbBrands.map(b => b.id_marca);
+
+        // Cargar modelos de marcas activas del sistema
+        let systemModels: any[] = [];
+        if (activeBrandIds.length > 0) {
+          systemModels = await tx.query.modelos.findMany({
+            where: (mod, { inArray }) => inArray(mod.marca_id, activeBrandIds)
+          });
+        }
+
+        if (systemModels.length > 0) {
+          const ratesToInsert: any[] = [];
+          systemModels.forEach(m => {
+            // Fila 1: Tasa de intervención inferior
+            ratesToInsert.push({
+              id_plan: newId,
+              id_modelo: m.id_modelo,
+              tasa_intervencion_cumplida: false,
+              rate_x_minus_4: 70,
+              rate_x_minus_3: 80,
+              rate_x_minus_2: 90,
+              rate_x_minus_1: 100,
+              rate_x: 120,
+              rate_x_plus_1: 140,
+              rate_x_plus_2: 160,
+              rate_x_plus_3: 180,
+              valor_objetivo: 1,
+              activo: true,
+            });
+            // Fila 2: Tasa de intervención superior/igual
+            ratesToInsert.push({
+              id_plan: newId,
+              id_modelo: m.id_modelo,
+              tasa_intervencion_cumplida: true,
+              rate_x_minus_4: 90,
+              rate_x_minus_3: 100,
+              rate_x_minus_2: 110,
+              rate_x_minus_1: 120,
+              rate_x: 140,
+              rate_x_plus_1: 160,
+              rate_x_plus_2: 180,
+              rate_x_plus_3: 200,
+              valor_objetivo: 1,
+              activo: true,
+            });
+          });
+          await tx.insert(commissionPlanModelRates).values(ratesToInsert);
+        }
+
+        // Inicializar tasa de intervención para marcas activas (70% por defecto)
+        const interventionsToInsert = activeBrandIds.map(bId => ({
+          id_plan: newId,
+          id_marca: bId,
+          tasa_intervencion: 70,
+          valor_objetivo_defecto: 1.0
+        }));
+        if (interventionsToInsert.length > 0) {
+          await tx.insert(commissionBrandInterventionRates).values(interventionsToInsert);
+        }
+
+        // Inicializar regla de financiación plana vacía (compatibilidad)
+        await tx.insert(commissionFinanceRules).values({
+          id_plan: newId,
+          importe_normal: 80,
+          importe_preference: 120,
+        });
+
+        // Inicializar tarifas de usados por defecto (VO, KM0, BB, Usado)
+        await tx.insert(commissionUsedRates).values([
+          { id_plan: newId, tipo_usado: "VO", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
+          { id_plan: newId, tipo_usado: "KM0", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
+          { id_plan: newId, tipo_usado: "BB", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
+          { id_plan: newId, tipo_usado: "Usado", importe_primera: 120, importe_resto: 50, valor_objetivo: 1, min_aplicar: 1, activo: true }
+        ]);
+
+        // Inicializar financiación por marca para marcas activas
+        const financeRatesToInsert: any[] = [];
+        for (const bId of activeBrandIds) {
+          financeRatesToInsert.push(
+            { id_plan: newId, id_marca: bId, tipo_financiacion: "Crédito", importe: 80 },
+            { id_plan: newId, id_marca: bId, tipo_financiacion: "Preference", importe: 120 },
+            { id_plan: newId, id_marca: bId, tipo_financiacion: "Renting", importe: 80 },
+            { id_plan: newId, id_marca: bId, tipo_financiacion: "Contado", importe: 0 }
+          );
+        }
+        if (financeRatesToInsert.length > 0) {
+          await tx.insert(commissionFinanceRates).values(financeRatesToInsert);
+        }
+
+        // Inicializar un patrón de VO por defecto
+        await tx.insert(commissionVoPatterns).values({
+          id_plan: newId,
+          nombre: "Estándar VO",
+          activo: true,
+          tiers: JSON.stringify([
+            { unidad: 1, importe: 150, valor_objetivo: 1 },
+            { unidad: 2, importe: 180, valor_objetivo: 1 },
+            { unidad: 3, importe: 200, valor_objetivo: 1 },
+            { unidad: 4, importe: 250, valor_objetivo: 1 }
+          ])
+        });
+
+        nuevoPlanId = newId;
       }
-
-      // Inicializar tasa de intervención para marcas activas (70% por defecto)
-      const interventionsToInsert = activeBrandIds.map(bId => ({
-        id_plan: newId,
-        id_marca: bId,
-        tasa_intervencion: 70,
-        valor_objetivo_defecto: 1.0
-      }));
-      if (interventionsToInsert.length > 0) {
-        await db.insert(commissionBrandInterventionRates).values(interventionsToInsert);
-      }
-
-      // Inicializar regla de financiación plana vacía (compatibilidad)
-      await db.insert(commissionFinanceRules).values({
-        id_plan: newId,
-        importe_normal: 80,
-        importe_preference: 120,
-      });
-
-      // Inicializar tarifas de usados por defecto (VO, KM0, BB, Usado)
-      await db.insert(commissionUsedRates).values([
-        { id_plan: newId, tipo_usado: "VO", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
-        { id_plan: newId, tipo_usado: "KM0", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
-        { id_plan: newId, tipo_usado: "BB", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
-        { id_plan: newId, tipo_usado: "Usado", importe_primera: 120, importe_resto: 50, valor_objetivo: 1, min_aplicar: 1, activo: true }
-      ]);
-
-      // Inicializar financiación por marca para marcas activas
-      const financeRatesToInsert: any[] = [];
-      for (const bId of activeBrandIds) {
-        financeRatesToInsert.push(
-          { id_plan: newId, id_marca: bId, tipo_financiacion: "Crédito", importe: 80 },
-          { id_plan: newId, id_marca: bId, tipo_financiacion: "Preference", importe: 120 },
-          { id_plan: newId, id_marca: bId, tipo_financiacion: "Renting", importe: 80 },
-          { id_plan: newId, id_marca: bId, tipo_financiacion: "Contado", importe: 0 }
-        );
-      }
-      if (financeRatesToInsert.length > 0) {
-        await db.insert(commissionFinanceRates).values(financeRatesToInsert);
-      }
-
-      // Inicializar un patrón de VO por defecto
-      await db.insert(commissionVoPatterns).values({
-        id_plan: newId,
-        nombre: "Estándar VO",
-        activo: true,
-        tiers: JSON.stringify([
-          { unidad: 1, importe: 150, valor_objetivo: 1 },
-          { unidad: 2, importe: 180, valor_objetivo: 1 },
-          { unidad: 3, importe: 200, valor_objetivo: 1 },
-          { unidad: 4, importe: 250, valor_objetivo: 1 }
-        ])
-      });
-
-      nuevoPlanId = newId;
-    }
+    });
 
     return NextResponse.json({ success: true, message: "Plan creado con éxito", data: { id_plan: nuevoPlanId } }, { status: 201 });
   } catch (error: any) {
