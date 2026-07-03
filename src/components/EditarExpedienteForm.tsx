@@ -35,6 +35,10 @@ export default function EditarExpedienteForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [clientNotification, setClientNotification] = useState<string | null>(null);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [pendingNavigationUrl, setPendingNavigationUrl] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Estado del Cliente (Pre-cargado)
   const [dni, setDni] = useState(expediente.cliente?.dni || "");
@@ -191,7 +195,8 @@ export default function EditarExpedienteForm({
         telefonos: telefonos.filter(t => t.telefono.trim() !== "").map(t => ({ telefono: t.telefono, tipo_telefono: t.tipo }))
       });
       
-      alert("✅ Datos del cliente actualizados correctamente.");
+      setClientNotification("Cambios guardados correctamente.");
+      setTimeout(() => setClientNotification(null), 4000);
     } catch (err: any) {
       setError(err.message || "Ocurrió un error al guardar los cambios del cliente.");
     } finally {
@@ -319,6 +324,77 @@ export default function EditarExpedienteForm({
     return expParts[0] === matParts[0] && expParts[1] === matParts[1];
   };
 
+  const handleNavigate = (url: string) => {
+    if (checkIsDirty()) {
+      setPendingNavigationUrl(url);
+      setShowLeaveModal(true);
+    } else {
+      if (url === "BACK") {
+        router.back();
+      } else {
+        router.push(url);
+      }
+    }
+  };
+
+  const handleSilentSubmit = async (): Promise<boolean> => {
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          id_cliente: clienteAsignado ? clienteAsignado.id : null,
+          expediente: {
+            id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
+            id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
+            id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
+            id_tienda: tiendaId ? Number(tiendaId) : null,
+            fecha_expediente: fechaExpediente || null,
+            fecha_afectacion: fechaAfectacion || null,
+            fecha_rci: fechaRci || null,
+            fecha_matriculacion: fechaMatriculacion || null,
+            fecha_entrega: fechaEntrega || null,
+            matricula: matricula || null,
+            vin: vin || null,
+            valor_objetivo: valorObjetivo,
+            min_coches_multiplicador: minCochesMultiplicador,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al actualizar el expediente.");
+      }
+
+      setSuccess(true);
+      return true;
+    } catch (err: any) {
+      setError(err.message || "Ocurrió un error inesperado.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAndLeave = async () => {
+    const saved = await handleSilentSubmit();
+    if (saved) {
+      setShowLeaveModal(false);
+      // Wait for a short duration to let the user see the success screen
+      setTimeout(() => {
+        if (pendingNavigationUrl === "BACK") {
+          router.back();
+        } else {
+          router.push(pendingNavigationUrl || "/dashboard/expedientes");
+        }
+      }, 1500);
+    }
+  };
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (checkIsDirty()) {
@@ -333,11 +409,11 @@ export default function EditarExpedienteForm({
       const anchor = target.closest("a");
       if (anchor && anchor.href && anchor.host === window.location.host) {
         if (checkIsDirty()) {
-          const confirmLeave = window.confirm("Tienes cambios sin guardar en el expediente. ¿Estás seguro de que deseas salir sin guardar?");
-          if (!confirmLeave) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
+          e.preventDefault();
+          e.stopPropagation();
+          const path = anchor.pathname + anchor.search;
+          setPendingNavigationUrl(path);
+          setShowLeaveModal(true);
         }
       }
     };
@@ -414,8 +490,8 @@ export default function EditarExpedienteForm({
   ]);
 
   // Envío del Formulario
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setLoading(true);
     setError(null);
 
@@ -475,11 +551,11 @@ export default function EditarExpedienteForm({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      <div style={{ display: "flex", justifyContent: "flex-start" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={() => router.push("/dashboard/expedientes")}
+          onClick={() => handleNavigate("/dashboard/expedientes")}
           style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px" }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -488,9 +564,62 @@ export default function EditarExpedienteForm({
           </svg>
           Volver a Expedientes
         </button>
+
+        <div style={{ display: "flex", gap: "16px" }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => handleNavigate("BACK")}
+            disabled={loading}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => handleSubmit()}
+            disabled={loading}
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
+            {loading ? "Guardando..." : "Guardar Cambios"}
+            {!loading && (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+        {clientNotification && (
+          <div className="glass-panel" style={{
+            padding: "16px 20px",
+            backgroundColor: "rgba(16, 185, 129, 0.1)",
+            borderLeft: "4px solid var(--success)",
+            color: "var(--success)",
+            fontWeight: 600,
+            fontSize: "0.95rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            animation: "fadeIn 0.3s ease-in-out"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span>✅</span>
+              <span>{clientNotification}</span>
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setClientNotification(null)}
+              style={{ background: "none", border: "none", color: "var(--success)", cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {error && (
           <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
             <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
@@ -1000,7 +1129,7 @@ export default function EditarExpedienteForm({
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={() => router.push("/dashboard/expedientes")}
+          onClick={() => handleNavigate("/dashboard/expedientes")}
           style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px" }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1010,7 +1139,7 @@ export default function EditarExpedienteForm({
           Volver a Expedientes
         </button>
         <div style={{ display: "flex", gap: "16px" }}>
-          <button type="button" className="btn btn-secondary" onClick={() => router.back()} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={() => handleNavigate("BACK")} disabled={loading}>
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -1026,6 +1155,90 @@ export default function EditarExpedienteForm({
         </div>
       </div>
     </form>
+
+    {showLeaveModal && (
+      <div style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100vw",
+        height: "100vh",
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        backdropFilter: "blur(4px)"
+      }}>
+        <div className="glass-panel" style={{
+          width: "100%",
+          maxWidth: "450px",
+          padding: "32px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "24px",
+          textAlign: "center"
+        }}>
+          <div>
+            <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
+              Cambios sin guardar
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.6", marginTop: "8px", marginBottom: 0 }}>
+              Tienes cambios sin guardar en este expediente. ¿Qué deseas hacer antes de salir?
+            </p>
+          </div>
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSaveAndLeave}
+              disabled={saving}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              {saving ? "Guardando..." : "💾 Guardar y Salir"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setShowLeaveModal(false);
+                setSuccess(true);
+                setTimeout(() => {
+                  if (pendingNavigationUrl === "BACK") {
+                    router.back();
+                  } else {
+                    router.push(pendingNavigationUrl || "/dashboard/expedientes");
+                  }
+                }, 100);
+              }}
+              disabled={saving}
+              style={{ 
+                width: "100%", 
+                justifyContent: "center", 
+                backgroundColor: "rgba(239, 68, 68, 0.1)", 
+                color: "var(--danger)",
+                border: "1px solid rgba(239, 68, 68, 0.2)"
+              }}
+            >
+              🚪 Salir sin Guardar
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowLeaveModal(false);
+                setPendingNavigationUrl(null);
+              }}
+              disabled={saving}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
