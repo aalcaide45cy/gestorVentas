@@ -212,7 +212,51 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id_expediente, expediente: expedienteData, id_cliente, isBulk, mes, año, tipoFecha, min_coches_multiplicador } = body;
+    const { id_expediente, expediente: expedienteData, id_cliente, isBulk, mes, año, tipoFecha, min_coches_multiplicador, isBulkEdit, ids } = body;
+
+    if (isBulkEdit) {
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json({ message: "Faltan los IDs para actualizar en masa" }, { status: 400 });
+      }
+
+      const updateData: any = {};
+
+      if (expedienteData.id_modelo !== undefined && expedienteData.id_modelo !== "") {
+        updateData.id_modelo = Number(expedienteData.id_modelo);
+      }
+      if (expedienteData.id_tipo_de_venta !== undefined && expedienteData.id_tipo_de_venta !== "") {
+        updateData.id_tipo_de_venta = Number(expedienteData.id_tipo_de_venta);
+      }
+      // Solamente el administrador puede modificar el vendedor (id_usuario)
+      if (localUser.rol === "administrador" && expedienteData.id_usuario !== undefined && expedienteData.id_usuario !== "") {
+        updateData.id_usuario = Number(expedienteData.id_usuario);
+      }
+      if (expedienteData.fecha_expediente !== undefined && expedienteData.fecha_expediente !== "") {
+        updateData.fecha_expediente = expedienteData.fecha_expediente;
+      }
+      if (expedienteData.fecha_afectacion !== undefined && expedienteData.fecha_afectacion !== "") {
+        updateData.fecha_afectacion = expedienteData.fecha_afectacion === "" ? null : expedienteData.fecha_afectacion;
+      }
+      if (expedienteData.fecha_rci !== undefined && expedienteData.fecha_rci !== "") {
+        updateData.fecha_rci = expedienteData.fecha_rci === "" ? null : expedienteData.fecha_rci;
+      }
+      if (expedienteData.fecha_matriculacion !== undefined && expedienteData.fecha_matriculacion !== "") {
+        updateData.fecha_matriculacion = expedienteData.fecha_matriculacion === "" ? null : expedienteData.fecha_matriculacion;
+      }
+      if (expedienteData.fecha_entrega !== undefined && expedienteData.fecha_entrega !== "") {
+        updateData.fecha_entrega = expedienteData.fecha_entrega === "" ? null : expedienteData.fecha_entrega;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return NextResponse.json({ message: "No se seleccionaron datos para modificar" }, { status: 400 });
+      }
+
+      await db.update(expedientes)
+        .set(updateData)
+        .where(inArray(expedientes.id_expediente, ids));
+
+      return NextResponse.json({ success: true, message: `${ids.length} expedientes actualizados correctamente` }, { status: 200 });
+    }
 
     if (isBulk) {
       if (!mes || !año || !tipoFecha || min_coches_multiplicador === undefined) {

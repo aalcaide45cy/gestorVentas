@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { usuarios, marcas, modelos, tipoDeVenta, estadoVehiculo } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+export const dynamic = 'force-dynamic';
+
 // Middleware manual de validación de Admin
 async function checkAdmin() {
   const { userId } = await auth();
@@ -14,6 +16,61 @@ async function checkAdmin() {
   });
 
   return user && user.rol === "administrador" ? user : null;
+}
+
+async function checkAuthenticated() {
+  const { userId } = await auth();
+  if (!userId) return null;
+
+  return db.query.usuarios.findFirst({
+    where: eq(usuarios.clerk_id, userId),
+  });
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const user = await checkAuthenticated();
+    if (!user) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 401 });
+    }
+
+    const dbMarcas = await db.query.marcas.findMany({
+      orderBy: [marcas.nombre],
+    });
+    const dbModelos = await db.query.modelos.findMany({
+      orderBy: [modelos.nombre_modelo],
+    });
+    const dbTiposVenta = await db.query.tipoDeVenta.findMany({
+      orderBy: [tipoDeVenta.nombre_tipo_venta],
+    });
+    const dbUsuarios = await db.query.usuarios.findMany({
+      orderBy: [usuarios.nombre],
+    });
+
+    // Agrupar modelos por marca ID
+    const modelosPorMarca: Record<number, { id: number; nombre: string }[]> = {};
+    dbModelos.forEach(m => {
+      if (m.marca_id) {
+        if (!modelosPorMarca[m.marca_id]) {
+          modelosPorMarca[m.marca_id] = [];
+        }
+        modelosPorMarca[m.marca_id].push({ id: m.id_modelo, nombre: m.nombre_modelo });
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        marcas: dbMarcas.map(m => ({ id: m.id_marca, nombre: m.nombre })),
+        modelosPorMarca,
+        tiposVenta: dbTiposVenta.map(t => ({ id: t.id_tipo_de_venta, nombre: t.nombre_tipo_venta })),
+        vendedores: dbUsuarios.map(u => ({ id: u.id_usuario, nombre: u.nombre })),
+      }
+    });
+  } catch (error: any) {
+    console.error("Error al obtener catálogos:", error);
+    return NextResponse.json({ message: error.message || "Error interno" }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

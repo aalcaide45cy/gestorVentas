@@ -102,6 +102,42 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
   const [deleteUnlocked, setDeleteUnlocked] = useState(false);
 
+  // Estados para Edición Masiva (Lote)
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [catalogs, setCatalogs] = useState<{
+    marcas: { id: number; nombre: string }[];
+    modelosPorMarca: Record<number, { id: number; nombre: string }[]>;
+    tiposVenta: { id: number; nombre: string }[];
+    vendedores: { id: number; nombre: string }[];
+  } | null>(null);
+
+  const [bulkMarca, setBulkMarca] = useState<number | "">("");
+  const [bulkModelo, setBulkModelo] = useState<number | "">("");
+  const [bulkTipoVenta, setBulkTipoVenta] = useState<number | "">("");
+  const [bulkVendedor, setBulkVendedor] = useState<number | "">("");
+  const [bulkFExp, setBulkFExp] = useState("");
+  const [bulkFAfect, setBulkFAfect] = useState("");
+  const [bulkFRci, setBulkFRci] = useState("");
+  const [bulkFMat, setBulkFMat] = useState("");
+  const [bulkFEntrega, setBulkFEntrega] = useState("");
+
+  useEffect(() => {
+    if (showBulkEditModal && !catalogs) {
+      const fetchCatalogs = async () => {
+        try {
+          const res = await fetch("/api/admin/catalogos");
+          const result = await res.json();
+          if (result.success) {
+            setCatalogs(result.data);
+          }
+        } catch (err) {
+          console.error("Error al cargar catálogos para edición masiva:", err);
+        }
+      };
+      fetchCatalogs();
+    }
+  }, [showBulkEditModal, catalogs]);
+
   // Estados para buscadores y filtros
   const [globalSearch, setGlobalSearch] = useState("");
   const [ocultarEntregados, setOcultarEntregados] = useState(false);
@@ -810,6 +846,80 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       router.refresh();
     } catch (err: any) {
       showNotification(err.message || "Ocurrió un error al eliminar la fecha.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveBulkEdit = async () => {
+    if (selectedIds.length === 0) return;
+
+    const expedientePayload: any = {};
+    if (bulkModelo !== "") {
+      expedientePayload.id_modelo = Number(bulkModelo);
+    }
+    if (bulkTipoVenta !== "") {
+      expedientePayload.id_tipo_de_venta = Number(bulkTipoVenta);
+    }
+    if (userRole === "administrador" && bulkVendedor !== "") {
+      expedientePayload.id_usuario = Number(bulkVendedor);
+    }
+    if (bulkFExp !== "") {
+      expedientePayload.fecha_expediente = bulkFExp;
+    }
+    if (bulkFAfect !== "") {
+      expedientePayload.fecha_afectacion = bulkFAfect;
+    }
+    if (bulkFRci !== "") {
+      expedientePayload.fecha_rci = bulkFRci;
+    }
+    if (bulkFMat !== "") {
+      expedientePayload.fecha_matriculacion = bulkFMat;
+    }
+    if (bulkFEntrega !== "") {
+      expedientePayload.fecha_entrega = bulkFEntrega;
+    }
+
+    if (Object.keys(expedientePayload).length === 0) {
+      showNotification("Por favor, rellene al menos un campo para modificar.", "error");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isBulkEdit: true,
+          ids: selectedIds,
+          expediente: expedientePayload
+        })
+      });
+      const result = await res.json();
+      if (result.success) {
+        showNotification(`${selectedIds.length} expedientes modificados correctamente.`, "success");
+        setShowBulkEditModal(false);
+        setBulkMarca("");
+        setBulkModelo("");
+        setBulkTipoVenta("");
+        setBulkVendedor("");
+        setBulkFExp("");
+        setBulkFAfect("");
+        setBulkFRci("");
+        setBulkFMat("");
+        setBulkFEntrega("");
+        setSelectedIds([]);
+        router.refresh();
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      } else {
+        showNotification(result.message || "Error al actualizar expedientes.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification("Error de conexión al actualizar.", "error");
     } finally {
       setLoading(false);
     }
@@ -1941,13 +2051,29 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               >
                 🗑️ Eliminar Seleccionados
               </button>
-              <button
+               <button
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => handleExportCSV(true)}
                 style={{ padding: "6px 12px", fontSize: "0.8rem" }}
               >
                 📤 Exportar Seleccionados (CSV)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkEditModal(true)}
+                style={{ 
+                  padding: "6px 12px", 
+                  fontSize: "0.8rem", 
+                  backgroundColor: "#2e7d32", 
+                  color: "white", 
+                  border: "none", 
+                  borderRadius: "var(--radius-sm)", 
+                  fontWeight: "600",
+                  cursor: "pointer"
+                }}
+              >
+                ✏️ Editar
               </button>
             </>
           )}
@@ -3105,6 +3231,207 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 {deleting ? "Eliminando..." : "Eliminar Expedientes"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL DE EDICIÓN MASIVA */}
+      {showBulkEditModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "600px",
+            maxHeight: "90vh",
+            overflowY: "auto",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <div>
+              <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
+                Editar Expedientes en Masa ({selectedIds.length} seleccionados)
+              </h3>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "4px" }}>
+                Rellene únicamente los campos que desea modificar. Los campos vacíos no se alterarán.
+              </p>
+            </div>
+
+            {!catalogs ? (
+              <div style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
+                Cargando catálogos...
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* MARCA Y MODELO */}
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Marca</label>
+                    <select
+                      className="form-select"
+                      value={bulkMarca}
+                      onChange={e => {
+                        setBulkMarca(e.target.value ? Number(e.target.value) : "");
+                        setBulkModelo("");
+                      }}
+                    >
+                      <option value="">(No modificar)</option>
+                      {catalogs.marcas.map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Modelo</label>
+                    <select
+                      className="form-select"
+                      value={bulkModelo}
+                      onChange={e => setBulkModelo(e.target.value ? Number(e.target.value) : "")}
+                      disabled={bulkMarca === ""}
+                    >
+                      <option value="">(No modificar)</option>
+                      {bulkMarca !== "" && catalogs.modelosPorMarca[Number(bulkMarca)]?.map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* TIPO DE VENTA Y VENDEDOR (ADMIN ONLY) */}
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Tipo de Venta</label>
+                    <select
+                      className="form-select"
+                      value={bulkTipoVenta}
+                      onChange={e => setBulkTipoVenta(e.target.value ? Number(e.target.value) : "")}
+                    >
+                      <option value="">(No modificar)</option>
+                      {catalogs.tiposVenta.map(t => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {userRole === "administrador" && (
+                    <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                      <label className="form-label">Vendedor</label>
+                      <select
+                        className="form-select"
+                        value={bulkVendedor}
+                        onChange={e => setBulkVendedor(e.target.value ? Number(e.target.value) : "")}
+                      >
+                        <option value="">(No modificar)</option>
+                        {catalogs.vendedores.map(v => (
+                          <option key={v.id} value={v.id}>{v.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* FECHAS */}
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "130px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Exp.</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={bulkFExp}
+                      onChange={e => setBulkFExp(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "130px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Afect.</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={bulkFAfect}
+                      onChange={e => setBulkFAfect(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "130px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha RCI</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={bulkFRci}
+                      onChange={e => setBulkFRci(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Mat.</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={bulkFMat}
+                      onChange={e => setBulkFMat(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Entrega</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={bulkFEntrega}
+                      onChange={e => setBulkFEntrega(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowBulkEditModal(false);
+                      setBulkMarca("");
+                      setBulkModelo("");
+                      setBulkTipoVenta("");
+                      setBulkVendedor("");
+                      setBulkFExp("");
+                      setBulkFAfect("");
+                      setBulkFRci("");
+                      setBulkFMat("");
+                      setBulkFEntrega("");
+                    }}
+                    disabled={loading}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={handleSaveBulkEdit}
+                    disabled={loading}
+                    style={{
+                      backgroundColor: "#2e7d32",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "8px 16px",
+                      cursor: "pointer",
+                      fontWeight: 600
+                    }}
+                  >
+                    {loading ? "Guardando..." : "Guardar Cambios"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
