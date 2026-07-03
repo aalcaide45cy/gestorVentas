@@ -2776,14 +2776,21 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           zIndex: 999,
           backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{
-            width: "100%",
-            maxWidth: "400px",
-            padding: "32px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "20px"
-          }}>
+          <form
+            onSubmit={e => {
+              e.preventDefault();
+              handleSaveDate();
+            }}
+            className="glass-panel"
+            style={{
+              width: "100%",
+              maxWidth: "400px",
+              padding: "32px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px"
+            }}
+          >
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
               Establecer fecha de {editDateModal.displayName}
             </h3>
@@ -2821,15 +2828,14 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 Cancelar
               </button>
               <button
-                type="button"
+                type="submit"
                 className="btn btn-primary"
-                onClick={handleSaveDate}
                 disabled={loading}
               >
                 {loading ? "Guardando..." : "Aceptar"}
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 

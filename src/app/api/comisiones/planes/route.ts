@@ -88,7 +88,11 @@ export async function GET(req: NextRequest) {
           brandInterventionRates: true,
           liquidations: {
             with: {
-              lines: true
+              lines: {
+                with: {
+                  items: true
+                }
+              }
             }
           }
         }

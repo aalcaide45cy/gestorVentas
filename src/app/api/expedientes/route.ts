@@ -4,6 +4,44 @@ import { db } from "@/db";
 import { usuarios, clientes, emailsClientes, telefonosClientes, expedientes, usuariosTiendas, estadoVehiculo, commissionPlans, commissionPlanModelRates, modelos, commissionBrandInterventionRates } from "@/db/schema";
 import { eq, ilike, inArray, and, lte, gte, lt } from "drizzle-orm";
 
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ message: "No autorizado" }, { status: 401 });
+    }
+
+    const url = new URL(req.url);
+    const id = url.searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ message: "Falta el ID del expediente" }, { status: 400 });
+    }
+
+    const exp = await db.query.expedientes.findFirst({
+      where: eq(expedientes.id_expediente, Number(id)),
+      with: {
+        cliente: true,
+        modelo: true,
+        tipoDeVenta: true,
+        estadoVehiculo: true,
+        usuario: true
+      }
+    });
+
+    if (!exp) {
+      return NextResponse.json({ message: "Expediente no encontrado" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: exp });
+  } catch (error: any) {
+    console.error("Error al obtener expediente:", error);
+    return NextResponse.json({ message: error.message || "Error interno" }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();

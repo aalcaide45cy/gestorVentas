@@ -183,6 +183,26 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [calculating, setCalculating] = useState(false);
   const [selectedLineDetails, setSelectedLineDetails] = useState<any | null>(null);
 
+  // Estados para Editar Expediente Individual en Modal
+  const [showEditExpedienteModal, setShowEditExpedienteModal] = useState(false);
+  const [editingExpedienteId, setEditingExpedienteId] = useState<number | null>(null);
+  const [catalogs, setCatalogs] = useState<{
+    marcas: { id: number; nombre: string }[];
+    modelosPorMarca: Record<number, { id: number; nombre: string }[]>;
+    tiposVenta: { id: number; nombre: string }[];
+    vendedores: { id: number; nombre: string }[];
+  } | null>(null);
+
+  const [editMarca, setEditMarca] = useState<number | "">("");
+  const [editModelo, setEditModelo] = useState<number | "">("");
+  const [editTipoVenta, setEditTipoVenta] = useState<number | "">("");
+  const [editVendedor, setEditVendedor] = useState<number | "">("");
+  const [editFExp, setEditFExp] = useState("");
+  const [editFAfect, setEditFAfect] = useState("");
+  const [editFRci, setEditFRci] = useState("");
+  const [editFMat, setEditFMat] = useState("");
+  const [editFEntrega, setEditFEntrega] = useState("");
+
   // Cargar lista de planes
   const refreshPlanes = async () => {
     try {
@@ -320,6 +340,115 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       showNotification("Error de conexión al cargar plan", "error");
     } finally {
       setLoadingPlan(false);
+    }
+  };
+
+  const getBonusTooltip = (line: any) => {
+    if (!line.items || line.items.length === 0) return "";
+    
+    const bonusItems = line.items.filter((item: any) => {
+      const isBase = item.concepto.includes("Comisión Base");
+      const isUsado = item.concepto.includes("Comisión Usado");
+      const isFinance = item.concepto.includes("Incentivo Financiación");
+      
+      const isPrefRule = item.concepto.startsWith("Regla Preference/BOX3:") ||
+        (item.concepto.startsWith("Regla Comisión:") && planData?.rules?.find((r: any) => r.nombre === item.concepto.replace("Regla Comisión: ", ""))?.tipo_evento === "preference");
+        
+      const isFinRule = (item.concepto.startsWith("Regla Comisión:") && 
+        ["credito", "financiacion"].includes(planData?.rules?.find((r: any) => r.nombre === item.concepto.replace("Regla Comisión: ", ""))?.tipo_evento || ""));
+
+      return !isBase && !isUsado && !isFinance && !isPrefRule && !isFinRule;
+    });
+
+    if (bonusItems.length === 0) return "No hay bonus aplicados";
+
+    return bonusItems
+      .map((item: any) => {
+        const cleanName = item.concepto.replace(/^(Bonus Campaña:|Regla Comisión:)\s*/, "");
+        const foundBonus = planData?.bonusRules?.find((b: any) => b.nombre === cleanName);
+        const desc = foundBonus?.descripcion || "";
+        return `${cleanName}: ${item.importe} €` + (desc ? `\n(${desc})` : "");
+      })
+      .join("\n\n");
+  };
+
+  const handleOpenEditExpediente = async (id: number) => {
+    setLoadingPlan(true);
+    try {
+      if (!catalogs) {
+        const catRes = await fetch("/api/admin/catalogos");
+        const catResult = await catRes.json();
+        if (catResult.success) {
+          setCatalogs(catResult.data);
+        }
+      }
+
+      const res = await fetch(`/api/expedientes?id=${id}`);
+      const result = await res.json();
+      if (result.success) {
+        const exp = result.data;
+        setEditingExpedienteId(id);
+        
+        setEditMarca(exp.modelo?.marca_id || "");
+        setEditModelo(exp.id_modelo || "");
+        setEditTipoVenta(exp.id_tipo_de_venta || "");
+        setEditVendedor(exp.id_usuario || "");
+        setEditFExp(exp.fecha_expediente || "");
+        setEditFAfect(exp.fecha_afectacion || "");
+        setEditFRci(exp.fecha_rci || "");
+        setEditFMat(exp.fecha_matriculacion || "");
+        setEditFEntrega(exp.fecha_entrega || "");
+        
+        setShowEditExpedienteModal(true);
+      } else {
+        showNotification(result.message || "Error al cargar expediente.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification("Error de conexión al cargar expediente.", "error");
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
+
+  const handleSaveEditExpediente = async () => {
+    if (!editingExpedienteId) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: editingExpedienteId,
+          expediente: {
+            id_modelo: editModelo !== "" ? Number(editModelo) : null,
+            id_tipo_de_venta: editTipoVenta !== "" ? Number(editTipoVenta) : null,
+            id_usuario: isAdmin && editVendedor !== "" ? Number(editVendedor) : undefined,
+            fecha_expediente: editFExp || null,
+            fecha_afectacion: editFAfect || null,
+            fecha_rci: editFRci || null,
+            fecha_matriculacion: editFMat || null,
+            fecha_entrega: editFEntrega || null,
+          }
+        })
+      });
+      
+      const result = await res.json();
+      if (result.success) {
+        showNotification("Expediente actualizado correctamente.", "success");
+        setShowEditExpedienteModal(false);
+        if (selectedPlanId) {
+          loadPlanDetails(selectedPlanId, true);
+        }
+      } else {
+        showNotification(result.message || "Error al guardar el expediente.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification("Error de conexión al guardar.", "error");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -2888,58 +3017,73 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             </tr>
                           </thead>
                           <tbody>
-                            {planData.liquidations[0].lines?.map((line: any) => (
-                              <tr key={line.id_line}>
-                                <td style={{ fontWeight: 600, color: "var(--primary)" }}>
-                                  #EXP-{String(line.id_expediente).padStart(4, "0")}
-                                </td>
-                                <td style={{ color: "var(--text-primary)" }}>{line.vendedor_nombre}</td>
-                                <td>{line.cliente_nombre}</td>
-                                <td>
-                                  <div style={{ fontWeight: 500 }}>{line.modelo_nombre}</div>
-                                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.marca_nombre}</div>
-                                </td>
-                                <td style={{ textAlign: "center" }}>
-                                  {line.entra_por_pedido && <span className="badge badge-vendedor" style={{ fontSize: "0.65rem", marginRight: "2px" }}>Pedido</span>}
-                                  {line.entra_por_afectacion && <span className="badge badge-tienda" style={{ fontSize: "0.65rem", marginRight: "2px" }}>Afect.</span>}
-                                  {line.entra_por_matriculacion && <span className="badge badge-admin" style={{ fontSize: "0.65rem" }}>Matric.</span>}
-                                </td>
-                                <td style={{ textAlign: "center", fontWeight: 700 }}>+{line.valor_para_objetivo}</td>
-                                <td style={{ textAlign: "right" }}>{(line.comision_base_vn || 0).toLocaleString()} €</td>
-                                <td style={{ textAlign: "right" }}>{(line.comision_usado || 0).toLocaleString()} €</td>
-                                <td style={{ textAlign: "right" }}>{(line.comision_financiacion || 0).toLocaleString()} €</td>
-                                <td style={{ textAlign: "right" }}>{(line.comision_preference || 0).toLocaleString()} €</td>
-                                <td style={{ textAlign: "right" }}>{(line.bonus_acumulado || 0).toLocaleString()} €</td>
-                                <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{(line.total_generado || 0).toLocaleString()} €</td>
-                                <td style={{ textAlign: "center" }}>
-                                  <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
-                                    <button
-                                      onClick={() => setSelectedLineDetails(line)}
-                                      className="btn btn-secondary"
-                                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                                    >
-                                      🔍 Conceptos
-                                    </button>
-                                    <Link
-                                      href={`/dashboard/expedientes/editar/${line.id_expediente}`}
-                                      target="_blank"
-                                      className="btn btn-primary"
-                                      style={{ 
-                                        padding: "4px 8px", 
-                                        fontSize: "0.75rem",
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "4px",
-                                        textDecoration: "none",
-                                        color: "white"
-                                      }}
-                                    >
-                                      ✏️ Editar
-                                    </Link>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                            {planData.liquidations[0].lines?.map((line: any) => {
+                              const bonusTooltip = getBonusTooltip(line);
+                              return (
+                                <tr key={line.id_line}>
+                                  <td style={{ fontWeight: 600, color: "var(--primary)" }}>
+                                    #EXP-{String(line.id_expediente).padStart(4, "0")}
+                                  </td>
+                                  <td style={{ color: "var(--text-primary)" }}>{line.vendedor_nombre}</td>
+                                  <td>{line.cliente_nombre}</td>
+                                  <td>
+                                    <div style={{ fontWeight: 500 }}>{line.modelo_nombre}</div>
+                                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.marca_nombre}</div>
+                                  </td>
+                                  <td style={{ textAlign: "center" }}>
+                                    {line.entra_por_pedido && <span className="badge badge-vendedor" style={{ fontSize: "0.65rem", marginRight: "2px" }}>Pedido</span>}
+                                    {line.entra_por_afectacion && <span className="badge badge-tienda" style={{ fontSize: "0.65rem", marginRight: "2px" }}>Afect.</span>}
+                                    {line.entra_por_matriculacion && <span className="badge badge-admin" style={{ fontSize: "0.65rem" }}>Matric.</span>}
+                                  </td>
+                                  <td style={{ textAlign: "center", fontWeight: 700 }}>+{line.valor_para_objetivo}</td>
+                                  <td style={{ textAlign: "right" }}>{(line.comision_base_vn || 0).toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right" }}>{(line.comision_usado || 0).toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right" }}>{(line.comision_financiacion || 0).toLocaleString()} €</td>
+                                  <td style={{ textAlign: "right" }}>{(line.comision_preference || 0).toLocaleString()} €</td>
+                                  <td 
+                                    style={{ 
+                                      textAlign: "right",
+                                      cursor: line.bonus_acumulado > 0 ? "help" : "default",
+                                      borderBottom: line.bonus_acumulado > 0 ? "1px dashed rgba(255,255,255,0.3)" : "none",
+                                      paddingBottom: line.bonus_acumulado > 0 ? "2px" : "initial"
+                                    }}
+                                    title={bonusTooltip}
+                                  >
+                                    {(line.bonus_acumulado || 0).toLocaleString()} €
+                                  </td>
+                                  <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{(line.total_generado || 0).toLocaleString()} €</td>
+                                  <td style={{ textAlign: "center" }}>
+                                    <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                                      <button
+                                        onClick={() => setSelectedLineDetails(line)}
+                                        className="btn btn-secondary"
+                                        style={{ padding: "4px 8px", fontSize: "0.75rem" }}
+                                      >
+                                        🔍 Conceptos
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenEditExpediente(line.id_expediente)}
+                                        className="btn btn-primary"
+                                        style={{ 
+                                          padding: "4px 8px", 
+                                          fontSize: "0.75rem",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          backgroundColor: "var(--primary)",
+                                          border: "none",
+                                          color: "white",
+                                          cursor: "pointer",
+                                          borderRadius: "var(--radius-sm)"
+                                        }}
+                                      >
+                                        ✏️ Editar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -2952,6 +3096,177 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     La liquidación de este periodo aún no ha sido calculada. Haz clic en el botón de calcular arriba.
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1.5: EDICIÓN DE EXPEDIENTE INDIVIDUAL */}
+      {showEditExpedienteModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%", maxWidth: "550px", maxHeight: "90vh", overflowY: "auto",
+            padding: "32px", display: "flex", flexDirection: "column", gap: "20px"
+          }}>
+            <div>
+              <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
+                Editar Expediente #EXP-{String(editingExpedienteId).padStart(4, "0")}
+              </h3>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "4px" }}>
+                Modifique los campos correspondientes de este expediente de venta.
+              </p>
+            </div>
+
+            {!catalogs ? (
+              <div style={{ textAlign: "center", padding: "20px", color: "var(--text-secondary)" }}>
+                Cargando catálogos...
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* MARCA Y MODELO */}
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Marca</label>
+                    <select
+                      className="form-select"
+                      value={editMarca}
+                      onChange={e => {
+                        setEditMarca(e.target.value ? Number(e.target.value) : "");
+                        setEditModelo("");
+                      }}
+                    >
+                      <option value="">Selecciona Marca</option>
+                      {catalogs.marcas.map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Modelo</label>
+                    <select
+                      className="form-select"
+                      value={editModelo}
+                      onChange={e => setEditModelo(e.target.value ? Number(e.target.value) : "")}
+                      disabled={editMarca === ""}
+                    >
+                      <option value="">Selecciona Modelo</option>
+                      {editMarca !== "" && catalogs.modelosPorMarca[Number(editMarca)]?.map(m => (
+                        <option key={m.id} value={m.id}>{m.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* TIPO DE VENTA Y VENDEDOR (ADMIN ONLY) */}
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Tipo de Venta</label>
+                    <select
+                      className="form-select"
+                      value={editTipoVenta}
+                      onChange={e => setEditTipoVenta(e.target.value ? Number(e.target.value) : "")}
+                    >
+                      <option value="">Selecciona Tipo de Venta</option>
+                      {catalogs.tiposVenta.map(t => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {isAdmin && (
+                    <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                      <label className="form-label">Vendedor</label>
+                      <select
+                        className="form-select"
+                        value={editVendedor}
+                        onChange={e => setEditVendedor(e.target.value ? Number(e.target.value) : "")}
+                      >
+                        <option value="">Selecciona Vendedor</option>
+                        {catalogs.vendedores.map(v => (
+                          <option key={v.id} value={v.id}>{v.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* FECHAS */}
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "130px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Exp.</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editFExp}
+                      onChange={e => setEditFExp(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "130px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Afect.</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editFAfect}
+                      onChange={e => setEditFAfect(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "130px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha RCI</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editFRci}
+                      onChange={e => setEditFRci(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Mat.</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editFMat}
+                      onChange={e => setEditFMat(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
+                    <label className="form-label">Fecha Entrega</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editFEntrega}
+                      onChange={e => setEditFEntrega(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setShowEditExpedienteModal(false);
+                      setEditingExpedienteId(null);
+                    }}
+                    disabled={saving}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleSaveEditExpediente}
+                    disabled={saving}
+                  >
+                    {saving ? "Guardando..." : "Guardar Cambios"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
