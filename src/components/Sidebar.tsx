@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useClerk } from "@clerk/nextjs";
 import ThemeToggle from "@/components/ThemeToggle";
 
 interface SidebarProps {
@@ -15,6 +15,7 @@ interface SidebarProps {
 export default function Sidebar({ user }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const { signOut } = useClerk();
 
   useEffect(() => {
     setIsMounted(true);
@@ -491,15 +492,72 @@ export default function Sidebar({ user }: SidebarProps) {
         style={{
           borderTop: "1px solid var(--border-light)",
           paddingTop: "20px",
-          textAlign: "center",
-          fontSize: "0.8rem",
-          color: "var(--text-muted)",
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
         }}
       >
-        {isCollapsed ? "v1.0" : "GestorVentas v1.0.0"}
+        <button
+          onClick={() => signOut({ redirectUrl: "/sign-in" })}
+          className="glass-panel-interactive"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: isCollapsed ? "center" : "flex-start",
+            gap: "12px",
+            padding: "12px 16px",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "0.95rem",
+            fontWeight: 500,
+            color: "var(--text-secondary)",
+            background: "rgba(255, 255, 255, 0.01)",
+            border: "1px solid transparent",
+            width: "100%",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          title={isCollapsed ? "Cerrar sesión" : undefined}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLButtonElement).style.color = "#ff4d4d";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255, 77, 77, 0.08)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255, 77, 77, 0.2)";
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+            (e.currentTarget as HTMLButtonElement).style.background = "rgba(255, 255, 255, 0.01)";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent";
+          }}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ flexShrink: 0 }}
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          {!isCollapsed && <span>Cerrar sesión</span>}
+        </button>
+
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "0.8rem",
+            color: "var(--text-muted)",
+            whiteSpace: "nowrap",
+            textOverflow: "ellipsis",
+            overflow: "hidden",
+          }}
+        >
+          {isCollapsed ? "v1.0" : "GestorVentas v1.0.0"}
+        </div>
       </div>
     </aside>
   );
