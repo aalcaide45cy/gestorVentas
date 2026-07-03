@@ -1370,7 +1370,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           const isPreferenceVenta = salesTypeNameLower.includes("preference");
           const isFinancedType = isCreditoVenta || isPreferenceVenta;
 
-          if (isFinancedType && exp.id_tipo_de_venta) {
+          if (entraRci && isFinancedType && exp.id_tipo_de_venta) {
             let matchedFinanceType = "";
             if (salesTypeNameLower.includes("preference")) matchedFinanceType = "Preference";
             else if (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado")) matchedFinanceType = "Crédito";
@@ -1389,7 +1389,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           }
 
           // Reglas Preference / BOX3
-          if (isPreferenceVenta) {
+          if (entraRci && isPreferenceVenta) {
             activePlan.preferenceRules?.forEach((rule: any) => {
               if (!rule.activa) return;
               const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
@@ -1569,20 +1569,19 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       const isPreference = salesTypeNameLower.includes("preference");
       const isFinancedType = isCredito || isPreference;
 
+      const entraRci = exp.fecha_rci && (() => {
+        const parts = exp.fecha_rci.split("-");
+        return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
+      })();
+
       if (isMatriculadoThisMonth) {
         matriculados++;
         if (isContado) matriculadosContado++;
-        else if (isCredito) matriculadosCredito++;
-        else if (isPreference) matriculadosPreference++;
 
         const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
         const isVN = stateName === "nuevo" || stateName === "demo";
         if (isVN) {
           matriculadosVN++;
-          const entraRci = exp.fecha_rci && (() => {
-            const parts = exp.fecha_rci.split("-");
-            return parseInt(parts[0], 10) === statsYear && parseInt(parts[1], 10) === statsMonth;
-          })();
           if (isFinancedType && entraRci) {
             matriculadosVNFinanciados++;
           }
@@ -1591,6 +1590,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         matriculadosList.push(exp);
       } else if (isRelatedThisMonth) {
         pendientesList.push(exp);
+      }
+
+      if (isCredito && entraRci) {
+        matriculadosCredito++;
+      } else if (isPreference && entraRci) {
+        matriculadosPreference++;
       }
 
       if (exp.fecha_entrega) {
