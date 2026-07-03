@@ -2205,7 +2205,21 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             </thead>
             <tbody>
               {paginatedExpedientes.map((exp) => (
-                <tr key={exp.id_expediente} style={{ background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined }}>
+                <tr 
+                  key={exp.id_expediente} 
+                  onClick={(e) => {
+                    if (!bulkSelectionUnlocked) return;
+                    const target = e.target as HTMLElement;
+                    const isInteractive = target.closest("button, a, input, select, textarea, [role='button']");
+                    if (isInteractive) return;
+                    const isSelected = selectedIds.includes(exp.id_expediente);
+                    handleSelectOne(exp.id_expediente, !isSelected);
+                  }}
+                  style={{ 
+                    background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined,
+                    cursor: bulkSelectionUnlocked ? "pointer" : "default"
+                  }}
+                >
                   {bulkSelectionUnlocked && (
                     <td style={{ textAlign: "center" }}>
                       <input
