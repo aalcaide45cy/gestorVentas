@@ -86,9 +86,10 @@ interface ExpedientesListProps {
   expedientesIniciales: Expediente[];
   userRole: string;
   tiendas?: Tienda[];
+  tiendaPredeterminadaId?: number | null;
 }
 
-export default function ExpedientesList({ expedientesIniciales, userRole, tiendas = [] }: ExpedientesListProps) {
+export default function ExpedientesList({ expedientesIniciales, userRole, tiendas = [], tiendaPredeterminadaId = null }: ExpedientesListProps) {
   const router = useRouter();
   const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciales);
 
@@ -3216,7 +3217,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 onClick={() => {
                   setAssignClientModalTab("crear");
                   if (tiendas && tiendas.length > 0 && !newClientTiendaId) {
-                    setNewClientTiendaId(String(tiendas[0].id_tienda));
+                    setNewClientTiendaId(tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : String(tiendas[0].id_tienda));
                   }
                 }}
               >

@@ -232,7 +232,11 @@ export default async function DashboardPage() {
               </Link>
             </div>
 
-            <RecentExpedientesTable initialExpedientes={dbExpedientesRecientes} tiendas={dbTiendas} />
+            <RecentExpedientesTable 
+              initialExpedientes={dbExpedientesRecientes} 
+              tiendas={dbTiendas} 
+              tiendaPredeterminadaId={user.tienda_predeterminada_id} 
+            />
           </div>
 
           <QuickExpedienteCreator marcas={dbMarcasAccesoRapido} tiposVenta={dbTiposVenta} />

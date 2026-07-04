@@ -66,9 +66,10 @@ interface Tienda {
 interface RecentExpedientesTableProps {
   initialExpedientes: Expediente[];
   tiendas?: Tienda[];
+  tiendaPredeterminadaId?: number | null;
 }
 
-export default function RecentExpedientesTable({ initialExpedientes, tiendas = [] }: RecentExpedientesTableProps) {
+export default function RecentExpedientesTable({ initialExpedientes, tiendas = [], tiendaPredeterminadaId = null }: RecentExpedientesTableProps) {
   const router = useRouter();
   const [expedientesList, setExpedientesList] = useState<Expediente[]>(initialExpedientes);
 
@@ -763,7 +764,7 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
                 onClick={() => {
                   setAssignClientModalTab("crear");
                   if (tiendas && tiendas.length > 0 && !newClientTiendaId) {
-                    setNewClientTiendaId(String(tiendas[0].id_tienda));
+                    setNewClientTiendaId(tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : String(tiendas[0].id_tienda));
                   }
                 }}
               >
