@@ -328,26 +328,21 @@ export async function POST(req: NextRequest) {
 
       const originalVal = getOriginalValorObjetivo(exp);
 
-      if (originalVal === 0) {
-        if (entraMatriculacion) {
-          objValorExpediente = 1.0;
-          afectoObjetivo = true;
-          sufijoDetalle = " (VAL. Obj = 0: suma +1 por matriculación)";
-        }
-      } else {
-        // originalVal > 0
+      const baseVal = originalVal === 0 ? 1.0 : originalVal;
+
+      if (entraActivity || entraMatriculacion) {
+        afectoObjetivo = true;
         if (entraActivity) {
-          afectoObjetivo = true;
           const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
             ? Number(exp.min_coches_multiplicador)
             : 0;
 
-          if (targetCupo > 0 && originalVal > 1) {
+          if (targetCupo > 0 && baseVal > 1) {
             const countOfSameCupo = cupoCounts[targetCupo] || 0;
             if (countOfSameCupo >= targetCupo) {
               // Cupo cumplido!
-              objValorExpediente = originalVal;
-              sufijoDetalle = ` (Cupo ${targetCupo} cumplido: suma +${originalVal})`;
+              objValorExpediente = baseVal;
+              sufijoDetalle = ` (Cupo ${targetCupo} cumplido: suma +${baseVal})`;
             } else {
               // Cupo no cumplido!
               objValorExpediente = 1.0;
@@ -355,9 +350,13 @@ export async function POST(req: NextRequest) {
             }
           } else {
             // Sin cupo requerido
-            objValorExpediente = originalVal;
-            sufijoDetalle = ` (Aporta su valor original: +${originalVal})`;
+            objValorExpediente = baseVal;
+            sufijoDetalle = ` (Aporta su valor original: +${baseVal})`;
           }
+        } else {
+          // Entra por matriculación únicamente (actividad fue en otro mes)
+          objValorExpediente = baseVal;
+          sufijoDetalle = ` (Aporta por matriculación: +${baseVal})`;
         }
       }
 

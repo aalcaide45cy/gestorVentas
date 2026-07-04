@@ -1193,27 +1193,27 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
         let val = 0.0;
         let afectoObjetivo = false;
-        if (originalVal === 0) {
-          if (isMatriculadoThisMonth) {
-            val = 1.0;
-            afectoObjetivo = true;
-          }
-        } else {
+        const baseVal = originalVal === 0 ? 1.0 : originalVal;
+
+        if (isActivityThisMonth || isMatriculadoThisMonth) {
+          afectoObjetivo = true;
           if (isActivityThisMonth) {
-            afectoObjetivo = true;
             const targetCupo = exp.min_coches_multiplicador !== null && exp.min_coches_multiplicador !== undefined
               ? Number(exp.min_coches_multiplicador)
               : 0;
-            if (targetCupo > 0 && originalVal > 1) {
+            if (targetCupo > 0 && baseVal > 1) {
               const countOfSameCupo = sellerCupoCounts[targetCupo] || 0;
               if (countOfSameCupo >= targetCupo) {
-                val = originalVal;
+                val = baseVal;
               } else {
                 val = 1.0;
               }
             } else {
-              val = originalVal;
+              val = baseVal;
             }
+          } else {
+            // Entra únicamente por matriculación
+            val = baseVal;
           }
         }
         if (afectoObjetivo) {
