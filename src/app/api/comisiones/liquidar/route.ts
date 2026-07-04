@@ -411,6 +411,40 @@ export async function POST(req: NextRequest) {
                 valor_objetivo: rule.valor_objetivo
               });
             }
+
+            // Si es preference y está ligada a crédito, buscar regla de crédito aplicable y sumar su objetivo si afecta
+            if (rule.tipo_evento === "preference" && rule.ligar_a_credito) {
+              const matchingCreditRule = plan.rules.find((r) => {
+                if (!r.activa) return false;
+                if (r.tipo_evento !== "credito" && r.tipo_evento !== "financiacion") return false;
+
+                const brandId = exp.modelo?.marca_id;
+                const filterMarcaMatches = !r.id_marca || brandId === r.id_marca;
+                const filterModeloMatches = !r.id_modelo || exp.id_modelo === r.id_modelo;
+
+                let tasaMatches = true;
+                if (r.tasa_intervencion_cumplida !== null && r.tasa_intervencion_cumplida !== undefined) {
+                  if (brandId) {
+                    const tasaCumplida = checkTasaCumplida(brandId);
+                    tasaMatches = (tasaCumplida === r.tasa_intervencion_cumplida);
+                  } else {
+                    tasaMatches = false;
+                  }
+                }
+
+                return filterMarcaMatches && filterModeloMatches && tasaMatches;
+              });
+
+              if (matchingCreditRule && matchingCreditRule.afecta_objetivo) {
+                objValorExpediente += matchingCreditRule.valor_objetivo;
+                itemsDetalle.push({
+                  concepto: `Regla Objetivo Ligada (Crédito): ${matchingCreditRule.nombre}`,
+                  importe: 0,
+                  afecta_objetivo: true,
+                  valor_objetivo: matchingCreditRule.valor_objetivo
+                });
+              }
+            }
           }
         });
 
@@ -681,6 +715,40 @@ export async function POST(req: NextRequest) {
               afecta_objetivo: false,
               valor_objetivo: 0
             });
+
+            // Si es preference y está ligada a crédito, buscar regla de crédito aplicable y sumar su importe
+            if (rule.tipo_evento === "preference" && rule.ligar_a_credito) {
+              const matchingCreditRule = plan.rules.find((r) => {
+                if (!r.activa) return false;
+                if (r.tipo_evento !== "credito" && r.tipo_evento !== "financiacion") return false;
+
+                const brandId = exp.modelo?.marca_id;
+                const filterMarcaMatches = !r.id_marca || brandId === r.id_marca;
+                const filterModeloMatches = !r.id_modelo || exp.id_modelo === r.id_modelo;
+
+                let tasaMatches = true;
+                if (r.tasa_intervencion_cumplida !== null && r.tasa_intervencion_cumplida !== undefined) {
+                  if (brandId) {
+                    const tasaCumplida = checkTasaCumplida(brandId);
+                    tasaMatches = (tasaCumplida === r.tasa_intervencion_cumplida);
+                  } else {
+                    tasaMatches = false;
+                  }
+                }
+
+                return filterMarcaMatches && filterModeloMatches && tasaMatches;
+              });
+
+              if (matchingCreditRule) {
+                comisionFinanciacion += matchingCreditRule.importe;
+                finalItems.push({
+                  concepto: `Regla Comisión Ligada (Crédito): ${matchingCreditRule.nombre}`,
+                  importe: matchingCreditRule.importe,
+                  afecta_objetivo: false,
+                  valor_objetivo: 0
+                });
+              }
+            }
           }
         });
 

@@ -75,6 +75,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [newRuleAfectaCom, setNewRuleAfectaCom] = useState(true);
   const [newRuleImporte, setNewRuleImporte] = useState("100");
   const [newRuleTasaIntervencion, setNewRuleTasaIntervencion] = useState<string>("");
+  const [newRuleLigarACredito, setNewRuleLigarACredito] = useState(false);
 
   const [editingRuleIdx, setEditingRuleIdx] = useState<number | null>(null);
   const [editingRuleName, setEditingRuleName] = useState("");
@@ -86,6 +87,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [editingRuleAfectaCom, setEditingRuleAfectaCom] = useState(true);
   const [editingRuleImporte, setEditingRuleImporte] = useState("100");
   const [editingRuleTasaIntervencion, setEditingRuleTasaIntervencion] = useState<string>("");
+  const [editingRuleLigarACredito, setEditingRuleLigarACredito] = useState(false);
 
   // Bonus
   const [bonusRules, setBonusRules] = useState<any[]>([]);
@@ -776,7 +778,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       afecta_comision: newRuleAfectaCom,
       importe: Number(newRuleImporte || 0),
       activa: true,
-      tasa_intervencion_cumplida: newRuleTasaIntervencion === "" ? null : (newRuleTasaIntervencion === "true")
+      tasa_intervencion_cumplida: newRuleTasaIntervencion === "" ? null : (newRuleTasaIntervencion === "true"),
+      ligar_a_credito: newRuleType === "preference" ? newRuleLigarACredito : false
     };
     setRules([...rules, newRule]);
     // Resetear formulario
@@ -789,6 +792,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setNewRuleAfectaCom(true);
     setNewRuleImporte("100");
     setNewRuleTasaIntervencion("");
+    setNewRuleLigarACredito(false);
   };
 
   const handleDeleteRule = (idx: number) => {
@@ -810,6 +814,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setEditingRuleAfectaCom(r.afecta_comision);
     setEditingRuleImporte(String(r.importe || 0));
     setEditingRuleTasaIntervencion(r.tasa_intervencion_cumplida === null ? "" : String(r.tasa_intervencion_cumplida));
+    setEditingRuleLigarACredito(!!r.ligar_a_credito);
   };
 
   const handleSaveRuleEdit = (idx: number) => {
@@ -828,7 +833,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       valor_objetivo: editingRuleAfectaObj ? Number(editingRuleValObj || 0) : 0,
       afecta_comision: editingRuleAfectaCom,
       importe: editingRuleAfectaCom ? Number(editingRuleImporte || 0) : 0,
-      tasa_intervencion_cumplida: editingRuleTasaIntervencion === "" ? null : (editingRuleTasaIntervencion === "true")
+      tasa_intervencion_cumplida: editingRuleTasaIntervencion === "" ? null : (editingRuleTasaIntervencion === "true"),
+      ligar_a_credito: editingRuleType === "preference" ? editingRuleLigarACredito : false
     };
     setRules(updatedRules);
     setEditingRuleIdx(null);
@@ -2442,6 +2448,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           />
                         </div>
                       )}
+                      {newRuleType === "preference" && (
+                        <div className="form-group" style={{ flexDirection: "row", alignItems: "center", gap: "8px", paddingTop: "28px" }}>
+                          <input
+                            type="checkbox"
+                            id="newRuleLigarACredito"
+                            checked={newRuleLigarACredito}
+                            onChange={(e) => setNewRuleLigarACredito(e.target.checked)}
+                          />
+                          <label htmlFor="newRuleLigarACredito" style={{ cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>🔗 Ligar a Crédito</label>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={handleAddRule}
@@ -2462,6 +2479,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <th>Filtro Marca</th>
                         <th>Filtro Modelo</th>
                         <th>Tasa Financ.</th>
+                        <th style={{ textAlign: "center" }}>Ligar a Crédito</th>
                         <th style={{ textAlign: "center" }}>Afecta Objetivo</th>
                         <th style={{ textAlign: "center" }}>Afecta Comisión</th>
                         <th>Acción</th>
@@ -2540,6 +2558,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 </select>
                               </td>
                               <td style={{ textAlign: "center" }}>
+                                {editingRuleType === "preference" ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={editingRuleLigarACredito}
+                                    onChange={(e) => setEditingRuleLigarACredito(e.target.checked)}
+                                  />
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>-</span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: "center" }}>
                                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
                                   <input
                                     type="checkbox"
@@ -2610,6 +2639,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 <span className="badge badge-admin" style={{ fontSize: "0.75rem", backgroundColor: "rgba(239, 68, 68, 0.1)", color: "var(--danger)" }}>Tasa &lt; Obj.</span>
                               ) : (
                                 <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Cualquiera</span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: "center" }}>
+                              {r.tipo_evento === "preference" ? (
+                                r.ligar_a_credito ? (
+                                  <span style={{ color: "var(--primary)", fontWeight: 600 }}>🔗 Sí</span>
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)" }}>❌ No</span>
+                                )
+                              ) : (
+                                <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>-</span>
                               )}
                             </td>
                             <td style={{ textAlign: "center" }}>

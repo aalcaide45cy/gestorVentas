@@ -219,6 +219,7 @@ export async function POST(req: NextRequest) {
               importe: r.importe,
               activa: r.activa,
               tasa_intervencion_cumplida: r.tasa_intervencion_cumplida,
+              ligar_a_credito: r.ligar_a_credito,
             }))
           );
         }
@@ -567,6 +568,7 @@ export async function PUT(req: NextRequest) {
             tasa_intervencion_cumplida: (r.tasa_intervencion_cumplida === undefined || r.tasa_intervencion_cumplida === null || r.tasa_intervencion_cumplida === "")
               ? null
               : (String(r.tasa_intervencion_cumplida) === "true" || r.tasa_intervencion_cumplida === true),
+            ligar_a_credito: !!r.ligar_a_credito,
           }))
         );
       }

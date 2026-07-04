@@ -1459,6 +1459,59 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             if (filterMarcaMatches && filterModeloMatches) {
               if (rule.tipo_evento === "preference") {
                 basePreference += rule.importe;
+
+                if (rule.ligar_a_credito) {
+                  const matchingCreditRule = activePlan.rules?.find((r: any) => {
+                    if (!r.activa) return false;
+                    if (r.tipo_evento !== "credito" && r.tipo_evento !== "financiacion") return false;
+
+                    const bId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+                    const fMarcaMatches = !r.id_marca || bId === r.id_marca;
+                    const fModeloMatches = !r.id_modelo || exp.id_modelo === r.id_modelo;
+
+                    let tMatches = true;
+                    if (r.tasa_intervencion_cumplida !== null && r.tasa_intervencion_cumplida !== undefined) {
+                      if (bId) {
+                        const totalBrandMat = vendedorExps.filter(e => {
+                          const brand_e = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+                          const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
+                          const mat_e = isWithinPlan(getEffectiveMatDate(e));
+                          return brand_e === bId && isVN_e && mat_e;
+                        }).length;
+
+                        const totalBrandFin = vendedorExps.filter(e => {
+                          const brand_e = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
+                          const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
+                          const rci_e = isWithinPlan(e.fecha_rci);
+                          const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+                          const isFinancedType = salesTypeName.includes("preference") || salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("renting");
+                          return brand_e === bId && isVN_e && (rci_e || isFinancedType);
+                        }).length;
+
+                        let tasaCumplida = true;
+                        if (totalBrandMat > 0) {
+                          const brandInt = activePlan.brandInterventionRates?.find((i: any) => i.id_marca === bId);
+                          const targetRate = brandInt?.tasa_intervencion ?? 70;
+                          const tipoTasa = brandInt?.tipo_tasa ?? "porcentaje";
+                          if (tipoTasa === "unidades") {
+                            tasaCumplida = totalBrandFin >= targetRate;
+                          } else {
+                            tasaCumplida = ((totalBrandFin / totalBrandMat) * 100) >= targetRate;
+                          }
+                        }
+                        tMatches = (tasaCumplida === r.tasa_intervencion_cumplida);
+                      } else {
+                        tMatches = false;
+                      }
+                    }
+
+                    return fMarcaMatches && fModeloMatches && tMatches;
+                  });
+
+                  if (matchingCreditRule) {
+                    baseFinanciacion += matchingCreditRule.importe;
+                  }
+                }
               } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
                 baseFinanciacion += rule.importe;
               } else {
@@ -1564,6 +1617,20 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         matriculadosCredito++;
       } else if (isPreference && entraRci) {
         matriculadosPreference++;
+
+        // Si tiene una regla de Preference en este plan que está ligada a crédito, también sumamos a matriculadosCredito
+        if (activePlan) {
+          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+          const hasLinkedRule = activePlan.rules?.some((r: any) => {
+            if (!r.activa || r.tipo_evento !== "preference" || !r.ligar_a_credito) return false;
+            const fMarcaMatches = !r.id_marca || brandId === r.id_marca;
+            const fModeloMatches = !r.id_modelo || exp.id_modelo === r.id_modelo;
+            return fMarcaMatches && fModeloMatches;
+          });
+          if (hasLinkedRule) {
+            matriculadosCredito++;
+          }
+        }
       }
 
       if (isWithinPlan(exp.fecha_entrega)) entregados++;

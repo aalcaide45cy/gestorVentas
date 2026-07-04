@@ -277,6 +277,7 @@ export const commissionRules = pgTable('commission_rules', {
   importe: integer('importe').notNull().default(0),
   activa: boolean('activa').notNull().default(true),
   tasa_intervencion_cumplida: boolean('tasa_intervencion_cumplida'), // null = siempre, true = >= target, false = < target
+  ligar_a_credito: boolean('ligar_a_credito').notNull().default(false),
 });
 
 // 4. TABLA: COMMISSION_BONUS_RULES (Bonus personalizados)
