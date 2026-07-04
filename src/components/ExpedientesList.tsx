@@ -1087,6 +1087,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     let totalFinanciacion = 0;
     let totalPreference = 0;
     let totalReglasBonus = 0;
+    let totalReglasPenalizacion = 0;
     let totalComisionGlobal = 0;
 
     const computedDetailsList: any[] = [];
@@ -1281,6 +1282,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         let baseFinanciacion = 0;
         let basePreference = 0;
         let reglasBonus = 0;
+        let reglasPenalizacion = 0;
 
         if (activePlan) {
           // Comisión base VN/VO (se abona por fecha_matriculacion)
@@ -1460,7 +1462,11 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
                 baseFinanciacion += rule.importe;
               } else {
-                reglasBonus += rule.importe;
+                if (rule.importe < 0) {
+                  reglasPenalizacion += Math.abs(rule.importe);
+                } else {
+                  reglasBonus += rule.importe;
+                }
               }
             }
           });
@@ -1486,7 +1492,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
             if (filterMarcaMatches && filterModeloMatches) {
               if (bonus.es_penalizacion) {
-                reglasBonus -= Math.abs(bonus.importe);
+                reglasPenalizacion += Math.abs(bonus.importe);
               } else {
                 reglasBonus += bonus.importe;
               }
@@ -1494,7 +1500,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           });
         }
 
-        const totalTeoricoExp = baseVN + baseUsado + baseFinanciacion + basePreference + reglasBonus;
+        const totalTeoricoExp = baseVN + baseUsado + baseFinanciacion + basePreference + reglasBonus - reglasPenalizacion;
         const totalExp = sellerCumpleMinimo ? totalTeoricoExp : 0;
 
         totalBaseVN += baseVN;
@@ -1502,6 +1508,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         totalFinanciacion += baseFinanciacion;
         totalPreference += basePreference;
         totalReglasBonus += reglasBonus;
+        totalReglasPenalizacion += reglasPenalizacion;
         totalComisionGlobal += totalExp;
 
         computedDetailsList.push({
@@ -1596,6 +1603,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       totalFinanciacion,
       totalPreference,
       totalReglasBonus,
+      totalReglasPenalizacion,
       totalComisionTeorica: totalComisionGlobal,
       totalComisionGlobal: finalComisionConPenalizacion,
       computedDetailsList: computedDetailsList.filter(d => d.total > 0).sort((a,b) => b.total - a.total)
@@ -2588,11 +2596,32 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosPreference} uds</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalPreference.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: stats.totalReglasPenalizacion > 0 || (activePlan && activePlan.penalizacion_importe > 0) ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
                       <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Bonus Especiales:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Campañas / Reglas</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalReglasBonus.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
+
+                    {stats.totalReglasPenalizacion > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: (activePlan && activePlan.penalizacion_importe > 0) ? "1px solid rgba(255,255,255,0.03)" : "none", color: "var(--danger)" }}>
+                        <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalizaciones:</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Reglas / Conceptos</span>
+                        <strong style={{ flex: 1, textAlign: "right" }}>-{stats.totalReglasPenalizacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                      </div>
+                    )}
+
+                    {activePlan && activePlan.penalizacion_importe > 0 && (
+                      <div 
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--danger)", cursor: activePlan.penalizacion_descripcion ? "help" : "default" }}
+                        title={activePlan.penalizacion_descripcion ? `${activePlan.penalizacion_titulo || "Penalización"}: ${activePlan.penalizacion_descripcion}` : undefined}
+                      >
+                        <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalización Fija:</span>
+                        <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {activePlan.penalizacion_titulo || "Fija de liquidación"}
+                        </span>
+                        <strong style={{ flex: 1, textAlign: "right" }}>-{activePlan.penalizacion_importe.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                      </div>
+                    )}
                   </div>
                 </div>
 
