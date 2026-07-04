@@ -136,16 +136,15 @@ export async function POST(req: NextRequest) {
 
     let nuevoPlanId: number = 0;
 
-    await db.transaction(async (tx) => {
       if (cloneFromId) {
         // --- PROCESO DE CLONADO ---
         const sourcePlanId = Number(cloneFromId);
-        const sourcePlan = await tx.query.commissionPlans.findFirst({
+        const sourcePlan = await db.query.commissionPlans.findFirst({
           where: eq(commissionPlans.id_plan, sourcePlanId)
         });
         
         // 1. Insertar el nuevo plan copiando campos básicos
-        const [insertedPlan] = await tx.insert(commissionPlans).values({
+        const [insertedPlan] = await db.insert(commissionPlans).values({
           nombre,
           fecha_inicio,
           fecha_fin,
@@ -162,11 +161,11 @@ export async function POST(req: NextRequest) {
         const newId = insertedPlan.id_plan;
 
         // 2. Clonar tarifas de modelos (rates)
-        const sourceRates = await tx.query.commissionPlanModelRates.findMany({
+        const sourceRates = await db.query.commissionPlanModelRates.findMany({
           where: eq(commissionPlanModelRates.id_plan, sourcePlanId)
         });
         if (sourceRates.length > 0) {
-          await tx.insert(commissionPlanModelRates).values(
+          await db.insert(commissionPlanModelRates).values(
             sourceRates.map(r => ({
               id_plan: newId,
               id_modelo: r.id_modelo,
@@ -186,11 +185,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 2b. Clonar tasas de intervención de marcas (brandInterventionRates)
-        const sourceInterventions = await tx.query.commissionBrandInterventionRates.findMany({
+        const sourceInterventions = await db.query.commissionBrandInterventionRates.findMany({
           where: eq(commissionBrandInterventionRates.id_plan, sourcePlanId)
         });
         if (sourceInterventions.length > 0) {
-          await tx.insert(commissionBrandInterventionRates).values(
+          await db.insert(commissionBrandInterventionRates).values(
             sourceInterventions.map(i => ({
               id_plan: newId,
               id_marca: i.id_marca,
@@ -202,11 +201,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Clonar reglas generales (rules)
-        const sourceRules = await tx.query.commissionRules.findMany({
+        const sourceRules = await db.query.commissionRules.findMany({
           where: eq(commissionRules.id_plan, sourcePlanId)
         });
         if (sourceRules.length > 0) {
-          await tx.insert(commissionRules).values(
+          await db.insert(commissionRules).values(
             sourceRules.map(r => ({
               id_plan: newId,
               nombre: r.nombre,
@@ -225,11 +224,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 4. Clonar reglas de bonus (bonusRules)
-        const sourceBonus = await tx.query.commissionBonusRules.findMany({
+        const sourceBonus = await db.query.commissionBonusRules.findMany({
           where: eq(commissionBonusRules.id_plan, sourcePlanId)
         });
         if (sourceBonus.length > 0) {
-          await tx.insert(commissionBonusRules).values(
+          await db.insert(commissionBonusRules).values(
             sourceBonus.map(b => ({
               id_plan: newId,
               nombre: b.nombre,
@@ -249,21 +248,21 @@ export async function POST(req: NextRequest) {
         }
 
         // 5. Clonar reglas de financiación (financeRules)
-        const sourceFinance = await tx.query.commissionFinanceRules.findFirst({
+        const sourceFinance = await db.query.commissionFinanceRules.findFirst({
           where: eq(commissionFinanceRules.id_plan, sourcePlanId)
         });
-        await tx.insert(commissionFinanceRules).values({
+        await db.insert(commissionFinanceRules).values({
           id_plan: newId,
           importe_normal: sourceFinance ? sourceFinance.importe_normal : 80,
           importe_preference: sourceFinance ? sourceFinance.importe_preference : 120,
         });
 
         // 6. Clonar tarifas de usados (usedRates)
-        const sourceUsedRates = await tx.query.commissionUsedRates.findMany({
+        const sourceUsedRates = await db.query.commissionUsedRates.findMany({
           where: eq(commissionUsedRates.id_plan, sourcePlanId)
         });
         if (sourceUsedRates.length > 0) {
-          await tx.insert(commissionUsedRates).values(
+          await db.insert(commissionUsedRates).values(
             sourceUsedRates.map(u => ({
               id_plan: newId,
               tipo_usado: u.tipo_usado,
@@ -277,11 +276,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 7. Clonar tarifas de financiación por marca (financeRates)
-        const sourceFinanceRates = await tx.query.commissionFinanceRates.findMany({
+        const sourceFinanceRates = await db.query.commissionFinanceRates.findMany({
           where: eq(commissionFinanceRates.id_plan, sourcePlanId)
         });
         if (sourceFinanceRates.length > 0) {
-          await tx.insert(commissionFinanceRates).values(
+          await db.insert(commissionFinanceRates).values(
             sourceFinanceRates.map(f => ({
               id_plan: newId,
               id_marca: f.id_marca,
@@ -292,11 +291,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 8. Clonar reglas de preference/box3
-        const sourcePrefRules = await tx.query.commissionPreferenceRules.findMany({
+        const sourcePrefRules = await db.query.commissionPreferenceRules.findMany({
           where: eq(commissionPreferenceRules.id_plan, sourcePlanId)
         });
         if (sourcePrefRules.length > 0) {
-          await tx.insert(commissionPreferenceRules).values(
+          await db.insert(commissionPreferenceRules).values(
             sourcePrefRules.map(p => ({
               id_plan: newId,
               nombre: p.nombre,
@@ -310,11 +309,11 @@ export async function POST(req: NextRequest) {
         }
 
         // 9. Clonar patrones de VO (voPatterns)
-        const sourceVoPatterns = await tx.query.commissionVoPatterns.findMany({
+        const sourceVoPatterns = await db.query.commissionVoPatterns.findMany({
           where: eq(commissionVoPatterns.id_plan, sourcePlanId)
         });
         if (sourceVoPatterns.length > 0) {
-          await tx.insert(commissionVoPatterns).values(
+          await db.insert(commissionVoPatterns).values(
             sourceVoPatterns.map(v => ({
               id_plan: newId,
               nombre: v.nombre,
@@ -327,7 +326,7 @@ export async function POST(req: NextRequest) {
         nuevoPlanId = newId;
       } else {
         // --- CREAR NUEVO PLAN VACÍO CON VALORES POR DEFECTO ---
-        const [insertedPlan] = await tx.insert(commissionPlans).values({
+        const [insertedPlan] = await db.insert(commissionPlans).values({
           nombre,
           fecha_inicio,
           fecha_fin,
@@ -341,7 +340,7 @@ export async function POST(req: NextRequest) {
         const newId = insertedPlan.id_plan;
 
         // Obtener marcas activas en el sistema de comisiones
-        const dbBrands = await tx.query.marcas.findMany({
+        const dbBrands = await db.query.marcas.findMany({
           where: eq(marcas.sistema_comisiones, true)
         });
         const activeBrandIds = dbBrands.map(b => b.id_marca);
@@ -349,7 +348,7 @@ export async function POST(req: NextRequest) {
         // Cargar modelos de marcas activas del sistema
         let systemModels: any[] = [];
         if (activeBrandIds.length > 0) {
-          systemModels = await tx.query.modelos.findMany({
+          systemModels = await db.query.modelos.findMany({
             where: (mod, { inArray }) => inArray(mod.marca_id, activeBrandIds)
           });
         }
@@ -390,7 +389,7 @@ export async function POST(req: NextRequest) {
               activo: true,
             });
           });
-          await tx.insert(commissionPlanModelRates).values(ratesToInsert);
+          await db.insert(commissionPlanModelRates).values(ratesToInsert);
         }
 
         // Inicializar tasa de intervención para marcas activas (70% por defecto)
@@ -401,18 +400,18 @@ export async function POST(req: NextRequest) {
           valor_objetivo_defecto: 1.0
         }));
         if (interventionsToInsert.length > 0) {
-          await tx.insert(commissionBrandInterventionRates).values(interventionsToInsert);
+          await db.insert(commissionBrandInterventionRates).values(interventionsToInsert);
         }
 
         // Inicializar regla de financiación plana vacía (compatibilidad)
-        await tx.insert(commissionFinanceRules).values({
+        await db.insert(commissionFinanceRules).values({
           id_plan: newId,
           importe_normal: 80,
           importe_preference: 120,
         });
 
         // Inicializar tarifas de usados por defecto (VO, KM0, BB, Usado)
-        await tx.insert(commissionUsedRates).values([
+        await db.insert(commissionUsedRates).values([
           { id_plan: newId, tipo_usado: "VO", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
           { id_plan: newId, tipo_usado: "KM0", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
           { id_plan: newId, tipo_usado: "BB", importe_primera: 150, importe_resto: 60, valor_objetivo: 1, min_aplicar: 1, activo: true },
@@ -430,11 +429,11 @@ export async function POST(req: NextRequest) {
           );
         }
         if (financeRatesToInsert.length > 0) {
-          await tx.insert(commissionFinanceRates).values(financeRatesToInsert);
+          await db.insert(commissionFinanceRates).values(financeRatesToInsert);
         }
 
         // Inicializar un patrón de VO por defecto
-        await tx.insert(commissionVoPatterns).values({
+        await db.insert(commissionVoPatterns).values({
           id_plan: newId,
           nombre: "Estándar VO",
           activo: true,
@@ -448,7 +447,6 @@ export async function POST(req: NextRequest) {
 
         nuevoPlanId = newId;
       }
-    });
 
     return NextResponse.json({ success: true, message: "Plan creado con éxito", data: { id_plan: nuevoPlanId } }, { status: 201 });
   } catch (error: any) {
