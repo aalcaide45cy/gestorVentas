@@ -168,6 +168,10 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   const [filterFRci, setFilterFRci] = useState("");
   const [filterFMat, setFilterFMat] = useState("");
   const [filterFEntrega, setFilterFEntrega] = useState("");
+  const [filterMes, setFilterMes] = useState("");
+  const [filterAnio, setFilterAnio] = useState("");
+  const [filterFechaTipo, setFilterFechaTipo] = useState("fecha_expediente");
+  const [filterTienda, setFilterTienda] = useState("");
 
   // Estados para estadísticas mensuales del final
   const todayDate = new Date();
@@ -1957,6 +1961,72 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     )
   ).sort();
 
+  const uniqueModelsFiltered = Array.from(
+    new Set(
+      expedientes
+        .filter(e => !filterMarca || e.modelo?.marca?.nombre === filterMarca)
+        .map(e => e.modelo?.nombre_modelo)
+        .filter((modelName): modelName is string => !!modelName)
+    )
+  ).sort();
+
+  const uniqueVendedores = Array.from(
+    new Set(
+      expedientes
+        .map(e => e.usuario?.nombre)
+        .filter((name): name is string => !!name)
+    )
+  ).sort();
+
+  const uniqueTiposVenta = Array.from(
+    new Set(
+      expedientes
+        .map(e => e.tipoDeVenta?.nombre_tipo_venta)
+        .filter((name): name is string => !!name)
+    )
+  ).sort();
+
+  const uniqueEstados = Array.from(
+    new Set(
+      expedientes
+        .map(e => e.estadoVehiculo?.nombre_estado_vehiculo)
+        .filter((name): name is string => !!name)
+    )
+  ).sort();
+
+  const uniqueYears = Array.from(
+    new Set(
+      expedientes.flatMap(e => [
+        e.fecha_expediente?.split("-")[0],
+        e.fecha_afectacion?.split("-")[0],
+        e.fecha_matriculacion?.split("-")[0],
+        e.fecha_entrega?.split("-")[0],
+        e.fecha_rci?.split("-")[0]
+      ].filter((year): year is string => !!year))
+    )
+  ).sort((a, b) => Number(b) - Number(a));
+
+  const handleClearFilters = () => {
+    setGlobalSearch("");
+    setOcultarEntregados(false);
+    setFilterCliente("");
+    setFilterMarca("");
+    setFilterModelo("");
+    setFilterTipoVenta("");
+    setFilterEstadoVehiculo("");
+    setFilterVendedor("");
+    setFilterFExp("");
+    setFilterFAfect("");
+    setFilterFRci("");
+    setFilterFMat("");
+    setFilterFEntrega("");
+    setFilterMes("");
+    setFilterAnio("");
+    setFilterFechaTipo("fecha_expediente");
+    setFilterTienda("");
+    setCurrentPage(1);
+  };
+
   const filteredExpedientes = expedientes.filter(exp => {
     // Ocultar entregados
     if (ocultarEntregados && exp.fecha_entrega !== null && exp.fecha_entrega !== undefined && exp.fecha_entrega !== "") return false;
@@ -1998,6 +2068,32 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     if (filterFRci && !formatDate(exp.fecha_rci).toLowerCase().includes(filterFRci.toLowerCase())) return false;
     if (filterFMat && !formatDate(exp.fecha_matriculacion).toLowerCase().includes(filterFMat.toLowerCase()) && !(exp.matricula && exp.matricula.toLowerCase().includes(filterFMat.toLowerCase()))) return false;
     if (filterFEntrega && !formatDate(exp.fecha_entrega).toLowerCase().includes(filterFEntrega.toLowerCase())) return false;
+
+    // 3. Filtrado avanzado por mes y año
+    if (filterMes || filterAnio) {
+      let targetDateStr: string | null = null;
+      if (filterFechaTipo === "fecha_expediente") targetDateStr = exp.fecha_expediente;
+      else if (filterFechaTipo === "fecha_afectacion") targetDateStr = exp.fecha_afectacion;
+      else if (filterFechaTipo === "fecha_matriculacion") targetDateStr = exp.fecha_matriculacion;
+      else if (filterFechaTipo === "fecha_entrega") targetDateStr = exp.fecha_entrega;
+      else if (filterFechaTipo === "fecha_rci") targetDateStr = exp.fecha_rci;
+
+      if (!targetDateStr) return false;
+
+      const dateParts = targetDateStr.split("-"); // [YYYY, MM, DD]
+      if (dateParts.length >= 2) {
+        const year = dateParts[0];
+        const month = dateParts[1]; // "01", "02", etc.
+        
+        if (filterAnio && year !== filterAnio) return false;
+        if (filterMes && month !== filterMes) return false;
+      } else {
+        return false;
+      }
+    }
+
+    // 4. Filtrado por tienda
+    if (filterTienda && exp.id_tienda !== Number(filterTienda)) return false;
 
     return true;
   });
@@ -2435,6 +2531,183 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               </label>
             </>
           )}
+        </div>
+      </div>
+
+      {/* CAJA DE FILTRADO AVANZADO */}
+      <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>🔍 Filtrado y Búsqueda Avanzada</span>
+          </h4>
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            onClick={handleClearFilters}
+            style={{ padding: "6px 12px", fontSize: "0.8rem", color: "var(--danger)", borderColor: "rgba(239, 68, 68, 0.2)" }}
+          >
+            🧹 Limpiar Filtros
+          </button>
+        </div>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: "16px"
+        }}>
+          {/* Filtro por fecha */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Campo de Fecha</label>
+            <select 
+              className="form-input" 
+              value={filterFechaTipo} 
+              onChange={e => { setFilterFechaTipo(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="fecha_expediente">Fecha Expediente</option>
+              <option value="fecha_afectacion">Fecha Afectación</option>
+              <option value="fecha_matriculacion">Fecha Matriculación</option>
+              <option value="fecha_entrega">Fecha Entrega</option>
+              <option value="fecha_rci">Fecha RCI</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Mes</label>
+            <select 
+              className="form-input" 
+              value={filterMes} 
+              onChange={e => { setFilterMes(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todos los meses</option>
+              <option value="01">Enero</option>
+              <option value="02">Febrero</option>
+              <option value="03">Marzo</option>
+              <option value="04">Abril</option>
+              <option value="05">Mayo</option>
+              <option value="06">Junio</option>
+              <option value="07">Julio</option>
+              <option value="08">Agosto</option>
+              <option value="09">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Año</label>
+            <select 
+              className="form-input" 
+              value={filterAnio} 
+              onChange={e => { setFilterAnio(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todos los años</option>
+              {uniqueYears.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Marca */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Marca</label>
+            <select 
+              className="form-input" 
+              value={filterMarca} 
+              onChange={e => { setFilterMarca(e.target.value); setFilterModelo(""); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todas las marcas</option>
+              <option value="VO_NO_BRAND">Sin Marca (VO)</option>
+              {uniqueBrands.map(brand => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Modelo */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Modelo</label>
+            <select 
+              className="form-input" 
+              value={filterModelo} 
+              onChange={e => { setFilterModelo(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+              disabled={filterMarca === "VO_NO_BRAND"}
+            >
+              <option value="">Todos los modelos</option>
+              {uniqueModelsFiltered.map(model => (
+                <option key={model} value={model}>{model}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Tienda */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Tienda</label>
+            <select 
+              className="form-input" 
+              value={filterTienda} 
+              onChange={e => { setFilterTienda(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todas las tiendas</option>
+              {tiendas.map(t => (
+                <option key={t.id_tienda} value={t.id_tienda}>{t.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Comercial */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Comercial</label>
+            <select 
+              className="form-input" 
+              value={filterVendedor} 
+              onChange={e => { setFilterVendedor(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todos los comerciales</option>
+              {uniqueVendedores.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Tipo de Venta */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Tipo Venta</label>
+            <select 
+              className="form-input" 
+              value={filterTipoVenta} 
+              onChange={e => { setFilterTipoVenta(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todos los tipos</option>
+              {uniqueTiposVenta.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Estado Vehículo */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Estado Vehículo</label>
+            <select 
+              className="form-input" 
+              value={filterEstadoVehiculo} 
+              onChange={e => { setFilterEstadoVehiculo(e.target.value); setCurrentPage(1); }}
+              style={{ padding: "8px" }}
+            >
+              <option value="">Todos los estados</option>
+              {uniqueEstados.map(est => (
+                <option key={est} value={est}>{est}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
