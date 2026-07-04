@@ -126,7 +126,8 @@ export async function POST(req: NextRequest) {
     const qualExpedientes = allExpedientes.filter((exp) => {
       const pedidoIn = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
       const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
-      const matriculacionIn = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+      const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
       return pedidoIn || afectacionIn || matriculacionIn || rciIn;
     });
@@ -188,7 +189,8 @@ export async function POST(req: NextRequest) {
           
           if (isVN) {
             // Denominador: Coches matriculados en el mes
-            const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+            const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+            const entraMatriculacion = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
             if (entraMatriculacion) {
               totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
             }
@@ -273,7 +275,8 @@ export async function POST(req: NextRequest) {
       const expsClasificados = vendedorExps.map((exp) => {
         const entraPedido = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
         const entraAfectacion = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
-        const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+        const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+        const entraMatriculacion = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
         const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
 
         const actDate = getActivityDate(exp);
@@ -736,7 +739,8 @@ export async function POST(req: NextRequest) {
         
         totalLiquidacionGlobal += totalGeneradoFinal;
 
-        const referenceDateStr = exp.fecha_matriculacion || exp.fecha_afectacion || exp.fecha_expediente || startDate;
+        const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+        const referenceDateStr = effectiveMatDate || exp.fecha_afectacion || exp.fecha_expediente || startDate;
         const refDate = new Date(referenceDateStr);
         const mesGeneracion = refDate.toLocaleString("es-ES", { month: "long", year: "numeric" });
         

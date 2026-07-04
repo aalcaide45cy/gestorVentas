@@ -216,6 +216,12 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [editFRci, setEditFRci] = useState("");
   const [editFMat, setEditFMat] = useState("");
   const [editFEntrega, setEditFEntrega] = useState("");
+  const [editClienteNombre, setEditClienteNombre] = useState("");
+  const [editCobradoOtraFecha, setEditCobradoOtraFecha] = useState<boolean>(false);
+  const [editFechaCobrado, setEditFechaCobrado] = useState("");
+  const [originalCliente, setOriginalCliente] = useState<any>(null);
+  const [originalExpediente, setOriginalExpediente] = useState<any>(null);
+  const [showConfirmUnsavedModal, setShowConfirmUnsavedModal] = useState(false);
 
   // Cargar lista de planes
   const refreshPlanes = async () => {
@@ -406,6 +412,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         const exp = result.data;
         setEditingExpedienteId(id);
         
+        setOriginalExpediente(exp);
+        setOriginalCliente(exp.cliente || null);
+
         setEditMarca(exp.modelo?.marca_id || "");
         setEditModelo(exp.id_modelo || "");
         setEditTipoVenta(exp.id_tipo_de_venta || "");
@@ -415,6 +424,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         setEditFRci(exp.fecha_rci || "");
         setEditFMat(exp.fecha_matriculacion || "");
         setEditFEntrega(exp.fecha_entrega || "");
+        setEditClienteNombre(exp.cliente?.nombre || "");
+        setEditCobradoOtraFecha(exp.cobrado_otra_fecha || false);
+        setEditFechaCobrado(exp.fecha_cobrado || "");
         
         setShowEditExpedienteModal(true);
       } else {
@@ -428,44 +440,102 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     }
   };
 
-  const handleSaveEditExpediente = async () => {
-    if (!editingExpedienteId) return;
+  const getHasUnsavedChanges = () => {
+    if (!originalExpediente) return { clientChanged: false, expChanged: false };
+    
+    const clientChanged = editClienteNombre !== (originalCliente?.nombre || "");
+    const expChanged = 
+      editModelo !== (originalExpediente.id_modelo || "") ||
+      editTipoVenta !== (originalExpediente.id_tipo_de_venta || "") ||
+      editVendedor !== (originalExpediente.id_usuario || "") ||
+      editFExp !== (originalExpediente.fecha_expediente || "") ||
+      editFAfect !== (originalExpediente.fecha_afectacion || "") ||
+      editFRci !== (originalExpediente.fecha_rci || "") ||
+      editFMat !== (originalExpediente.fecha_matriculacion || "") ||
+      editFEntrega !== (originalExpediente.fecha_entrega || "") ||
+      editCobradoOtraFecha !== (originalExpediente.cobrado_otra_fecha || false) ||
+      editFechaCobrado !== (originalExpediente.fecha_cobrado || "");
+      
+    return { clientChanged, expChanged };
+  };
 
+  const saveChanges = async (options: { saveClient: boolean; saveExp: boolean }) => {
+    if (!editingExpedienteId) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/expedientes", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id_expediente: editingExpedienteId,
-          expediente: {
-            id_modelo: editModelo !== "" ? Number(editModelo) : null,
-            id_tipo_de_venta: editTipoVenta !== "" ? Number(editTipoVenta) : null,
-            id_usuario: isAdmin && editVendedor !== "" ? Number(editVendedor) : undefined,
-            fecha_expediente: editFExp || null,
-            fecha_afectacion: editFAfect || null,
-            fecha_rci: editFRci || null,
-            fecha_matriculacion: editFMat || null,
-            fecha_entrega: editFEntrega || null,
-          }
-        })
-      });
-      
-      const result = await res.json();
-      if (result.success) {
-        showNotification("Expediente actualizado correctamente.", "success");
-        setShowEditExpedienteModal(false);
-        if (selectedPlanId) {
-          loadPlanDetails(selectedPlanId, true);
+      if (options.saveClient && originalCliente) {
+        const clientBody = {
+          id: originalCliente.id,
+          nombre: editClienteNombre,
+          dni: originalCliente.dni,
+          fecha_de_nacimiento: originalCliente.fecha_de_nacimiento,
+          tienda_id: originalCliente.tienda_id,
+          emails: originalCliente.emails?.map((e: any) => ({ email: e.email || e.email_cliente, tipo: e.tipo_email || e.tipo || "Principal" })) || [],
+          telefonos: originalCliente.telefonos?.map((t: any) => ({ telefono: t.telefono || t.telefono_cliente, tipo: t.tipo_telefono || t.tipo || "Principal" })) || []
+        };
+        const clientRes = await fetch("/api/clientes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(clientBody)
+        });
+        if (!clientRes.ok) {
+          const errData = await clientRes.json();
+          throw new Error(errData.message || "Error al actualizar el cliente.");
         }
-      } else {
-        showNotification(result.message || "Error al guardar el expediente.", "error");
       }
-    } catch (err) {
+
+      if (options.saveExp) {
+        const res = await fetch("/api/expedientes", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id_expediente: editingExpedienteId,
+            expediente: {
+              id_modelo: editModelo !== "" ? Number(editModelo) : null,
+              id_tipo_de_venta: editTipoVenta !== "" ? Number(editTipoVenta) : null,
+              id_usuario: isAdmin && editVendedor !== "" ? Number(editVendedor) : undefined,
+              fecha_expediente: editFExp || null,
+              fecha_afectacion: editFAfect || null,
+              fecha_rci: editFRci || null,
+              fecha_matriculacion: editFMat || null,
+              fecha_entrega: editFEntrega || null,
+              cobrado_otra_fecha: editCobradoOtraFecha,
+              fecha_cobrado: editCobradoOtraFecha ? (editFechaCobrado || null) : null,
+            }
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || "Error al guardar el expediente.");
+        }
+      }
+
+      showNotification("Cambios guardados correctamente.", "success");
+      setShowEditExpedienteModal(false);
+      setShowConfirmUnsavedModal(false);
+      setEditingExpedienteId(null);
+      if (selectedPlanId) {
+        loadPlanDetails(selectedPlanId, true);
+      }
+    } catch (err: any) {
       console.error(err);
-      showNotification("Error de conexión al guardar.", "error");
+      showNotification(err.message || "Error al guardar cambios.", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveEditExpediente = async () => {
+    await saveChanges({ saveClient: true, saveExp: true });
+  };
+
+  const handleCancelOrClose = () => {
+    const { clientChanged, expChanged } = getHasUnsavedChanges();
+    if (clientChanged || expChanged) {
+      setShowConfirmUnsavedModal(true);
+    } else {
+      setShowEditExpedienteModal(false);
+      setEditingExpedienteId(null);
     }
   };
 
@@ -3510,6 +3580,18 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {/* NOMBRE DEL CLIENTE */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Nombre del Cliente</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editClienteNombre}
+                    onChange={e => setEditClienteNombre(e.target.value)}
+                    placeholder="Escriba el nombre del cliente..."
+                  />
+                </div>
+
                 {/* MARCA Y MODELO */}
                 <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
                   <div className="form-group" style={{ flex: 1, minWidth: "200px", marginBottom: 0 }}>
@@ -3628,14 +3710,43 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                   </div>
                 </div>
 
+                {/* COBRADO EN OTRA FECHA */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "rgba(255, 255, 255, 0.02)", padding: "16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <input
+                      type="checkbox"
+                      id="editCobradoOtraFecha"
+                      checked={editCobradoOtraFecha}
+                      onChange={e => {
+                        setEditCobradoOtraFecha(e.target.checked);
+                        if (!e.target.checked) setEditFechaCobrado("");
+                      }}
+                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                    />
+                    <label htmlFor="editCobradoOtraFecha" style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", userSelect: "none" }}>
+                      Expediente cobrado en otra fecha
+                    </label>
+                  </div>
+
+                  {editCobradoOtraFecha && (
+                    <div className="form-group" style={{ marginBottom: 0, marginTop: "8px" }}>
+                      <label className="form-label" style={{ fontSize: "0.78rem" }}>Fecha de Cobrado</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={editFechaCobrado}
+                        onChange={e => setEditFechaCobrado(e.target.value)}
+                        required={editCobradoOtraFecha}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "12px" }}>
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={() => {
-                      setShowEditExpedienteModal(false);
-                      setEditingExpedienteId(null);
-                    }}
+                    onClick={handleCancelOrClose}
                     disabled={saving}
                   >
                     Cancelar
@@ -3651,6 +3762,82 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showConfirmUnsavedModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%", maxWidth: "450px", padding: "30px",
+            display: "flex", flexDirection: "column", gap: "20px"
+          }}>
+            <div>
+              <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                ⚠️ Cambios sin guardar
+              </h3>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.88rem", marginTop: "10px", lineHeight: "1.4" }}>
+                Tiene modificaciones pendientes en la ficha. Seleccione la opción que prefiera:
+              </p>
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => saveChanges({ saveClient: true, saveExp: true })}
+                style={{ width: "100%", padding: "10px" }}
+              >
+                💾 Guardar cambios en Ambos
+              </button>
+              
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => saveChanges({ saveClient: false, saveExp: true })}
+                  style={{ flex: 1, padding: "10px", fontSize: "0.8rem" }}
+                >
+                  Expediente sólo
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => saveChanges({ saveClient: true, saveExp: false })}
+                  style={{ flex: 1, padding: "10px", fontSize: "0.8rem" }}
+                >
+                  Cliente sólo
+                </button>
+              </div>
+
+              <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  setShowConfirmUnsavedModal(false);
+                  setShowEditExpedienteModal(false);
+                  setEditingExpedienteId(null);
+                }}
+                style={{ width: "100%", padding: "10px" }}
+              >
+                🚪 Salir sin Guardar
+              </button>
+              
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowConfirmUnsavedModal(false)}
+                style={{ width: "100%", padding: "10px" }}
+              >
+                Volver a la Edición
+              </button>
+            </div>
           </div>
         </div>
       )}

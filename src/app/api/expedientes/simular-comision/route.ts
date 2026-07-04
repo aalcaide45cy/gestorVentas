@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
       vin, 
       valor_objetivo,
       min_coches_multiplicador,
-      id_cliente
+      id_cliente,
+      cobrado_otra_fecha,
+      fecha_cobrado
     } = body;
 
     if (!id_usuario) {
@@ -60,8 +62,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Vendedor no encontrado" }, { status: 404 });
     }
 
-    // Determinar fecha de cálculo (incluyendo fecha_rci en la prioridad)
-    const targetDate = fecha_matriculacion || fecha_rci || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
+    // Determinar fecha de cálculo (incluyendo fecha_rci en la prioridad y fecha_cobrado si aplica)
+    const effectiveMatDateSim = cobrado_otra_fecha && fecha_cobrado ? fecha_cobrado : fecha_matriculacion;
+    const targetDate = effectiveMatDateSim || fecha_rci || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
 
     // 2. Obtener el plan de comisiones aplicable para esa fecha
     const plan = await db.query.commissionPlans.findFirst({
@@ -152,6 +155,8 @@ export async function POST(req: NextRequest) {
       vin: vin || null,
       valor_objetivo: valor_objetivo !== undefined ? (valor_objetivo !== null ? Number(valor_objetivo) : null) : null,
       min_coches_multiplicador: min_coches_multiplicador !== undefined ? (min_coches_multiplicador !== null ? Number(min_coches_multiplicador) : 0) : 0,
+      cobrado_otra_fecha: !!cobrado_otra_fecha,
+      fecha_cobrado: fecha_cobrado || null,
       usuario: sellerUser,
       cliente: currentCliente,
       tipoDeVenta: currentTipoVenta,
@@ -166,7 +171,8 @@ export async function POST(req: NextRequest) {
     const qualExpedientes = allExpedientes.filter((exp) => {
       const pedidoIn = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
       const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
-      const matriculacionIn = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+      const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
       return pedidoIn || afectacionIn || matriculacionIn || rciIn;
     });
@@ -188,9 +194,9 @@ export async function POST(req: NextRequest) {
 
     // Ordenar por fechas para tener progresión
     qualExpedientes.sort((a, b) => {
-      const dateA = a.fecha_matriculacion || a.fecha_afectacion || a.fecha_expediente || "";
-      const dateB = b.fecha_matriculacion || b.fecha_afectacion || b.fecha_expediente || "";
-      return dateA.localeCompare(dateB);
+      const effectiveMatA = (a.cobrado_otra_fecha && a.fecha_cobrado ? a.fecha_cobrado : a.fecha_matriculacion) || a.fecha_afectacion || a.fecha_expediente || "";
+      const effectiveMatB = (b.cobrado_otra_fecha && b.fecha_cobrado ? b.fecha_cobrado : b.fecha_matriculacion) || b.fecha_afectacion || b.fecha_expediente || "";
+      return effectiveMatA.localeCompare(effectiveMatB);
     });
 
     // Calcular Tasas Intervención por Marca (basado en matriculaciones y fecha RCI, simulando para pipeline)
@@ -204,15 +210,22 @@ export async function POST(req: NextRequest) {
         const isVN = stateName === "nuevo" || stateName === "demo";
         
         if (isVN) {
-          totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
+          const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+          const entraMatriculacion = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
+          if (entraMatriculacion) {
+            totalMatriculadosPorMarca[brandId] = (totalMatriculadosPorMarca[brandId] || 0) + 1;
+          }
           
-          const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-          const isFinanced = salesTypeName.includes("preference") || 
-                             salesTypeName.includes("crédito") || 
-                             salesTypeName.includes("credito") || 
-                             salesTypeName.includes("renting");
-          if (isFinanced) {
-            financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
+          const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
+          if (entraRci) {
+            const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+            const isFinanced = salesTypeName.includes("preference") || 
+                               salesTypeName.includes("crédito") || 
+                               salesTypeName.includes("credito") || 
+                               salesTypeName.includes("renting");
+            if (isFinanced) {
+              financiadosPorMarca[brandId] = (financiadosPorMarca[brandId] || 0) + 1;
+            }
           }
         }
       }
@@ -252,10 +265,11 @@ export async function POST(req: NextRequest) {
 
     // Helper para obtener la fecha de actividad inicial (mínima entre fecha_expediente y fecha_afectacion, cayendo a fecha_matriculacion)
     const getActivityDate = (e: any) => {
+      const effectiveMatDate = e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion;
       if (e.fecha_expediente && e.fecha_afectacion) {
         return e.fecha_expediente < e.fecha_afectacion ? e.fecha_expediente : e.fecha_afectacion;
       }
-      return e.fecha_expediente || e.fecha_afectacion || e.fecha_matriculacion || "";
+      return e.fecha_expediente || e.fecha_afectacion || effectiveMatDate || "";
     };
 
     // Pre-calcular la cantidad de expedientes en el período para cada valor de cupo (min_coches_multiplicador)
@@ -281,7 +295,8 @@ export async function POST(req: NextRequest) {
     const expsClasificados = qualExpedientes.map((exp) => {
       const entraPedido = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
       const entraAfectacion = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
-      const entraMatriculacion = exp.fecha_matriculacion && exp.fecha_matriculacion >= startDate && exp.fecha_matriculacion <= endDate;
+      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+      const entraMatriculacion = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
 
       const actDate = getActivityDate(exp);

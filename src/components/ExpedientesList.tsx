@@ -65,6 +65,8 @@ interface Expediente {
   vin: string | null;
   valor_objetivo?: number | null;
   min_coches_multiplicador?: number | null;
+  cobrado_otra_fecha?: boolean | null;
+  fecha_cobrado?: string | null;
   
   cliente?: Cliente | null;
   modelo?: Modelo | null;
@@ -964,7 +966,18 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       <td style={{ textAlign: "center", backgroundColor }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            <span style={{ fontSize: "0.85rem", color: val ? "var(--text-primary)" : "var(--text-muted)", fontWeight: val ? 500 : 400 }}>
+            <span 
+              style={{ 
+                fontSize: "0.85rem", 
+                color: val ? "var(--text-primary)" : "var(--text-muted)", 
+                fontWeight: val ? 500 : 400,
+                textDecoration: (field === "fecha_matriculacion" && exp.cobrado_otra_fecha) ? "underline" : "none",
+                cursor: (field === "fecha_matriculacion" && exp.cobrado_otra_fecha) ? "help" : "default"
+              }}
+              title={(field === "fecha_matriculacion" && exp.cobrado_otra_fecha && exp.fecha_cobrado) 
+                ? `Fecha Cobrado: ${formatDate(exp.fecha_cobrado)}` 
+                : undefined}
+            >
               {formatDate(val)}
             </span>
             <div style={{ display: "flex", gap: "4px" }}>
@@ -1088,18 +1101,23 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       return d >= activePlan.fecha_inicio && d <= activePlan.fecha_fin;
     };
 
+    const getEffectiveMatDate = (e: any) => {
+      return e.cobrado_otra_fecha && e.fecha_cobrado ? e.fecha_cobrado : e.fecha_matriculacion;
+    };
+
     const getActivityDate = (e: any) => {
+      const effectiveMat = getEffectiveMatDate(e);
       if (e.fecha_expediente && e.fecha_afectacion) {
         return e.fecha_expediente < e.fecha_afectacion ? e.fecha_expediente : e.fecha_afectacion;
       }
-      return e.fecha_expediente || e.fecha_afectacion || e.fecha_matriculacion || "";
+      return e.fecha_expediente || e.fecha_afectacion || effectiveMat || "";
     };
 
     // 1. Filtrar expedientes que pertenezcan a este período (usando las fechas del plan si está activo)
     const periodExpedientes = expedientes.filter((e) => {
       const actDate = getActivityDate(e);
       const isRelatedThisMonth = isWithinPlan(actDate);
-      const isMatriculadoThisMonth = isWithinPlan(e.fecha_matriculacion);
+      const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(e));
       const isRciThisMonth = isWithinPlan(e.fecha_rci);
       return isRelatedThisMonth || isMatriculadoThisMonth || isRciThisMonth;
     });
@@ -1133,8 +1151,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
       // Ordenar vendedorExps cronológicamente
       vendedorExps.sort((a, b) => {
-        const dateA = a.fecha_matriculacion || a.fecha_afectacion || a.fecha_expediente || "";
-        const dateB = b.fecha_matriculacion || b.fecha_afectacion || b.fecha_expediente || "";
+        const dateA = getEffectiveMatDate(a) || a.fecha_afectacion || a.fecha_expediente || "";
+        const dateB = getEffectiveMatDate(b) || b.fecha_afectacion || b.fecha_expediente || "";
         return dateA.localeCompare(dateB);
       });
 
@@ -1158,7 +1176,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       vendedorExps.forEach((exp) => {
         const actDate = getActivityDate(exp);
         const isActivityThisMonth = isWithinPlan(actDate);
-        const isMatriculadoThisMonth = isWithinPlan(exp.fecha_matriculacion);
+        const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
 
         let originalVal = 1.0;
         if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
@@ -1221,7 +1239,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       // Contadores de Usados del vendedor actual
       const sellerUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
       vendedorExps.forEach((exp) => {
-        const isMatriculadoThisMonth = isWithinPlan(exp.fecha_matriculacion);
+        const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
         const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
         const isVN = stateName === "nuevo" || stateName === "demo";
         if (isMatriculadoThisMonth && !isVN) {
@@ -1239,7 +1257,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       // Calcular comisiones de los expedientes de este vendedor
       let sellerMatriculadosMes = 0;
       vendedorExps.forEach((exp) => {
-        if (isWithinPlan(exp.fecha_matriculacion)) {
+        if (isWithinPlan(getEffectiveMatDate(exp))) {
           sellerMatriculadosMes++;
         }
       });
@@ -1250,7 +1268,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       vendedorExps.forEach((exp) => {
         const actDate = getActivityDate(exp);
         const isRelatedThisMonth = isWithinPlan(actDate);
-        const isMatriculadoThisMonth = isWithinPlan(exp.fecha_matriculacion);
+        const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
         const entraRci = isWithinPlan(exp.fecha_rci);
         const entraPedido = isWithinPlan(exp.fecha_expediente);
         const entraAfectacion = isWithinPlan(exp.fecha_afectacion);
@@ -1274,7 +1292,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 const totalBrandMat = vendedorExps.filter(e => {
                   const bId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
                   const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
-                  const mat_e = isWithinPlan(e.fecha_matriculacion);
+                  const mat_e = isWithinPlan(getEffectiveMatDate(e));
                   return bId === brandId && isVN_e && mat_e;
                 }).length;
 
@@ -1405,7 +1423,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               const totalBrandMat = vendedorExps.filter(e => {
                 const bId = e.modelo?.marca_id || e.modelo?.marca?.id_marca;
                 const isVN_e = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "nuevo" || e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() === "demo";
-                const mat_e = isWithinPlan(e.fecha_matriculacion);
+                const mat_e = isWithinPlan(getEffectiveMatDate(e));
                 return bId === brandId && isVN_e && mat_e;
               }).length;
 
@@ -1497,7 +1515,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           basePreference,
           reglasBonus,
           total: totalExp,
-          fechaRef: exp.fecha_matriculacion || exp.fecha_rci || exp.fecha_afectacion || exp.fecha_expediente
+          fechaRef: getEffectiveMatDate(exp) || exp.fecha_rci || exp.fecha_afectacion || exp.fecha_expediente
         });
       });
 
@@ -1508,7 +1526,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     expedientes.forEach((exp) => {
       const actDate = getActivityDate(exp);
       const isRelatedThisMonth = isWithinPlan(actDate);
-      const isMatriculadoThisMonth = isWithinPlan(exp.fecha_matriculacion);
+      const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
       const entraRci = isWithinPlan(exp.fecha_rci);
 
       const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
@@ -1598,6 +1616,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       setStatsYear(prev => prev - 1);
     } else {
       setStatsMonth(prev => prev - 1);
+    }
+  };
+
+  const handleSetNextMonth = () => {
+    if (statsMonth === 12) {
+      setStatsMonth(1);
+      setStatsYear(prev => prev + 1);
+    } else {
+      setStatsMonth(prev => prev + 1);
     }
   };
 
@@ -2317,6 +2344,14 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}
             >
               Mes Actual
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleSetNextMonth}
+              style={{ padding: "6px 12px", fontSize: "0.8rem", whiteSpace: "nowrap" }}
+            >
+              Mes Siguiente ➡
             </button>
             <select
               className="form-select"

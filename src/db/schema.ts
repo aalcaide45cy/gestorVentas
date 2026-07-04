@@ -120,6 +120,8 @@ export const expedientes = pgTable('expedientes', {
   vin: varchar('vin', { length: 100 }),
   valor_objetivo: doublePrecision('valor_objetivo'),
   min_coches_multiplicador: integer('min_coches_multiplicador').notNull().default(0),
+  cobrado_otra_fecha: boolean('cobrado_otra_fecha').notNull().default(false),
+  fecha_cobrado: date('fecha_cobrado'),
 });
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===

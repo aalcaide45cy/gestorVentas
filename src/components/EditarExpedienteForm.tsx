@@ -229,6 +229,8 @@ export default function EditarExpedienteForm({
   const [fechaEntrega, setFechaEntrega] = useState(expediente.fecha_entrega || "");
   const [matricula, setMatricula] = useState(expediente.matricula || "");
   const [vin, setVin] = useState(expediente.vin || "");
+  const [cobradoOtraFecha, setCobradoOtraFecha] = useState<boolean>(expediente.cobrado_otra_fecha || false);
+  const [fechaCobrado, setFechaCobrado] = useState<string>(expediente.fecha_cobrado || "");
 
   // Gestión de Emails Dinámicos (solo si creamos/modificamos un cliente no asignado o suelto)
   const addEmail = () => setEmails([...emails, { email: "", tipo: "Alternativo" }]);
@@ -301,6 +303,8 @@ export default function EditarExpedienteForm({
     if (fechaRci !== (expediente.fecha_rci || "")) return true;
     if (fechaMatriculacion !== (expediente.fecha_matriculacion || "")) return true;
     if (fechaEntrega !== (expediente.fecha_entrega || "")) return true;
+    if (cobradoOtraFecha !== (expediente.cobrado_otra_fecha || false)) return true;
+    if (fechaCobrado !== (expediente.fecha_cobrado || "")) return true;
     if (matricula !== (expediente.matricula || "")) return true;
     if (vin !== (expediente.vin || "")) return true;
 
@@ -391,6 +395,8 @@ export default function EditarExpedienteForm({
             vin: vin || null,
             valor_objetivo: valorObjetivo,
             min_coches_multiplicador: minCochesMultiplicador,
+            cobrado_otra_fecha: cobradoOtraFecha,
+            fecha_cobrado: cobradoOtraFecha ? (fechaCobrado || null) : null,
           }
         })
       });
@@ -453,7 +459,7 @@ export default function EditarExpedienteForm({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleAnchorClick, true);
     };
-  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, minCochesMultiplicador, success]);
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, minCochesMultiplicador, success, cobradoOtraFecha, fechaCobrado]);
 
   useEffect(() => {
     if (!modeloSeleccionado) {
@@ -482,7 +488,9 @@ export default function EditarExpedienteForm({
             vin: vin || null,
             valor_objetivo: valorObjetivo,
             min_coches_multiplicador: minCochesMultiplicador,
-            id_cliente: clienteAsignado ? clienteAsignado.id : null
+            id_cliente: clienteAsignado ? clienteAsignado.id : null,
+            cobrado_otra_fecha: cobradoOtraFecha,
+            fecha_cobrado: cobradoOtraFecha ? (fechaCobrado || null) : null,
           })
         });
 
@@ -576,6 +584,8 @@ export default function EditarExpedienteForm({
             vin: vin || null,
             valor_objetivo: valorObjetivo,
             min_coches_multiplicador: minCochesMultiplicador,
+            cobrado_otra_fecha: cobradoOtraFecha,
+            fecha_cobrado: cobradoOtraFecha ? (fechaCobrado || null) : null,
           }
         })
       });
@@ -967,6 +977,37 @@ export default function EditarExpedienteForm({
             <div className="form-group">
               <label className="form-label">Fecha Matriculación</label>
               <input type="date" className="form-input" value={fechaMatriculacion} onChange={e => setFechaMatriculacion(e.target.value)} />
+            </div>
+
+            <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "12px", background: "rgba(255, 255, 255, 0.02)", padding: "16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <input
+                  type="checkbox"
+                  id="cobradoOtraFecha"
+                  checked={cobradoOtraFecha}
+                  onChange={e => {
+                    setCobradoOtraFecha(e.target.checked);
+                    if (!e.target.checked) setFechaCobrado("");
+                  }}
+                  style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                />
+                <label htmlFor="cobradoOtraFecha" style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", userSelect: "none" }}>
+                  Expediente cobrado en otra fecha
+                </label>
+              </div>
+
+              {cobradoOtraFecha && (
+                <div className="form-group" style={{ marginBottom: 0, marginTop: "8px" }}>
+                  <label className="form-label" style={{ fontSize: "0.78rem" }}>Fecha de Cobrado</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={fechaCobrado}
+                    onChange={e => setFechaCobrado(e.target.value)}
+                    required={cobradoOtraFecha}
+                  />
+                </div>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Entrega</label>

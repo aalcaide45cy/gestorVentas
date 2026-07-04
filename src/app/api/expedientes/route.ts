@@ -224,6 +224,8 @@ export async function POST(req: NextRequest) {
       id_estado_vehiculo: estadoVehiculoId,
       valor_objetivo: valorObjetivoToSave,
       min_coches_multiplicador: minCochesMultiplicadorToSave,
+      cobrado_otra_fecha: !!expedienteData.cobrado_otra_fecha,
+      fecha_cobrado: expedienteData.fecha_cobrado || null,
     }).returning();
 
     return NextResponse.json({ success: true, data: nuevoExpediente }, { status: 201 });
@@ -363,6 +365,8 @@ export async function PUT(req: NextRequest) {
       id_cliente: id_cliente !== undefined ? id_cliente : undefined,
       valor_objetivo: expedienteData.valor_objetivo !== undefined ? (expedienteData.valor_objetivo !== null ? Number(expedienteData.valor_objetivo) : null) : undefined,
       min_coches_multiplicador: expedienteData.min_coches_multiplicador !== undefined ? (expedienteData.min_coches_multiplicador !== null ? Number(expedienteData.min_coches_multiplicador) : 0) : undefined,
+      cobrado_otra_fecha: expedienteData.cobrado_otra_fecha !== undefined ? expedienteData.cobrado_otra_fecha : undefined,
+      fecha_cobrado: expedienteData.fecha_cobrado !== undefined ? (expedienteData.fecha_cobrado === "" ? null : expedienteData.fecha_cobrado) : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 
     return NextResponse.json({ success: true, message: "Expediente actualizado correctamente" }, { status: 200 });
