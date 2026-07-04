@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { usuarios, clientes, expedientes } from "@/db/schema";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, inArray } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
 
@@ -36,20 +36,23 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Buscar cliente por nombre exacto (ignora mayúsculas/minúsculas)
-      const matchedClient = await db.query.clientes.findFirst({
+      // Buscar todos los clientes con este nombre (por si hay duplicados)
+      const matchedClients = await db.query.clientes.findMany({
         where: ilike(clientes.nombre, cliente.trim())
       });
 
-      if (!matchedClient) {
+      if (matchedClients.length === 0) {
         results.push({ rowIdx, status: "no_match" });
         continue;
       }
 
-      // Buscar expedientes del cliente
+      const clientIds = matchedClients.map(c => c.id);
+
+      // Buscar expedientes de cualquiera de los clientes coincidentes
       const clientExps = await db.query.expedientes.findMany({
-        where: eq(expedientes.id_cliente, matchedClient.id),
+        where: inArray(expedientes.id_cliente, clientIds),
         with: {
+          cliente: true,
           modelo: {
             with: {
               marca: true
@@ -61,14 +64,15 @@ export async function POST(req: NextRequest) {
       });
 
       if (clientExps.length === 1) {
+        const activeClient = clientExps[0].cliente || matchedClients[0];
         results.push({
           rowIdx,
           status: "ok",
-          id_cliente: matchedClient.id,
+          id_cliente: activeClient.id,
           id_expediente: clientExps[0].id_expediente,
           client: {
-            nombre: matchedClient.nombre,
-            dni: matchedClient.dni
+            nombre: activeClient.nombre,
+            dni: activeClient.dni
           },
           expediente: {
             id_expediente: clientExps[0].id_expediente,
@@ -81,13 +85,14 @@ export async function POST(req: NextRequest) {
           }
         });
       } else if (clientExps.length > 1) {
+        const activeClient = clientExps[0].cliente || matchedClients[0];
         results.push({
           rowIdx,
           status: "multiple",
-          id_cliente: matchedClient.id,
+          id_cliente: activeClient.id,
           client: {
-            nombre: matchedClient.nombre,
-            dni: matchedClient.dni
+            nombre: activeClient.nombre,
+            dni: activeClient.dni
           },
           expedientes: clientExps.map(e => ({
             id_expediente: e.id_expediente,
