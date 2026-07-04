@@ -91,6 +91,11 @@ interface ExpedientesListProps {
 export default function ExpedientesList({ expedientesIniciales, userRole, tiendas = [] }: ExpedientesListProps) {
   const router = useRouter();
   const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciales);
+
+  useEffect(() => {
+    setExpedientes(expedientesIniciales);
+  }, [expedientesIniciales]);
+
   const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -712,6 +717,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         const fAfectKey = getColKey(["f. afect", "fecha afectacion", "fecha_afectacion", "afectación"]);
         const fMatKey = getColKey(["fecha matriculacion", "fecha matriculación", "f. mat", "fecha_matriculacion"]);
         const emailKey = getColKey(["email cliente", "email_cliente", "correo cliente", "correo"]);
+        const fCreadoKey = getColKey(["f. creado", "fecha creado", "f_creado", "creado", "f. exp", "fecha expediente"]);
 
         if (!clienteKey) {
           throw new Error("No se encontró la columna 'Cliente' en el archivo Excel.");
@@ -725,7 +731,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           matricula: matriculaKey ? String(row[matriculaKey]).trim() : "",
           f_afect: fAfectKey ? parseExcelDate(row[fAfectKey]) : null,
           f_mat: fMatKey ? parseExcelDate(row[fMatKey]) : null,
-          email: emailKey ? String(row[emailKey]).trim() : ""
+          email: emailKey ? String(row[emailKey]).trim() : "",
+          f_exp: fCreadoKey ? parseExcelDate(row[fCreadoKey]) : null
         })).filter(r => r.cliente !== "");
 
         if (rowsToVerify.length === 0) {
@@ -760,7 +767,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               matricula: originalRow.matricula,
               f_afect: originalRow.f_afect,
               f_mat: originalRow.f_mat,
-              email: originalRow.email
+              email: originalRow.email,
+              f_exp: originalRow.f_exp
             });
           } else if (res.status === "multiple") {
             conflictRowsList.push({
@@ -834,7 +842,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       matricula: currentConflict.data.matricula,
       f_afect: currentConflict.data.f_afect,
       f_mat: currentConflict.data.f_mat,
-      email: currentConflict.data.email
+      email: currentConflict.data.email,
+      f_exp: currentConflict.data.f_exp
     };
 
     const nextUpdates = [...excelUpdatesToProcess, updatedPayload];
@@ -2333,6 +2342,17 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <label className="btn btn-secondary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)" }}>
+            🟢 Importar Datos Excel
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleImportExcel}
+              style={{ display: "none" }}
+              disabled={importingExcel || loading}
+            />
+          </label>
+
           <button
             type="button"
             className="btn btn-secondary"
@@ -2350,17 +2370,6 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               onChange={handleImportCSV}
               style={{ display: "none" }}
               disabled={loading}
-            />
-          </label>
-
-          <label className="btn btn-secondary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)" }}>
-            🟢 Importar Datos Excel
-            <input
-              type="file"
-              accept=".xlsx, .xls"
-              onChange={handleImportExcel}
-              style={{ display: "none" }}
-              disabled={importingExcel || loading}
             />
           </label>
 
@@ -3917,6 +3926,46 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           </div>
         );
       })()}
+
+      {/* OVERLAY DE PROCESAMIENTO EXCEL */}
+      {importingExcel && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.75)",
+          backdropFilter: "blur(5px)",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 99999,
+          gap: "16px"
+        }}>
+          <div className="spinner-excel" style={{
+            width: "60px",
+            height: "60px",
+            border: "5px solid rgba(255, 255, 255, 0.1)",
+            borderTop: "5px solid var(--success)",
+            borderRadius: "50%",
+            animation: "spin-excel 1s linear infinite"
+          }} />
+          <style>{`
+            @keyframes spin-excel {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <div style={{ color: "white", fontSize: "1.3rem", fontWeight: 700 }}>
+            Procesando Archivo Excel...
+          </div>
+          <div style={{ color: "var(--text-secondary)", fontSize: "0.95rem" }}>
+            Verificando clientes y actualizando expedientes en segundo plano.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
