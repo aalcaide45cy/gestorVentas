@@ -18,6 +18,7 @@ export const usuarios = pgTable('usuarios', {
   bloqueado: boolean('bloqueado').default(false),
   tipo_vendedor: varchar('tipo_vendedor', { length: 50 }).notNull().default('VN'), // VN, VO
   patron_vo: varchar('patron_vo', { length: 100 }).default('Estándar VO'),
+  tienda_predeterminada_id: integer('tienda_predeterminada_id').references(() => tiendas.id_tienda, { onDelete: 'set null' }),
 });
 
 // TABLA: USUARIOS_TIENDAS (Relación Muchos a Muchos N-a-N)

@@ -135,6 +135,7 @@ export default async function AdminPage() {
               nombre: t.nombre,
               ciudad: t.ciudad
             }))}
+            tiendaPredeterminadaIdInicial={user.tienda_predeterminada_id}
           />
         </div>
       </div>

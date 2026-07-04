@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       dni: dni || null,
       nombre,
       fecha_de_nacimiento: fecha_de_nacimiento || null,
-      tienda_id: tienda_id ? Number(tienda_id) : null
+      tienda_id: tienda_id ? Number(tienda_id) : (localUser.tienda_predeterminada_id || null)
     }).returning();
 
     const clienteId = nuevoCliente.id;

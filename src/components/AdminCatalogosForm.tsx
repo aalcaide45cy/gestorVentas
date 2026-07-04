@@ -36,6 +36,7 @@ interface AdminCatalogosFormProps {
   tiposVentaIniciales: DropdownItem[];
   estadosVehiculoIniciales: DropdownItem[];
   tiendasIniciales: TiendaItem[];
+  tiendaPredeterminadaIdInicial?: number | null;
 }
 
 type TabType = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes";
@@ -44,7 +45,8 @@ export default function AdminCatalogosForm({
   marcasIniciales,
   tiposVentaIniciales,
   estadosVehiculoIniciales,
-  tiendasIniciales
+  tiendasIniciales,
+  tiendaPredeterminadaIdInicial = null
 }: AdminCatalogosFormProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("marcas");
@@ -57,6 +59,7 @@ export default function AdminCatalogosForm({
   const [tiposVenta, setTiposVenta] = useState<DropdownItem[]>(tiposVentaIniciales);
   const [estadosVehiculo, setEstadosVehiculo] = useState<DropdownItem[]>(estadosVehiculoIniciales);
   const [tiendas, setTiendas] = useState<TiendaItem[]>(tiendasIniciales);
+  const [tiendaPredeterminadaId, setTiendaPredeterminadaId] = useState<number | null>(tiendaPredeterminadaIdInicial);
 
   // Preferencias de expedientes (localStorage)
   const [expDefaultPageSize, setExpDefaultPageSize] = useState<number>(20);
@@ -863,6 +866,27 @@ export default function AdminCatalogosForm({
     }
   };
 
+  const handleEstablecerTiendaPredeterminada = async (idTienda: number | null) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/usuario/tienda-predeterminada", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_tienda: idTienda })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Error al establecer la tienda predeterminada.");
+
+      setTiendaPredeterminadaId(idTienda);
+      showNotification(idTienda ? "Tienda predeterminada establecida correctamente" : "Tienda predeterminada quitada correctamente", "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Error al establecer tienda predeterminada", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEliminarTipoVenta = async (idTipo: number) => {
     if (!confirm("¿Seguro que deseas eliminar este tipo de venta?")) return;
 
@@ -1642,6 +1666,23 @@ export default function AdminCatalogosForm({
                           </div>
                         ) : (
                           <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              onClick={() => handleEstablecerTiendaPredeterminada(t.id_tienda === tiendaPredeterminadaId ? null : t.id_tienda)}
+                              style={{ 
+                                padding: "6px 12px", 
+                                fontSize: "0.8rem", 
+                                color: t.id_tienda === tiendaPredeterminadaId ? "var(--warning)" : "var(--text-secondary)",
+                                borderColor: t.id_tienda === tiendaPredeterminadaId ? "var(--warning)" : "var(--border-light)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                              title={t.id_tienda === tiendaPredeterminadaId ? "Quitar como tienda predeterminada" : "Establecer como tienda predeterminada para mi usuario"}
+                            >
+                              {t.id_tienda === tiendaPredeterminadaId ? "⭐ Predeterminada" : "☆ Predeterminada"}
+                            </button>
                             <button
                               type="button"
                               className="btn btn-secondary"

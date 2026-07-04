@@ -10,6 +10,7 @@ export interface UserWithDetails {
   rol: string | null;
   fecha_de_registro: string | null;
   bloqueado: boolean | null;
+  tienda_predeterminada_id?: number | null;
 }
 
 /**

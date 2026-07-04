@@ -54,6 +54,7 @@ export default async function ClientesPage() {
           nombre: t.nombre,
           ciudad: t.ciudad
         }))}
+        tiendaPredeterminadaId={user.tienda_predeterminada_id}
       />
     </div>
   );

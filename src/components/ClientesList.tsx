@@ -38,11 +38,12 @@ interface ClientesListProps {
   clientesIniciales: ClienteItem[];
   tiendas: TiendaItem[];
   userRole: string;
+  tiendaPredeterminadaId?: number | null;
 }
 
 type SortField = "nombre" | "dni" | "fecha_de_nacimiento" | "tienda" | "expedientes" | "id";
 
-export default function ClientesList({ clientesIniciales, tiendas, userRole }: ClientesListProps) {
+export default function ClientesList({ clientesIniciales, tiendas, userRole, tiendaPredeterminadaId = null }: ClientesListProps) {
   const router = useRouter();
   const [clientes, setClientes] = useState<ClienteItem[]>(clientesIniciales);
   const [modalOpen, setModalOpen] = useState<"create" | "edit" | false>(false);
@@ -120,11 +121,12 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole }: C
     setTelefonos(updated);
   };
 
-  const handleOpenModal = () => {
+  const handleOpenCreateModal = () => {
+    setSelectedCliente(null);
     setDni("");
     setNombre("");
     setFechaNacimiento("");
-    setTiendaId("");
+    setTiendaId(tiendaPredeterminadaId ? String(tiendaPredeterminadaId) : "");
     setEmails([{ email: "", tipo: "Principal" }]);
     setTelefonos([{ telefono: "", tipo: "Principal" }]);
     setModalOpen("create");
@@ -725,7 +727,7 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole }: C
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-          <button type="button" className="btn btn-primary" onClick={handleOpenModal} style={{ padding: "10px 20px" }}>
+          <button type="button" className="btn btn-primary" onClick={handleOpenCreateModal} style={{ padding: "10px 20px" }}>
             + Registrar Nuevo Cliente
           </button>
 
