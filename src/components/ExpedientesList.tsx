@@ -720,7 +720,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         const emailKey = getColKey(["email cliente", "email_cliente", "correo cliente", "correo"]);
         const fCreadoKey = getColKey(["f. creado", "fecha creado", "f_creado", "creado", "f. exp", "fecha expediente"]);
         const telefonoKey = getColKey(["teléfono", "telefono", "móvil", "movil", "tfno", "phone", "telf"]);
-        const fEntregaKey = getColKey(["entrega fijada", "f. entrega", "fecha entrega", "entrega_fijada", "entrega"]);
+        const fEntregaKey = getColKey(["entrega fijada", "f. entrega", "fecha entrega", "entrega_fijada", "fecha de entrega"]);
 
         if (!clienteKey) {
           throw new Error("No se encontró la columna 'Cliente' en el archivo Excel.");
