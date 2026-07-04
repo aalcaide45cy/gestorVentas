@@ -2596,21 +2596,21 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosPreference} uds</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalPreference.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: stats.totalReglasPenalizacion > 0 || (activePlan && activePlan.penalizacion_importe > 0) ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: stats.totalReglasPenalizacion > 0 || (activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0) ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
                       <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Bonus Especiales:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Campañas / Reglas</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalReglasBonus.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
 
                     {stats.totalReglasPenalizacion > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: (activePlan && activePlan.penalizacion_importe > 0) ? "1px solid rgba(255,255,255,0.03)" : "none", color: "var(--danger)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: (activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0) ? "1px solid rgba(255,255,255,0.03)" : "none", color: "var(--danger)" }}>
                         <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalizaciones:</span>
                         <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Reglas / Conceptos</span>
                         <strong style={{ flex: 1, textAlign: "right" }}>-{stats.totalReglasPenalizacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                       </div>
                     )}
 
-                    {activePlan && activePlan.penalizacion_importe > 0 && (
+                    {activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0 && (
                       <div 
                         style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--danger)", cursor: activePlan.penalizacion_descripcion ? "help" : "default" }}
                         title={activePlan.penalizacion_descripcion ? `${activePlan.penalizacion_titulo || "Penalización"}: ${activePlan.penalizacion_descripcion}` : undefined}
@@ -2619,7 +2619,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                         <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {activePlan.penalizacion_titulo || "Fija de liquidación"}
                         </span>
-                        <strong style={{ flex: 1, textAlign: "right" }}>-{activePlan.penalizacion_importe.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
+                        <strong style={{ flex: 1, textAlign: "right" }}>-{Math.abs(activePlan.penalizacion_importe).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                       </div>
                     )}
                   </div>
