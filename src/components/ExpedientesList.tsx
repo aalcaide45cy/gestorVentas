@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/date-utils";
+import * as XLSX from "xlsx";
 
 interface Cliente {
   id: number;
@@ -103,6 +104,13 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
   const [deleteUnlocked, setDeleteUnlocked] = useState(false);
+
+  // Estados para Importación Excel
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [excelConflictRows, setExcelConflictRows] = useState<any[]>([]);
+  const [currentConflictIdx, setCurrentConflictIdx] = useState(0);
+  const [excelUpdatesToProcess, setExcelUpdatesToProcess] = useState<any[]>([]);
+  const [showExcelModal, setShowExcelModal] = useState(false);
 
   // Estados para Edición Masiva (Lote)
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -633,6 +641,218 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     };
 
     reader.readAsText(file);
+  };
+
+  // --- IMPORTADOR DE EXCEL (XLSX) ---
+  const parseExcelDate = (val: any) => {
+    if (!val) return null;
+    if (val instanceof Date) {
+      return val.toISOString().split("T")[0];
+    }
+    if (typeof val === "number") {
+      const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+      return date.toISOString().split("T")[0];
+    }
+    const str = String(val).trim();
+    if (!str) return null;
+
+    const matchDMY = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (matchDMY) {
+      const day = matchDMY[1].padStart(2, "0");
+      const month = matchDMY[2].padStart(2, "0");
+      const year = matchDMY[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    const matchYMD = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (matchYMD) {
+      const year = matchYMD[1];
+      const month = matchYMD[2].padStart(2, "0");
+      const day = matchYMD[3].padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split("T")[0];
+    }
+    return null;
+  };
+
+  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportingExcel(true);
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+
+        const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        if (rawRows.length === 0) {
+          throw new Error("El archivo Excel está vacío.");
+        }
+
+        const firstRow = rawRows[0];
+        const keys = Object.keys(firstRow);
+
+        const getColKey = (names: string[]) => {
+          return keys.find(k => names.some(name => k.toLowerCase().trim() === name.toLowerCase().trim() || k.toLowerCase().trim().includes(name.toLowerCase().trim()))) || "";
+        };
+
+        const clienteKey = getColKey(["cliente"]);
+        const nifKey = getColKey(["nif", "dni", "n.i.f"]);
+        const bastidorKey = getColKey(["bastidor", "vin", "chasis"]);
+        const matriculaKey = getColKey(["matrícula", "matricula", "patente"]);
+        const fAfectKey = getColKey(["f. afect", "fecha afectacion", "fecha_afectacion", "afectación"]);
+        const fMatKey = getColKey(["fecha matriculacion", "fecha matriculación", "f. mat", "fecha_matriculacion"]);
+        const emailKey = getColKey(["email cliente", "email_cliente", "correo cliente", "correo"]);
+
+        if (!clienteKey) {
+          throw new Error("No se encontró la columna 'Cliente' en el archivo Excel.");
+        }
+
+        const rowsToVerify = rawRows.map((row, idx) => ({
+          rowIdx: idx,
+          cliente: row[clienteKey] ? String(row[clienteKey]).trim() : "",
+          nif: nifKey ? String(row[nifKey]).trim() : "",
+          bastidor: bastidorKey ? String(row[bastidorKey]).trim() : "",
+          matricula: matriculaKey ? String(row[matriculaKey]).trim() : "",
+          f_afect: fAfectKey ? parseExcelDate(row[fAfectKey]) : null,
+          f_mat: fMatKey ? parseExcelDate(row[fMatKey]) : null,
+          email: emailKey ? String(row[emailKey]).trim() : ""
+        })).filter(r => r.cliente !== "");
+
+        if (rowsToVerify.length === 0) {
+          throw new Error("No se encontraron registros de clientes válidos en el archivo Excel.");
+        }
+
+        const verifyRes = await fetch("/api/expedientes/importar-excel/verificar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: rowsToVerify })
+        });
+        const verifyResult = await verifyRes.json();
+        if (!verifyRes.ok) {
+          throw new Error(verifyResult.message || "Error al verificar el archivo Excel.");
+        }
+
+        const verificationResults: any[] = verifyResult.results;
+        const autoUpdates: any[] = [];
+        const conflictRowsList: any[] = [];
+
+        verificationResults.forEach(res => {
+          const originalRow = rowsToVerify.find(r => r.rowIdx === res.rowIdx);
+          if (!originalRow) return;
+
+          if (res.status === "ok") {
+            autoUpdates.push({
+              rowIdx: res.rowIdx,
+              id_cliente: res.id_cliente,
+              id_expediente: res.id_expediente,
+              nif: originalRow.nif,
+              bastidor: originalRow.bastidor,
+              matricula: originalRow.matricula,
+              f_afect: originalRow.f_afect,
+              f_mat: originalRow.f_mat,
+              email: originalRow.email
+            });
+          } else if (res.status === "multiple") {
+            conflictRowsList.push({
+              ...res,
+              data: originalRow
+            });
+          }
+        });
+
+        setExcelUpdatesToProcess(autoUpdates);
+
+        if (conflictRowsList.length > 0) {
+          setExcelConflictRows(conflictRowsList);
+          setCurrentConflictIdx(0);
+          setShowExcelModal(true);
+        } else if (autoUpdates.length > 0) {
+          await executeExcelImport(autoUpdates);
+        } else {
+          showNotification("No había ningún cliente coincidente en el archivo Excel.", "error");
+        }
+
+      } catch (err: any) {
+        showNotification(err.message || "Error al importar el archivo Excel.", "error");
+      } finally {
+        setImportingExcel(false);
+        event.target.value = "";
+      }
+    };
+
+    reader.onerror = () => {
+      showNotification("Error de lectura del archivo.", "error");
+      setImportingExcel(false);
+      event.target.value = "";
+    };
+
+    reader.readAsArrayBuffer(file);
+  };
+
+  const executeExcelImport = async (updates: any[]) => {
+    setImportingExcel(true);
+    try {
+      const response = await fetch("/api/expedientes/importar-excel/procesar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Error al procesar los datos de Excel.");
+      }
+      showNotification(result.message, "success");
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Error al completar la importación.", "error");
+    } finally {
+      setImportingExcel(false);
+      setShowExcelModal(false);
+      setExcelConflictRows([]);
+      setExcelUpdatesToProcess([]);
+    }
+  };
+
+  const handleResolveMultipleConflict = (selectedExpedienteId: number) => {
+    const currentConflict = excelConflictRows[currentConflictIdx];
+    const updatedPayload = {
+      rowIdx: currentConflict.rowIdx,
+      id_cliente: currentConflict.id_cliente,
+      id_expediente: selectedExpedienteId,
+      nif: currentConflict.data.nif,
+      bastidor: currentConflict.data.bastidor,
+      matricula: currentConflict.data.matricula,
+      f_afect: currentConflict.data.f_afect,
+      f_mat: currentConflict.data.f_mat,
+      email: currentConflict.data.email
+    };
+
+    const nextUpdates = [...excelUpdatesToProcess, updatedPayload];
+    setExcelUpdatesToProcess(nextUpdates);
+
+    if (currentConflictIdx + 1 < excelConflictRows.length) {
+      setCurrentConflictIdx(currentConflictIdx + 1);
+    } else {
+      executeExcelImport(nextUpdates);
+    }
+  };
+
+  const handleSkipExcelConflict = () => {
+    if (currentConflictIdx + 1 < excelConflictRows.length) {
+      setCurrentConflictIdx(currentConflictIdx + 1);
+    } else {
+      executeExcelImport(excelUpdatesToProcess);
+    }
   };
 
   // Exportar base de datos a JSON (Copia de seguridad)
@@ -2133,6 +2353,17 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             />
           </label>
 
+          <label className="btn btn-secondary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "var(--success)" }}>
+            🟢 Importar Datos Excel
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleImportExcel}
+              style={{ display: "none" }}
+              disabled={importingExcel || loading}
+            />
+          </label>
+
           {userRole === "administrador" && (
             <>
               <button
@@ -3528,6 +3759,164 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           </div>
         </div>
       )}
+
+      {/* MODAL DE RESOLUCIÓN DE CONFLICTOS EXCEL */}
+      {showExcelModal && excelConflictRows.length > 0 && (() => {
+        const currentConflict = excelConflictRows[currentConflictIdx];
+        if (!currentConflict) return null;
+
+        return (
+          <div className="modal-overlay" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999,
+            padding: "20px"
+          }}>
+            <div className="modal-content glass-panel" style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-md)",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "850px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)"
+            }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--border-light)", paddingBottom: "12px" }}>
+                <h3 style={{ margin: 0, fontSize: "1.25rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span>⚠️ Resolviendo Múltiples Expedientes</span>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: "normal" }}>
+                    (Conflicto {currentConflictIdx + 1} de {excelConflictRows.length})
+                  </span>
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowExcelModal(false);
+                    setExcelConflictRows([]);
+                    setExcelUpdatesToProcess([]);
+                  }}
+                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: "1.2rem" }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <p style={{ margin: 0, fontSize: "0.95rem", color: "var(--text-secondary)" }}>
+                  El cliente <strong style={{ color: "var(--text-primary)" }}>{currentConflict.client.nombre}</strong> ({currentConflict.client.dni || "Sin NIF"}) tiene múltiples expedientes asignados en la app. Selecciona el expediente correcto para actualizarlo con los datos del Excel.
+                </p>
+
+                {/* Previsualización Datos Excel */}
+                <div style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "16px"
+                }}>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", marginBottom: "8px", borderBottom: "1px solid rgba(255,255,255,0.03)", paddingBottom: "4px" }}>
+                    Datos del Archivo Excel:
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", fontSize: "0.88rem" }}>
+                    <div><strong>NIF:</strong> <span style={{ color: "var(--primary)" }}>{currentConflict.data.nif || "-"}</span></div>
+                    <div><strong>Email:</strong> <span style={{ color: "var(--primary)" }}>{currentConflict.data.email || "-"}</span></div>
+                    <div><strong>Bastidor:</strong> <span style={{ color: "var(--primary)" }}>{currentConflict.data.bastidor || "-"}</span></div>
+                    <div><strong>Matrícula:</strong> <span style={{ color: "var(--primary)" }}>{currentConflict.data.matricula || "-"}</span></div>
+                    <div><strong>F. Afectación:</strong> <span style={{ color: "var(--primary)" }}>{formatDate(currentConflict.data.f_afect) || "-"}</span></div>
+                    <div><strong>F. Matriculación:</strong> <span style={{ color: "var(--primary)" }}>{formatDate(currentConflict.data.f_mat) || "-"}</span></div>
+                  </div>
+                </div>
+
+                {/* Listado de Expedientes en Base de Datos */}
+                <div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", marginBottom: "8px" }}>
+                    Expedientes Existentes en la App:
+                  </div>
+                  <div className="table-container" style={{ border: "1px solid var(--border-light)", borderRadius: "var(--radius-sm)" }}>
+                    <table className="table-premium" style={{ fontSize: "0.85rem", width: "100%" }}>
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Marca/Modelo</th>
+                          <th>VIN (Bastidor)</th>
+                          <th>Matrícula</th>
+                          <th>F. Afect.</th>
+                          <th>F. Mat.</th>
+                          <th>F. Exp.</th>
+                          <th style={{ textAlign: "center" }}>Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentConflict.expedientes.map((e: any) => (
+                          <tr 
+                            key={e.id_expediente}
+                            style={{ cursor: "pointer" }}
+                            onClick={() => handleResolveMultipleConflict(e.id_expediente)}
+                          >
+                            <td style={{ fontWeight: 600 }}>#{e.id_expediente}</td>
+                            <td>
+                              <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{e.marca}</span> {e.modelo}
+                            </td>
+                            <td style={{ fontFamily: "monospace" }}>{e.vin || <span style={{ color: "var(--text-muted)" }}>-</span>}</td>
+                            <td style={{ fontWeight: 600 }}>{e.matricula || <span style={{ color: "var(--text-muted)" }}>-</span>}</td>
+                            <td>{formatDate(e.fecha_afectacion) || <span style={{ color: "var(--text-muted)" }}>-</span>}</td>
+                            <td>{formatDate(e.fecha_matriculacion) || <span style={{ color: "var(--text-muted)" }}>-</span>}</td>
+                            <td>{formatDate(e.fecha_expediente) || <span style={{ color: "var(--text-muted)" }}>-</span>}</td>
+                            <td style={{ textAlign: "center" }}>
+                              <button
+                                onClick={(evt) => {
+                                  evt.stopPropagation();
+                                  handleResolveMultipleConflict(e.id_expediente);
+                                }}
+                                className="btn btn-primary"
+                                style={{ padding: "4px 8px", fontSize: "0.75rem", borderRadius: "var(--radius-sm)" }}
+                              >
+                                Seleccionar
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Footer del Modal */}
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
+                  <button
+                    onClick={() => {
+                      setShowExcelModal(false);
+                      setExcelConflictRows([]);
+                      setExcelUpdatesToProcess([]);
+                      showNotification("Importación de Excel cancelada.", "success");
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+                  >
+                    Cancelar Todo
+                  </button>
+                  <button
+                    onClick={handleSkipExcelConflict}
+                    className="btn btn-secondary"
+                    style={{ padding: "8px 16px", fontSize: "0.85rem", backgroundColor: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)", color: "var(--danger)" }}
+                  >
+                    Omitir este Registro
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
