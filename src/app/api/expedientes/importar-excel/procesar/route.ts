@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, expedientes, emailsClientes } from "@/db/schema";
+import { usuarios, clientes, expedientes, emailsClientes, telefonosClientes } from "@/db/schema";
 import { eq, and, ilike } from "drizzle-orm";
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     let processedCount = 0;
 
     for (const update of updates) {
-      const { id_cliente, id_expediente, nif, bastidor, matricula, f_afect, f_mat, email, f_exp } = update;
+      const { id_cliente, id_expediente, nif, bastidor, matricula, f_afect, f_mat, email, f_exp, telefono } = update;
 
       if (!id_cliente || !id_expediente) {
         continue;
@@ -60,6 +60,25 @@ export async function POST(req: NextRequest) {
             id_cliente,
             email: cleanedEmail,
             tipo_email: "Principal"
+          });
+        }
+      }
+
+      // 2b. Insertar Teléfono del Cliente si no existe ya
+      if (telefono && telefono.trim()) {
+        const cleanedTel = telefono.trim();
+        const existingTel = await db.query.telefonosClientes.findFirst({
+          where: and(
+            eq(telefonosClientes.id_cliente, id_cliente),
+            eq(telefonosClientes.telefono, cleanedTel)
+          )
+        });
+
+        if (!existingTel) {
+          await db.insert(telefonosClientes).values({
+            id_cliente,
+            telefono: cleanedTel,
+            tipo_telefono: "Principal"
           });
         }
       }
