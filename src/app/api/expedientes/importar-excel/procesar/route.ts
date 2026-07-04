@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     let processedCount = 0;
 
     for (const update of updates) {
-      const { id_cliente, id_expediente, nif, bastidor, matricula, f_afect, f_mat, email, f_exp, telefono } = update;
+      const { id_cliente, id_expediente, nif, bastidor, matricula, f_afect, f_mat, email, f_exp, telefono, f_entrega } = update;
 
       if (!id_cliente || !id_expediente) {
         continue;
@@ -103,6 +103,9 @@ export async function POST(req: NextRequest) {
       }
       if (f_exp) {
         expUpdate.fecha_expediente = f_exp;
+      }
+      if (f_entrega) {
+        expUpdate.fecha_entrega = f_entrega;
       }
 
       if (Object.keys(expUpdate).length > 0) {

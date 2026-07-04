@@ -720,6 +720,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         const emailKey = getColKey(["email cliente", "email_cliente", "correo cliente", "correo"]);
         const fCreadoKey = getColKey(["f. creado", "fecha creado", "f_creado", "creado", "f. exp", "fecha expediente"]);
         const telefonoKey = getColKey(["teléfono", "telefono", "móvil", "movil", "tfno", "phone", "telf"]);
+        const fEntregaKey = getColKey(["entrega fijada", "f. entrega", "fecha entrega", "entrega_fijada", "entrega"]);
 
         if (!clienteKey) {
           throw new Error("No se encontró la columna 'Cliente' en el archivo Excel.");
@@ -735,7 +736,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           f_mat: fMatKey ? parseExcelDate(row[fMatKey]) : null,
           email: emailKey ? String(row[emailKey]).trim() : "",
           f_exp: fCreadoKey ? parseExcelDate(row[fCreadoKey]) : null,
-          telefono: telefonoKey ? String(row[telefonoKey]).trim() : ""
+          telefono: telefonoKey ? String(row[telefonoKey]).trim() : "",
+          f_entrega: fEntregaKey ? parseExcelDate(row[fEntregaKey]) : null
         })).filter(r => r.cliente !== "");
 
         if (rowsToVerify.length === 0) {
@@ -772,7 +774,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               f_mat: originalRow.f_mat,
               email: originalRow.email,
               f_exp: originalRow.f_exp,
-              telefono: originalRow.telefono
+              telefono: originalRow.telefono,
+              f_entrega: originalRow.f_entrega
             });
           } else if (res.status === "multiple") {
             conflictRowsList.push({
@@ -848,7 +851,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       f_mat: currentConflict.data.f_mat,
       email: currentConflict.data.email,
       f_exp: currentConflict.data.f_exp,
-      telefono: currentConflict.data.telefono
+      telefono: currentConflict.data.telefono,
+      f_entrega: currentConflict.data.f_entrega
     };
 
     const nextUpdates = [...excelUpdatesToProcess, updatedPayload];
