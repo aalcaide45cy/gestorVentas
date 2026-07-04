@@ -726,19 +726,27 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           throw new Error("No se encontró la columna 'Cliente' en el archivo Excel.");
         }
 
-        const rowsToVerify = rawRows.map((row, idx) => ({
-          rowIdx: idx,
-          cliente: row[clienteKey] ? String(row[clienteKey]).trim() : "",
-          nif: nifKey ? String(row[nifKey]).trim() : "",
-          bastidor: bastidorKey ? String(row[bastidorKey]).trim() : "",
-          matricula: matriculaKey ? String(row[matriculaKey]).trim() : "",
-          f_afect: fAfectKey ? parseExcelDate(row[fAfectKey]) : null,
-          f_mat: fMatKey ? parseExcelDate(row[fMatKey]) : null,
-          email: emailKey ? String(row[emailKey]).trim() : "",
-          f_exp: fCreadoKey ? parseExcelDate(row[fCreadoKey]) : null,
-          telefono: telefonoKey ? String(row[telefonoKey]).trim() : "",
-          f_entrega: fEntregaKey ? parseExcelDate(row[fEntregaKey]) : null
-        })).filter(r => r.cliente !== "");
+        const rowsToVerify = rawRows.map((row, idx) => {
+          let rawTel = telefonoKey ? String(row[telefonoKey]).trim() : "";
+          if (rawTel.endsWith(".0")) {
+            rawTel = rawTel.slice(0, -2);
+          }
+          const cleanTel = rawTel.replace(/[^\d+]/g, "");
+
+          return {
+            rowIdx: idx,
+            cliente: row[clienteKey] ? String(row[clienteKey]).trim() : "",
+            nif: nifKey ? String(row[nifKey]).trim() : "",
+            bastidor: bastidorKey ? String(row[bastidorKey]).trim() : "",
+            matricula: matriculaKey ? String(row[matriculaKey]).trim() : "",
+            f_afect: fAfectKey ? parseExcelDate(row[fAfectKey]) : null,
+            f_mat: fMatKey ? parseExcelDate(row[fMatKey]) : null,
+            email: emailKey ? String(row[emailKey]).trim() : "",
+            f_exp: fCreadoKey ? parseExcelDate(row[fCreadoKey]) : null,
+            telefono: cleanTel,
+            f_entrega: fEntregaKey ? parseExcelDate(row[fEntregaKey]) : null
+          };
+        }).filter(r => r.cliente !== "");
 
         if (rowsToVerify.length === 0) {
           throw new Error("No se encontraron registros de clientes válidos en el archivo Excel.");

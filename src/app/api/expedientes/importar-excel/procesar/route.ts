@@ -65,21 +65,28 @@ export async function POST(req: NextRequest) {
       }
 
       // 2b. Insertar Teléfono del Cliente si no existe ya
-      if (telefono && telefono.trim()) {
-        const cleanedTel = telefono.trim();
-        const existingTel = await db.query.telefonosClientes.findFirst({
-          where: and(
-            eq(telefonosClientes.id_cliente, id_cliente),
-            eq(telefonosClientes.telefono, cleanedTel)
-          )
-        });
+      if (telefono && String(telefono).trim()) {
+        let rawTel = String(telefono).trim();
+        if (rawTel.endsWith(".0")) {
+          rawTel = rawTel.slice(0, -2);
+        }
+        const cleanedTel = rawTel.replace(/[^\d+]/g, "");
 
-        if (!existingTel) {
-          await db.insert(telefonosClientes).values({
-            id_cliente,
-            telefono: cleanedTel,
-            tipo_telefono: "Principal"
+        if (cleanedTel) {
+          const existingTel = await db.query.telefonosClientes.findFirst({
+            where: and(
+              eq(telefonosClientes.id_cliente, id_cliente),
+              eq(telefonosClientes.telefono, cleanedTel)
+            )
           });
+
+          if (!existingTel) {
+            await db.insert(telefonosClientes).values({
+              id_cliente,
+              telefono: cleanedTel,
+              tipo_telefono: "Principal"
+            });
+          }
         }
       }
 
