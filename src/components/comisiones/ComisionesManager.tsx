@@ -986,6 +986,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 <tbody>
                   {planes.map((p) => {
                     const liq = p.liquidations?.[0];
+                    const finalTotal = liq ? Math.max(0, liq.total_comision_economica - Math.abs(liq.penalizacion_importe_snapshot || 0)) : 0;
                     return (
                       <tr key={p.id_plan}>
                         <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>{p.nombre}</td>
@@ -996,7 +997,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <td style={{ textAlign: "center" }}>
                           {liq ? (
                             <span className="badge badge-tienda" style={{ fontSize: "0.75rem", backgroundColor: liq.estado === "cerrada" ? "var(--success)" : undefined }}>
-                              {liq.estado === "cerrada" ? "🔒 Cerrada" : "✓ Calculada"} ({liq.total_comision_economica.toLocaleString()} €)
+                              {liq.estado === "cerrada" ? "🔒 Cerrada" : "✓ Calculada"} ({finalTotal.toLocaleString()} €)
                             </span>
                           ) : (
                             <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>No calculada</span>
@@ -3309,6 +3310,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         if (penaltyAmt < 0 && planData.liquidations[0].cumple_minimo_snapshot) {
                           const penaltyTitle = planData.liquidations[0].penalizacion_titulo_snapshot || "Penalización";
                           const penaltyDesc = planData.liquidations[0].penalizacion_descripcion_snapshot || "Sin descripción";
+                          const finalTotal = Math.max(0, totalGeneradoTeorico - Math.abs(penaltyAmt));
                           return (
                             <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "1.1rem" }}>
                               <span style={{ color: "var(--text-secondary)" }}>{totalGeneradoTeorico.toLocaleString()} €</span>
@@ -3325,13 +3327,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 }}
                                 title={`${penaltyTitle}: ${penaltyDesc}`}
                               >
-                                Penalización: {penaltyAmt} €
+                                {Math.abs(penaltyAmt)} €
                               </span>
                               <span style={{ color: "var(--text-muted)", fontSize: "0.95rem" }}>
                                 =
                               </span>
                               <strong style={{ fontSize: "2rem", color: "var(--success)" }}>
-                                {planData.liquidations[0].total_comision_economica.toLocaleString()} €
+                                {finalTotal.toLocaleString()} €
                               </strong>
                             </div>
                           );

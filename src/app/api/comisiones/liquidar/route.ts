@@ -801,7 +801,7 @@ export async function POST(req: NextRequest) {
       tramo_alcanzado_snapshot: tramoPredominante,
       matriculaciones_reales_snapshot: linesToInsert.filter(l => l.entra_por_matriculacion).length,
       cumple_minimo_snapshot: linesToInsert.every(l => l.cumple_minimo_vendedor),
-      total_comision_economica: finalComision,
+      total_comision_economica: totalLiquidacionGlobal,
       penalizacion_importe_snapshot: -Math.abs(plan.penalizacion_importe || 0),
       penalizacion_titulo_snapshot: plan.penalizacion_titulo || null,
       penalizacion_descripcion_snapshot: plan.penalizacion_descripcion || null,
