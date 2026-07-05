@@ -1443,6 +1443,23 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         const actDate = getActivityDate(exp);
         const isActivityThisMonth = isWithinPlan(actDate);
         const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
+        const entraPedido = isWithinPlan(exp.fecha_expediente);
+        const entraAfectacion = isWithinPlan(exp.fecha_afectacion);
+        const entraRci = isWithinPlan(exp.fecha_rci);
+
+        const salesTypeNameLower = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+        const isCreditoVenta = (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado") || salesTypeNameLower.includes("renting")) && !salesTypeNameLower.includes("preference");
+        const isPreferenceVenta = salesTypeNameLower.includes("preference");
+
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        let tipoUsado: string | null = null;
+        if (!isVN) {
+          if (stateName === "km0") tipoUsado = "KM0";
+          else if (stateName === "buyback" || stateName === "bb") tipoUsado = "BB";
+          else if (stateName === "seminuevo" || stateName === "vo") tipoUsado = "VO";
+          else tipoUsado = "Usado";
+        }
 
         let originalVal = 1.0;
         if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
@@ -1457,7 +1474,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           }
         }
 
-        let val = 0.0;
+        let objValorExpediente = 0.0;
         let afectoObjetivo = false;
         const baseVal = originalVal === 0 ? 1.0 : originalVal;
 
@@ -1470,21 +1487,88 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             if (targetCupo > 0 && baseVal > 1) {
               const countOfSameCupo = sellerCupoCounts[targetCupo] || 0;
               if (countOfSameCupo >= targetCupo) {
-                val = baseVal;
+                objValorExpediente = baseVal;
               } else {
-                val = 1.0;
+                objValorExpediente = 1.0;
               }
             } else {
-              val = baseVal;
+              objValorExpediente = baseVal;
             }
           } else {
             // Entra únicamente por matriculación
-            val = baseVal;
+            objValorExpediente = baseVal;
           }
         }
+
+        let totalObjExp = 0;
         if (afectoObjetivo) {
-          sellerObjetivoComputado += val;
+          if (isVN) {
+            totalObjExp = objValorExpediente;
+          } else if (tipoUsado) {
+            totalObjExp = objValorExpediente;
+          }
         }
+
+        // Reglas generales que afectan al objetivo
+        if (activePlan) {
+          activePlan.rules?.forEach((rule: any) => {
+            if (!rule.activa || !rule.afecta_objetivo) return;
+            const eventMatches = 
+              (rule.tipo_evento === "pedido" && entraPedido) ||
+              (rule.tipo_evento === "afectacion" && entraAfectacion) ||
+              (rule.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
+              ((rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+              (rule.tipo_evento === "preference" && entraRci && isPreferenceVenta);
+
+            if (!eventMatches) return;
+
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+            const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+            if (filterMarcaMatches && filterModeloMatches) {
+              totalObjExp += Number(rule.valor_objetivo || 0);
+
+              // Ligar preference a credito
+              if (rule.tipo_evento === "preference" && rule.ligar_a_credito) {
+                const matchingCreditRule = activePlan.rules?.find((r: any) => {
+                  if (!r.activa || !r.afecta_objetivo) return false;
+                  if (r.tipo_evento !== "credito" && r.tipo_evento !== "financiacion") return false;
+
+                  const filterMarcaMatches2 = !r.id_marca || brandId === r.id_marca;
+                  const filterModeloMatches2 = !r.id_modelo || exp.id_modelo === r.id_modelo;
+                  return filterMarcaMatches2 && filterModeloMatches2;
+                });
+                if (matchingCreditRule) {
+                  totalObjExp += Number(matchingCreditRule.valor_objetivo || 0);
+                }
+              }
+            }
+          });
+
+          // Bonus/Penalizaciones que afectan al objetivo
+          activePlan.bonusRules?.forEach((bonus: any) => {
+            if (!bonus.activo || !bonus.afecta_objetivo) return;
+            const eventMatches = 
+              (bonus.tipo_evento === "pedido" && entraPedido) ||
+              (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
+              (bonus.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
+              ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
+              (bonus.tipo_evento === "preference" && entraRci && isPreferenceVenta);
+
+            if (!eventMatches) return;
+
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const filterMarcaMatches = !bonus.id_marca || brandId === bonus.id_marca;
+            const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
+
+            if (filterMarcaMatches && filterModeloMatches) {
+              totalObjExp += Number(bonus.valor_objetivo || 0);
+            }
+          });
+        }
+
+        sellerObjetivoComputado += totalObjExp;
       });
 
       // Determinar tramo del vendedor actual

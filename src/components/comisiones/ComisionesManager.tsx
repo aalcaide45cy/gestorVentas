@@ -2337,6 +2337,34 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             <td style={{ textAlign: "right", color: "var(--success)" }}>{sumTotal.toLocaleString()} €</td>
                             <td></td>
                           </tr>
+                          {cotejoPenalizacionImporte > 0 && (
+                            <tr style={{ background: "rgba(239, 68, 68, 0.04)", fontWeight: 700 }}>
+                              <td colSpan={7} style={{ padding: "12px 16px", color: "var(--danger)" }}>
+                                ⚠️ Penalizaciones del Periodo ({cotejoPenalizacionTitulo})
+                              </td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right", color: "var(--danger)" }}>-{cotejoPenalizacionImporte.toLocaleString()} €</td>
+                              <td></td>
+                            </tr>
+                          )}
+                          {cotejoPenalizacionImporte > 0 && (
+                            <tr style={{ borderTop: "1px solid var(--border-light)", background: "rgba(16, 185, 129, 0.04)", fontWeight: 800 }}>
+                              <td colSpan={7} style={{ padding: "12px 16px", color: "var(--text-primary)" }}>TOTAL NETO DE COMISIÓN</td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right" }}></td>
+                              <td style={{ textAlign: "right", color: "var(--success)" }}>{(sumTotal - cotejoPenalizacionImporte).toLocaleString()} €</td>
+                              <td></td>
+                            </tr>
+                          )}
                         </tfoot>
                       )}
                     </table>
