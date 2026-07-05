@@ -1422,9 +1422,15 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         return dateA.localeCompare(dateB);
       });
 
+      const qualVendedorExps = vendedorExps.filter((exp) => {
+        const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
+        const isRciThisMonth = isWithinPlan(exp.fecha_rci);
+        return isMatriculadoThisMonth || isRciThisMonth;
+      });
+
       // Calcular cupos para el vendedor actual
       const sellerCupoCounts: Record<number, number> = {};
-      vendedorExps.forEach((e) => {
+      qualVendedorExps.forEach((e) => {
         const actDate = getActivityDate(e);
         const entraActivity = isWithinPlan(actDate);
         if (entraActivity) {
@@ -1439,7 +1445,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
       // Calcular objetivo del vendedor actual
       let sellerObjetivoComputado = 0;
-      vendedorExps.forEach((exp) => {
+      qualVendedorExps.forEach((exp) => {
         const actDate = getActivityDate(exp);
         const isActivityThisMonth = isWithinPlan(actDate);
         const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
@@ -1588,7 +1594,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
       // Contadores de Usados del vendedor actual
       const sellerUsedCounts: Record<string, number> = { VO: 0, KM0: 0, BB: 0, Usado: 0 };
-      vendedorExps.forEach((exp) => {
+      qualVendedorExps.forEach((exp) => {
         const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
         const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
         const isVN = stateName === "nuevo" || stateName === "demo";
@@ -1615,7 +1621,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       const sellerCumpleMinimo = activePlan ? sellerMatriculadosMes >= activePlan.min_matriculaciones : false;
 
       // Evaluar cada expediente
-      vendedorExps.forEach((exp) => {
+      qualVendedorExps.forEach((exp) => {
         const actDate = getActivityDate(exp);
         const isRelatedThisMonth = isWithinPlan(actDate);
         const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
