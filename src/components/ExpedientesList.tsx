@@ -1564,7 +1564,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                   const rci_e = isWithinPlan(e.fecha_rci);
                   const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
                   const isFinancedType = salesTypeName.includes("preference") || salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("renting");
-                  return bId === brandId && isVN_e && (rci_e || isFinancedType);
+                  return bId === brandId && isVN_e && rci_e && isFinancedType;
                 }).length;
 
                 let tasaCumplida = true;
@@ -1695,7 +1695,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 const rci_e = isWithinPlan(e.fecha_rci);
                 const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
                 const isFinancedType = salesTypeName.includes("preference") || salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("renting");
-                return bId === brandId && isVN_e && (rci_e || isFinancedType);
+                return bId === brandId && isVN_e && rci_e && isFinancedType;
               }).length;
 
               let tasaCumplida = true;
@@ -1745,7 +1745,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                           const rci_e = isWithinPlan(e.fecha_rci);
                           const salesTypeName = e.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
                           const isFinancedType = salesTypeName.includes("preference") || salesTypeName.includes("crédito") || salesTypeName.includes("credito") || salesTypeName.includes("renting");
-                          return brand_e === bId && isVN_e && (rci_e || isFinancedType);
+                          return brand_e === bId && isVN_e && rci_e && isFinancedType;
                         }).length;
 
                         let tasaCumplida = true;

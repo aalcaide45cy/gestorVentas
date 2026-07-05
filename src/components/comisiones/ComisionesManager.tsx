@@ -2317,7 +2317,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         })}
                         {sortedLines.length === 0 && (
                           <tr>
-                            <td colSpan={13} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                            <td colSpan={15} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                               No se encontraron expedientes con los criterios de búsqueda aplicados.
                             </td>
                           </tr>
@@ -2327,7 +2327,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       {sortedLines.length > 0 && (
                         <tfoot>
                           <tr style={{ borderTop: "2px solid var(--border-light)", background: "rgba(255, 255, 255, 0.04)", fontWeight: 700 }}>
-                            <td colSpan={5} style={{ padding: "12px 16px", color: "var(--text-primary)" }}>TOTALES</td>
+                            <td colSpan={7} style={{ padding: "12px 16px", color: "var(--text-primary)" }}>TOTALES</td>
                             <td style={{ textAlign: "right" }}>{sumVnBase.toLocaleString()} €</td>
                             <td style={{ textAlign: "right" }}>{sumUsado.toLocaleString()} €</td>
                             <td style={{ textAlign: "right" }}>{sumFinan.toLocaleString()} €</td>
