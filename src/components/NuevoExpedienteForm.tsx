@@ -50,6 +50,10 @@ export default function NuevoExpedienteForm({
   const [buscandoCliente, setBuscandoCliente] = useState(false);
   const [clienteAsignado, setClienteAsignado] = useState<any | null>(null);
 
+  // Estados para modal de duplicidad de cliente
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateClientInfo, setDuplicateClientInfo] = useState<any | null>(null);
+
   const handleBuscarCliente = async (val: string) => {
     setBusquedaCliente(val);
     if (val.trim().length < 2) {
@@ -292,37 +296,47 @@ export default function NuevoExpedienteForm({
     };
   }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, success]);
 
-  // Envío del Formulario
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const executeSave = async (clientToUse: any | null, forceCreateNew: boolean = false) => {
     setLoading(true);
     setError(null);
-
-    // Validar: el nombre del cliente solo es obligatorio si se especifica algún dato de cliente
-    const tieneDatosCliente = dni.trim() !== "" ||
-                              fechaNacimiento.trim() !== "" ||
-                              emails.some(em => em.email.trim() !== "") ||
-                              telefonos.some(t => t.telefono.trim() !== "");
-
-    if (tieneDatosCliente && !nombre.trim()) {
-      setError("El Nombre Completo del cliente es obligatorio si deseas registrar o asociar un cliente.");
-      setLoading(false);
-      return;
-    }
-
     try {
+      let clienteData = null;
+      if (clientToUse) {
+        clienteData = {
+          id: clientToUse.id,
+          dni: clientToUse.dni || dni.trim() || null,
+          nombre: clientToUse.nombre || nombre.trim(),
+          fecha_de_nacimiento: clientToUse.fecha_de_nacimiento || fechaNacimiento || null,
+          tienda_id: clientToUse.tienda_id || (tiendaId ? Number(tiendaId) : null),
+          emails: emails.filter(em => em.email),
+          telefonos: telefonos.filter(t => t.telefono)
+        };
+      } else if (nombre.trim() && !forceCreateNew && clienteAsignado) {
+        clienteData = {
+          id: clienteAsignado.id,
+          dni: dni.trim() || null,
+          nombre: nombre.trim(),
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: emails.filter(em => em.email),
+          telefonos: telefonos.filter(t => t.telefono)
+        };
+      } else if (nombre.trim()) {
+        clienteData = {
+          dni: dni.trim() || null,
+          nombre: nombre.trim(),
+          fecha_de_nacimiento: fechaNacimiento || null,
+          tienda_id: tiendaId ? Number(tiendaId) : null,
+          emails: emails.filter(em => em.email),
+          telefonos: telefonos.filter(t => t.telefono)
+        };
+      }
+
       const response = await fetch("/api/expedientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cliente: nombre.trim() ? {
-            dni: dni.trim() || null,
-            nombre: nombre.trim(),
-            fecha_de_nacimiento: fechaNacimiento || null,
-            tienda_id: tiendaId ? Number(tiendaId) : null,
-            emails: emails.filter(em => em.email),
-            telefonos: telefonos.filter(t => t.telefono)
-          } : null,
+          cliente: clienteData,
           expediente: {
             id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
             id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
@@ -349,10 +363,53 @@ export default function NuevoExpedienteForm({
         router.push("/dashboard/expedientes");
       }, 2000);
     } catch (err: any) {
-      setError(err.message || "Ocurrió un error inesperado.");
+      setError(err.message || "Error al guardar.");
     } finally {
       setLoading(false);
     }
+  };
+
+  // Envío del Formulario
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    // Validar: el nombre del cliente solo es obligatorio si se especifica algún dato de cliente
+    const tieneDatosCliente = dni.trim() !== "" ||
+                              fechaNacimiento.trim() !== "" ||
+                              emails.some(em => em.email.trim() !== "") ||
+                              telefonos.some(t => t.telefono.trim() !== "");
+
+    if (tieneDatosCliente && !nombre.trim()) {
+      setError("El Nombre Completo del cliente es obligatorio si deseas registrar o asociar un cliente.");
+      setLoading(false);
+      return;
+    }
+
+    // Verificar si existe el cliente
+    if (nombre.trim() && !clienteAsignado) {
+      try {
+        const checkRes = await fetch("/api/clientes/verificar-existencia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dni: dni.trim() || null, nombre: nombre.trim() })
+        });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData.exists) {
+            setDuplicateClientInfo(checkData.cliente);
+            setShowDuplicateModal(true);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error al comprobar duplicado de cliente", err);
+      }
+    }
+
+    await executeSave(clienteAsignado);
   };
 
   if (success) {
@@ -369,7 +426,8 @@ export default function NuevoExpedienteForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+    <>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
       {error && (
         <div className="glass-panel" style={{ padding: "16px", color: "var(--danger)", borderLeft: "4px solid var(--danger)", background: "rgba(239, 68, 68, 0.05)" }}>
           <strong style={{ display: "block", marginBottom: "4px" }}>Error:</strong>
@@ -682,5 +740,87 @@ export default function NuevoExpedienteForm({
         </button>
       </div>
     </form>
+
+    {showDuplicateModal && duplicateClientInfo && (
+      <div className="modal-backdrop" style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "100%",
+        height: "100%",
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000
+      }}>
+        <div className="glass-panel" style={{
+          width: "90%",
+          maxWidth: "500px",
+          padding: "32px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "24px",
+          textAlign: "center"
+        }}>
+          <h3 style={{ fontSize: "1.4rem", fontWeight: 600, color: "var(--warning)" }}>
+            ⚠️ Cliente Ya Registrado
+          </h3>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5" }}>
+            Se ha encontrado un cliente existente en la base de datos que coincide con el DNI o Nombre ingresado:
+            <br />
+            <strong style={{ color: "var(--text-primary)" }}>{duplicateClientInfo.nombre}</strong> {duplicateClientInfo.dni ? `(${duplicateClientInfo.dni})` : ""}
+            <br /><br />
+            ¿Qué deseas hacer?
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={async () => {
+                setShowDuplicateModal(false);
+                setClienteAsignado(duplicateClientInfo);
+                setNombre(duplicateClientInfo.nombre || "");
+                setDni(duplicateClientInfo.dni || "");
+                await executeSave(duplicateClientInfo);
+              }}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              🤝 Usar Cliente Existente
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={async () => {
+                setShowDuplicateModal(false);
+                await executeSave(null, true);
+              }}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              🆕 Crear Uno Nuevo de Todos Modos
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setShowDuplicateModal(false);
+                setDuplicateClientInfo(null);
+              }}
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                color: "var(--danger)",
+                border: "1px solid rgba(239, 68, 68, 0.2)"
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

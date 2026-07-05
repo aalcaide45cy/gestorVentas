@@ -83,6 +83,10 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
   const [emails, setEmails] = useState([{ email: "", tipo: "Principal" }]);
   const [telefonos, setTelefonos] = useState([{ telefono: "", tipo: "Principal" }]);
 
+  // Estados para modal de duplicidad de cliente
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateClientInfo, setDuplicateClientInfo] = useState<any | null>(null);
+
   const showNotification = (text: string, type: "success" | "error") => {
     if (type === "success") {
       setSuccess(text);
@@ -151,11 +155,8 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
     setModalOpen("edit");
   };
 
-  const handleSaveCliente = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nombre.trim()) return;
+  const executeSaveCliente = async (forceCreateNew: boolean = false) => {
     setLoading(true);
-
     try {
       const isEdit = modalOpen === "edit";
       const res = await fetch("/api/clientes", {
@@ -213,6 +214,38 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveCliente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nombre.trim()) return;
+    setLoading(true);
+
+    const isEdit = modalOpen === "edit";
+
+    // Verificar duplicado al registrar uno nuevo
+    if (!isEdit) {
+      try {
+        const checkRes = await fetch("/api/clientes/verificar-existencia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dni: dni.trim() || null, nombre: nombre.trim() })
+        });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData.exists) {
+            setDuplicateClientInfo(checkData.cliente);
+            setShowDuplicateModal(true);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error al comprobar existencia de cliente", err);
+      }
+    }
+
+    await executeSaveCliente();
   };
 
   // Lógica de eliminación unitaria
@@ -1371,6 +1404,86 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDuplicateModal && duplicateClientInfo && (
+        <div className="modal-backdrop" style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1100
+        }}>
+          <div className="glass-panel" style={{
+            width: "90%",
+            maxWidth: "500px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "24px",
+            textAlign: "center"
+          }}>
+            <h3 style={{ fontSize: "1.4rem", fontWeight: 600, color: "var(--warning)" }}>
+              ⚠️ Cliente Ya Registrado
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: "1.5" }}>
+              Se ha encontrado un cliente en la base de datos que coincide con el DNI o Nombre ingresado:
+              <br />
+              <strong style={{ color: "var(--text-primary)" }}>{duplicateClientInfo.nombre}</strong> {duplicateClientInfo.dni ? `(${duplicateClientInfo.dni})` : ""}
+              <br /><br />
+              ¿Qué deseas hacer?
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setModalOpen(false);
+                  setDuplicateClientInfo(null);
+                  showNotification(`Se canceló el registro. Ya existe el cliente ${duplicateClientInfo.nombre}.`, "success");
+                }}
+                style={{ width: "100%", justifyContent: "center" }}
+              >
+                🤝 Usar Cliente Existente (Cancelar Registro)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={async () => {
+                  setShowDuplicateModal(false);
+                  await executeSaveCliente(true);
+                }}
+                style={{ width: "100%", justifyContent: "center" }}
+              >
+                🆕 Registrar como Cliente Nuevo de Todos Modos
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setShowDuplicateModal(false);
+                  setDuplicateClientInfo(null);
+                }}
+                style={{
+                  width: "100%",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                  color: "var(--danger)",
+                  border: "1px solid rgba(239, 68, 68, 0.2)"
+                }}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

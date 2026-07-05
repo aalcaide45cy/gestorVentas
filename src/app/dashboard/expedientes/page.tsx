@@ -69,7 +69,12 @@ export default async function ExpedientesPage() {
       </div>
 
       {/* CONTENIDO PRINCIPAL */}
-      <ExpedientesList expedientesIniciales={dbExpedientes} userRole={userRole} tiendas={dbTiendas} />
+      <ExpedientesList 
+        expedientesIniciales={dbExpedientes} 
+        userRole={userRole} 
+        tiendas={dbTiendas} 
+        tiendaPredeterminadaId={user.tienda_predeterminada_id}
+      />
     </div>
   );
 }

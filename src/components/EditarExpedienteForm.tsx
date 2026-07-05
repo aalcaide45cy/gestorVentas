@@ -40,6 +40,36 @@ export default function EditarExpedienteForm({
   const [pendingNavigationUrl, setPendingNavigationUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Estados para Navegación de Expedientes (Anterior/Siguiente)
+  const [prevId, setPrevId] = useState<number | null>(null);
+  const [nextId, setNextId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("visible_expediente_ids");
+      if (stored) {
+        try {
+          const ids: number[] = JSON.parse(stored);
+          const currentIndex = ids.indexOf(expediente.id_expediente);
+          if (currentIndex !== -1) {
+            if (currentIndex > 0) {
+              setPrevId(ids[currentIndex - 1]);
+            } else {
+              setPrevId(null);
+            }
+            if (currentIndex < ids.length - 1) {
+              setNextId(ids[currentIndex + 1]);
+            } else {
+              setNextId(null);
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing visible_expediente_ids", e);
+        }
+      }
+    }
+  }, [expediente.id_expediente]);
+
   // Estado del Cliente (Pre-cargado)
   const [dni, setDni] = useState(expediente.cliente?.dni || "");
   const [nombre, setNombre] = useState(expediente.cliente?.nombre || "");
@@ -635,12 +665,57 @@ export default function EditarExpedienteForm({
           Volver a Expedientes
         </button>
 
-        <div style={{ display: "flex", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {/* Botones de navegación (Anterior / Siguiente) */}
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => prevId !== null && handleNavigate(`/dashboard/expedientes/editar/${prevId}`)}
+              disabled={prevId === null || loading}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "36px",
+                height: "36px",
+                padding: 0,
+                borderRadius: "var(--radius-sm)",
+              }}
+              title="Expediente anterior (encima)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => nextId !== null && handleNavigate(`/dashboard/expedientes/editar/${nextId}`)}
+              disabled={nextId === null || loading}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "36px",
+                height: "36px",
+                padding: 0,
+                borderRadius: "var(--radius-sm)",
+              }}
+              title="Expediente siguiente (debajo)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+
           <button
             type="button"
             className="btn btn-secondary"
             onClick={() => handleNavigate("BACK")}
             disabled={loading}
+            style={{ height: "36px", display: "flex", alignItems: "center" }}
           >
             Cancelar
           </button>

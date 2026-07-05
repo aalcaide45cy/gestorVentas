@@ -113,6 +113,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
   // Estados para Importación Excel
   const [importingExcel, setImportingExcel] = useState(false);
+  const [excelFileName, setExcelFileName] = useState("");
   const [excelConflictRows, setExcelConflictRows] = useState<any[]>([]);
   const [currentConflictIdx, setCurrentConflictIdx] = useState(0);
   const [excelUpdatesToProcess, setExcelUpdatesToProcess] = useState<any[]>([]);
@@ -626,7 +627,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         const response = await fetch("/api/expedientes/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: itemsToImport })
+          body: JSON.stringify({ items: itemsToImport, filename: file.name })
         });
 
         const result = await response.json();
@@ -693,6 +694,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setExcelFileName(file.name);
     setImportingExcel(true);
     const reader = new FileReader();
 
@@ -832,7 +834,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       const response = await fetch("/api/expedientes/importar-excel/procesar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates })
+        body: JSON.stringify({ updates, filename: excelFileName })
       });
       const result = await response.json();
       if (!response.ok) {
@@ -2177,6 +2179,14 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         : (valB > valA ? 1 : -1);
     }
   });
+
+  // Guardar IDs visibles en localStorage para navegación en Editar
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const ids = sortedExpedientes.map(e => e.id_expediente);
+      localStorage.setItem("visible_expediente_ids", JSON.stringify(ids));
+    }
+  }, [sortedExpedientes]);
 
   // Calcular paginación
   const totalFiltered = filteredExpedientes.length;

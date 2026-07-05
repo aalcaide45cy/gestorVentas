@@ -484,6 +484,44 @@ export default function Sidebar({ user }: SidebarProps) {
                 </svg>
                 {!isCollapsed && <span>Informes</span>}
               </Link>
+
+              <Link
+                href="/dashboard/log-importacion"
+                className="glass-panel-interactive"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: isCollapsed ? "center" : "flex-start",
+                  gap: "12px",
+                  padding: "12px 16px",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.95rem",
+                  fontWeight: 500,
+                  color: "var(--text-secondary)",
+                  background: "rgba(255, 255, 255, 0.01)",
+                  border: "1px solid transparent",
+                }}
+                title={isCollapsed ? "Log Importación" : undefined}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ flexShrink: 0 }}
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                {!isCollapsed && <span>Log Importación</span>}
+              </Link>
             </>
           )}
         </nav>

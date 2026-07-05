@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { usuarios, clientes, modelos, marcas, tipoDeVenta, estadoVehiculo, expedientes, usuariosTiendas, emailsClientes, telefonosClientes } from "@/db/schema";
+import { usuarios, clientes, modelos, marcas, tipoDeVenta, estadoVehiculo, expedientes, usuariosTiendas, emailsClientes, telefonosClientes, importacionesBloques, importacionesRegistros } from "@/db/schema";
 import { eq, ilike, and } from "drizzle-orm";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { items } = body;
+    const { items, filename } = body;
 
     if (!items || !Array.isArray(items)) {
       return NextResponse.json({ message: "Formato de datos inválido" }, { status: 400 });
@@ -39,26 +41,46 @@ export async function POST(req: NextRequest) {
     let importedCount = 0;
     let skippedCount = 0;
 
-    for (const item of items) {
-      // 1. Evitar duplicados (VIN o Matrícula)
-      let duplicate = false;
+    // Crear bloque de importación
+    const [bloque] = await db.insert(importacionesBloques).values({
+      fecha: new Date().toISOString(),
+      nombre_archivo: filename || "archivo_importacion.csv",
+      tipo_archivo: "CSV",
+      usuario_id: localUser.id_usuario,
+      creados: 0,
+      modificados: 0,
+      omitidos: 0,
+    }).returning();
 
-      if (item.vin) {
+    for (const item of items) {
+      // 1. Evitar duplicados (VIN o Matrícula) robusto
+      let duplicate = false;
+      const cleanVin = item.vin ? String(item.vin).trim() : "";
+      if (cleanVin) {
         const existingVin = await db.query.expedientes.findFirst({
-          where: eq(expedientes.vin, item.vin)
+          where: eq(expedientes.vin, cleanVin)
         });
         if (existingVin) duplicate = true;
       }
 
-      if (!duplicate && item.matricula) {
+      const cleanMatricula = item.matricula ? String(item.matricula).split("(")[0].trim() : "";
+      if (!duplicate && cleanMatricula) {
         const existingMatricula = await db.query.expedientes.findFirst({
-          where: eq(expedientes.matricula, item.matricula)
+          where: eq(expedientes.matricula, cleanMatricula)
         });
         if (existingMatricula) duplicate = true;
       }
 
       if (duplicate) {
         skippedCount++;
+        await db.insert(importacionesRegistros).values({
+          bloque_id: bloque.id,
+          tipo_accion: "omitido",
+          cliente_nombre: item.cliente_nombre || "Desconocido",
+          matricula: cleanMatricula || "",
+          bastidor: cleanVin || "",
+          cambios: "Omitido para evitar duplicidad de bastidor o matrícula.",
+        });
         continue;
       }
 
@@ -248,7 +270,7 @@ export async function POST(req: NextRequest) {
       }
 
       // 6. Insertar Expediente
-      await db.insert(expedientes).values({
+      const [nuevoExp] = await db.insert(expedientes).values({
         id_usuario: localUser.id_usuario,
         id_cliente: idCliente,
         id_modelo: idModelo,
@@ -258,14 +280,30 @@ export async function POST(req: NextRequest) {
         fecha_matriculacion: item.fecha_matriculacion || null,
         fecha_entrega: item.fecha_entrega || null,
         fecha_rci: item.fecha_rci || null,
-        matricula: item.matricula || null,
-        vin: item.vin || null,
+        matricula: cleanMatricula || null,
+        vin: cleanVin || null,
         id_tipo_de_venta: idTipoDeVenta,
         id_estado_vehiculo: idEstadoVehiculo,
-      });
+      }).returning();
 
       importedCount++;
+
+      await db.insert(importacionesRegistros).values({
+        bloque_id: bloque.id,
+        id_expediente: nuevoExp.id_expediente,
+        tipo_accion: "creado",
+        cliente_nombre: item.cliente_nombre || "Desconocido",
+        matricula: cleanMatricula || "",
+        bastidor: cleanVin || "",
+        cambios: "Expediente registrado desde CSV.",
+      });
     }
+
+    // Actualizar estadísticas del bloque
+    await db.update(importacionesBloques).set({
+      creados: importedCount,
+      omitidos: skippedCount,
+    }).where(eq(importacionesBloques.id, bloque.id));
 
     return NextResponse.json({
       success: true,

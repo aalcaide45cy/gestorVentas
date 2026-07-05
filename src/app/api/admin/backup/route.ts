@@ -28,7 +28,9 @@ import {
   commissionBrandInterventionRates,
   commissionLiquidations,
   commissionLiquidationLines,
-  commissionLiquidationLineItems
+  commissionLiquidationLineItems,
+  importacionesBloques,
+  importacionesRegistros
 } from "@/db/schema";
 
 const tablesMap = [
@@ -57,7 +59,9 @@ const tablesMap = [
   { key: "commissionBrandInterventionRates", schema: commissionBrandInterventionRates, name: "commission_brand_intervention_rates" },
   { key: "commissionLiquidations", schema: commissionLiquidations, name: "commission_liquidations" },
   { key: "commissionLiquidationLines", schema: commissionLiquidationLines, name: "commission_liquidation_lines" },
-  { key: "commissionLiquidationLineItems", schema: commissionLiquidationLineItems, name: "commission_liquidation_line_items" }
+  { key: "commissionLiquidationLineItems", schema: commissionLiquidationLineItems, name: "commission_liquidation_line_items" },
+  { key: "importacionesBloques", schema: importacionesBloques, name: "importaciones_bloques" },
+  { key: "importacionesRegistros", schema: importacionesRegistros, name: "importaciones_registros" }
 ];
 
 const sequenceMap = [
@@ -86,7 +90,9 @@ const sequenceMap = [
   { table: 'commission_brand_intervention_rates', pk: 'id_intervention_rate' },
   { table: 'commission_liquidations', pk: 'id_liquidation' },
   { table: 'commission_liquidation_lines', pk: 'id_line' },
-  { table: 'commission_liquidation_line_items', pk: 'id_line_item' }
+  { table: 'commission_liquidation_line_items', pk: 'id_line_item' },
+  { table: 'importaciones_bloques', pk: 'id' },
+  { table: 'importaciones_registros', pk: 'id' }
 ];
 
 async function checkAdmin() {

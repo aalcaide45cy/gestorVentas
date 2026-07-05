@@ -560,3 +560,47 @@ export const commissionBrandInterventionRatesRelations = relations(commissionBra
   }),
 }));
 
+// TABLA: IMPORTACIONES_BLOQUES
+export const importacionesBloques = pgTable('importaciones_bloques', {
+  id: serial('id').primaryKey(),
+  fecha: varchar('fecha', { length: 100 }).notNull(), // ISO timestamp
+  nombre_archivo: varchar('nombre_archivo', { length: 255 }).notNull(),
+  tipo_archivo: varchar('tipo_archivo', { length: 50 }).notNull(), // Excel, CSV
+  usuario_id: integer('usuario_id').references(() => usuarios.id_usuario, { onDelete: 'set null' }),
+  creados: integer('creados').default(0).notNull(),
+  modificados: integer('modificados').default(0).notNull(),
+  omitidos: integer('omitidos').default(0).notNull(),
+});
+
+// TABLA: IMPORTACIONES_REGISTROS
+export const importacionesRegistros = pgTable('importaciones_registros', {
+  id: serial('id').primaryKey(),
+  bloque_id: integer('bloque_id').references(() => importacionesBloques.id, { onDelete: 'cascade' }).notNull(),
+  id_expediente: integer('id_expediente').references(() => expedientes.id_expediente, { onDelete: 'set null' }),
+  tipo_accion: varchar('tipo_accion', { length: 50 }).notNull(), // creado, modificado, omitido
+  cliente_nombre: varchar('cliente_nombre', { length: 255 }).notNull(),
+  matricula: varchar('matricula', { length: 50 }),
+  bastidor: varchar('bastidor', { length: 100 }),
+  cambios: text('cambios'), // JSON string of changes
+});
+
+// RELACIONES DE IMPORTACIONES
+export const importacionesBloquesRelations = relations(importacionesBloques, ({ one, many }) => ({
+  usuario: one(usuarios, {
+    fields: [importacionesBloques.usuario_id],
+    references: [usuarios.id_usuario],
+  }),
+  registros: many(importacionesRegistros),
+}));
+
+export const importacionesRegistrosRelations = relations(importacionesRegistros, ({ one }) => ({
+  bloque: one(importacionesBloques, {
+    fields: [importacionesRegistros.bloque_id],
+    references: [importacionesBloques.id],
+  }),
+  expediente: one(expedientes, {
+    fields: [importacionesRegistros.id_expediente],
+    references: [expedientes.id_expediente],
+  }),
+}));
+

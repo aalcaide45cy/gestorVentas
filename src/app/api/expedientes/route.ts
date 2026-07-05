@@ -76,17 +76,27 @@ export async function POST(req: NextRequest) {
     let clienteId: number | null = null;
 
     if (clienteData && clienteData.nombre) {
-      // Verificar si el cliente ya existe por DNI (si se proporciona)
-      let clienteExistente = null;
-      if (clienteData.dni) {
-        clienteExistente = await db.query.clientes.findFirst({
-          where: eq(clientes.dni, clienteData.dni),
-        });
-      }
-
-      if (clienteExistente) {
-        clienteId = clienteExistente.id;
+      if (clienteData.id) {
+        clienteId = Number(clienteData.id);
+        // Actualizar datos básicos si cambian
+        await db.update(clientes).set({
+          dni: clienteData.dni || null,
+          nombre: clienteData.nombre,
+          fecha_de_nacimiento: clienteData.fecha_de_nacimiento || null,
+          tienda_id: clienteData.tienda_id || null,
+        }).where(eq(clientes.id, clienteId));
       } else {
+        // Verificar si el cliente ya existe por DNI (si se proporciona)
+        let clienteExistente = null;
+        if (clienteData.dni) {
+          clienteExistente = await db.query.clientes.findFirst({
+            where: eq(clientes.dni, clienteData.dni),
+          });
+        }
+
+        if (clienteExistente) {
+          clienteId = clienteExistente.id;
+        } else {
         // Crear nuevo cliente
         const [nuevoCliente] = await db.insert(clientes).values({
           cliente_id: crypto.randomUUID(),
@@ -121,6 +131,7 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+  }
 
     // Determinar tienda
     let tiendaId = expedienteData.id_tienda;
