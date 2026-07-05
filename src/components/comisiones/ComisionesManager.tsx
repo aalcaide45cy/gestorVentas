@@ -1931,9 +1931,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                 const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
                 const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
-                const comUsado = l.comision_usado || 0;
+                const comUsado = hasCocheOverride ? 0 : (l.comision_usado || 0);
                 const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
-                const comPref = l.comision_preference || 0;
+                const comPref = hasFinanOverride ? 0 : (l.comision_preference || 0);
                 const comBonus = l.bonus_acumulado || 0;
                 
                 let extraCom = 0;
@@ -2000,9 +2000,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                           const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
                           const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
-                          const comUsado = l.comision_usado || 0;
+                          const comUsado = hasCocheOverride ? 0 : (l.comision_usado || 0);
                           const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
-                          const comPref = l.comision_preference || 0;
+                          const comPref = hasFinanOverride ? 0 : (l.comision_preference || 0);
                           const comBonus = l.bonus_acumulado || 0;
                           
                           let extraCom = 0;
@@ -2229,9 +2229,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                       const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
                       const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
-                      const comUsado = l.comision_usado || 0;
+                      const comUsado = hasCocheOverride ? 0 : (l.comision_usado || 0);
                       const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
-                      const comPref = l.comision_preference || 0;
+                      const comPref = hasFinanOverride ? 0 : (l.comision_preference || 0);
                       const comBonus = l.bonus_acumulado || 0;
                       
                       let customConcepts: any[] = [];
