@@ -209,6 +209,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       setActivePlan(null);
       return;
     }
+    setActivePlan(null);
     const targetDateStr = `${statsYear}-${String(statsMonth).padStart(2, "0")}-01`;
     const matched = planes.find(p => p.fecha_inicio <= targetDateStr && p.fecha_fin >= targetDateStr);
     if (matched) {
@@ -224,8 +225,6 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         }
       };
       fetchPlanDetails();
-    } else {
-      setActivePlan(null);
     }
   }, [planes, statsYear, statsMonth]);
 
@@ -1325,6 +1324,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
     let matriculadosContado = 0;
     let matriculadosCredito = 0;
     let matriculadosPreference = 0;
+    let matriculadosCreditoMat = 0;
+    let matriculadosPreferenceMat = 0;
 
     let entregados = 0;
     let afectados = 0;
@@ -1854,22 +1855,26 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       const isPreference = salesTypeNameLower.includes("preference");
       const isFinancedType = isCredito || isPreference;
 
+      const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+      const isVN = stateName === "nuevo" || stateName === "demo";
+
       if (isMatriculadoThisMonth) {
         matriculados++;
         if (isContado) matriculadosContado++;
+        else if (isCredito) matriculadosCreditoMat++;
+        else if (isPreference) matriculadosPreferenceMat++;
 
-        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-        const isVN = stateName === "nuevo" || stateName === "demo";
         if (isVN) {
           matriculadosVN++;
-          if (isFinancedType && entraRci) {
-            matriculadosVNFinanciados++;
-          }
         }
 
         matriculadosList.push(exp);
       } else if (isRelatedThisMonth || entraRci) {
         pendientesList.push(exp);
+      }
+
+      if (isVN && isFinancedType && entraRci) {
+        matriculadosVNFinanciados++;
       }
 
       if (isCredito && entraRci) {
@@ -1913,6 +1918,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       matriculadosContado,
       matriculadosCredito,
       matriculadosPreference,
+      matriculadosCreditoMat,
+      matriculadosPreferenceMat,
       entregados,
       afectados,
       pedidos,
@@ -3063,7 +3070,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               <h3 style={{ fontSize: "1.85rem", margin: "8px 0", color: "var(--success)", fontWeight: "bold" }}>{stats.matriculados}</h3>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
                 <span>Cont/Créd/Pref:</span>
-                <strong>{stats.matriculadosContado}/{stats.matriculadosCredito}/{stats.matriculadosPreference}</strong>
+                <strong>{stats.matriculadosContado}/{stats.matriculadosCreditoMat}/{stats.matriculadosPreferenceMat}</strong>
               </div>
             </div>
 
