@@ -2216,7 +2216,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               { id: "reglas", label: "⚙️ Financ/Reglas" },
               { id: "bonus", label: "🎁 Bonus" },
               { id: "penalizaciones", label: "⚠️ Penalizaciones" },
-              { id: "liquidacion", label: "💰 Liquidación" }
+              { id: "liquidacion", label: "💰 Liquidación" },
+              { id: "notas", label: "📝 Notas" }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -5300,7 +5301,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                   value={editComisionCocheReal} 
                   onChange={e => setEditComisionCocheReal(e.target.value)} 
                 />
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Deja en blanco para usar el cálculo del plan</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Dejar en blanco para autocalcular</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditComisionCocheReal(String((editingExp.comision_base_vn || 0) + (editingExp.comision_usado || 0)))}
+                    className="btn btn-secondary"
+                    style={{ padding: "2px 6px", fontSize: "0.7rem", whiteSpace: "nowrap" }}
+                  >
+                    📋 Copiar Calculado
+                  </button>
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Comisión Financiación (€)</label>
@@ -5311,7 +5322,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                   value={editComisionFinanciacionReal} 
                   onChange={e => setEditComisionFinanciacionReal(e.target.value)} 
                 />
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Deja en blanco para usar el cálculo del plan</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Dejar en blanco para autocalcular</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditComisionFinanciacionReal(String((editingExp.comision_financiacion || 0) + (editingExp.comision_preference || 0)))}
+                    className="btn btn-secondary"
+                    style={{ padding: "2px 6px", fontSize: "0.7rem", whiteSpace: "nowrap" }}
+                  >
+                    📋 Copiar Calculado
+                  </button>
+                </div>
               </div>
             </div>
 
