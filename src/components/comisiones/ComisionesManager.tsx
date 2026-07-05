@@ -272,13 +272,22 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     }
   };
 
-  const handleToggleComponent = async (line: any, component: "coche" | "financiacion") => {
+  const handleToggleComponent = async (line: any, component: "coche" | "usado" | "financiacion" | "preference" | "bonus") => {
     const isCoche = component === "coche";
-    const currentValue = isCoche ? (line.comision_coche_cobrada || false) : (line.comision_financiacion_cobrada || false);
+    const isUsado = component === "usado";
+    const isFinan = component === "financiacion";
+    const isPref = component === "preference";
+    const isBonus = component === "bonus";
+
+    const fieldName = `comision_${component === "coche" ? "coche" : component === "usado" ? "usado" : component === "financiacion" ? "financiacion" : component === "preference" ? "preference" : "bonus"}_cobrada`;
+    const currentValue = line[fieldName] || false;
     const targetValue = !currentValue;
 
     const isCocheCobrada = isCoche ? targetValue : (line.comision_coche_cobrada || false);
-    const isFinanCobrada = !isCoche ? targetValue : (line.comision_financiacion_cobrada || false);
+    const isUsadoCobrada = isUsado ? targetValue : (line.comision_usado_cobrada || false);
+    const isFinanCobrada = isFinan ? targetValue : (line.comision_financiacion_cobrada || false);
+    const isPrefCobrada = isPref ? targetValue : (line.comision_preference_cobrada || false);
+    const isBonusCobrada = isBonus ? targetValue : (line.comision_bonus_cobrada || false);
     
     let customConcepts: any[] = [];
     if (line.conceptos_adicionales) {
@@ -287,7 +296,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       } catch(e) {}
     }
     const allConceptsCobrados = customConcepts.every(c => c.cobrado);
-    const newOverallCobrada = isCocheCobrada && isFinanCobrada && allConceptsCobrados;
+    const newOverallCobrada = isCocheCobrada && isUsadoCobrada && isFinanCobrada && isPrefCobrada && isBonusCobrada && allConceptsCobrados;
 
     // Optimistic update
     setCotejoLines(prev => prev.map(l => {
@@ -295,7 +304,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         return {
           ...l,
           comision_cobrada: newOverallCobrada,
-          [isCoche ? "comision_coche_cobrada" : "comision_financiacion_cobrada"]: targetValue
+          [fieldName]: targetValue
         };
       }
       return l;
@@ -309,7 +318,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           id_expediente: line.id_expediente,
           expediente: {
             comision_cobrada: newOverallCobrada,
-            [isCoche ? "comision_coche_cobrada" : "comision_financiacion_cobrada"]: targetValue
+            [fieldName]: targetValue
           }
         })
       });
@@ -323,7 +332,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           return {
             ...l,
             comision_cobrada: line.comision_cobrada,
-            [isCoche ? "comision_coche_cobrada" : "comision_financiacion_cobrada"]: currentValue
+            [fieldName]: currentValue
           };
         }
         return l;
@@ -1866,12 +1875,21 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 } else if (cotejoSortField === "pago") {
                   aVal = a.tipo_venta_nombre || "";
                   bVal = b.tipo_venta_nombre || "";
-                } else if (cotejoSortField === "coche") {
-                  aVal = a.comision_coche_real !== null && a.comision_coche_real !== undefined ? Number(a.comision_coche_real) : ((a.comision_base_vn || 0) + (a.comision_usado || 0));
-                  bVal = b.comision_coche_real !== null && b.comision_coche_real !== undefined ? Number(b.comision_coche_real) : ((b.comision_base_vn || 0) + (b.comision_usado || 0));
+                } else if (cotejoSortField === "vn_base") {
+                  aVal = a.comision_coche_real !== null && a.comision_coche_real !== undefined ? Number(a.comision_coche_real) : (a.comision_base_vn || 0);
+                  bVal = b.comision_coche_real !== null && b.comision_coche_real !== undefined ? Number(b.comision_coche_real) : (b.comision_base_vn || 0);
+                } else if (cotejoSortField === "usado") {
+                  aVal = a.comision_usado || 0;
+                  bVal = b.comision_usado || 0;
                 } else if (cotejoSortField === "finan") {
-                  aVal = a.comision_financiacion_real !== null && a.comision_financiacion_real !== undefined ? Number(a.comision_financiacion_real) : ((a.comision_financiacion || 0) + (a.comision_preference || 0));
-                  bVal = b.comision_financiacion_real !== null && b.comision_financiacion_real !== undefined ? Number(b.comision_financiacion_real) : ((b.comision_financiacion || 0) + (b.comision_preference || 0));
+                  aVal = a.comision_financiacion_real !== null && a.comision_financiacion_real !== undefined ? Number(a.comision_financiacion_real) : (a.comision_financiacion || 0);
+                  bVal = b.comision_financiacion_real !== null && b.comision_financiacion_real !== undefined ? Number(b.comision_financiacion_real) : (b.comision_financiacion || 0);
+                } else if (cotejoSortField === "pref") {
+                  aVal = a.comision_preference || 0;
+                  bVal = b.comision_preference || 0;
+                } else if (cotejoSortField === "bonus") {
+                  aVal = a.bonus_acumulado || 0;
+                  bVal = b.bonus_acumulado || 0;
                 } else if (cotejoSortField === "extra") {
                   let aExtra = 0, bExtra = 0;
                   try { aExtra = a.conceptos_adicionales ? JSON.parse(a.conceptos_adicionales).reduce((acc: number, c: any) => acc + (c.valor || 0), 0) : 0; } catch(e){}
@@ -1879,18 +1897,15 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                   aVal = aExtra;
                   bVal = bExtra;
                 } else if (cotejoSortField === "total") {
-                  const aCoche = a.comision_coche_real !== null && a.comision_coche_real !== undefined ? Number(a.comision_coche_real) : ((a.comision_base_vn || 0) + (a.comision_usado || 0));
-                  const aFinan = a.comision_financiacion_real !== null && a.comision_financiacion_real !== undefined ? Number(a.comision_financiacion_real) : ((a.comision_financiacion || 0) + (a.comision_preference || 0));
-                  let aExtra = 0;
-                  try { aExtra = a.conceptos_adicionales ? JSON.parse(a.conceptos_adicionales).reduce((acc: number, c: any) => acc + (c.valor || 0), 0) : 0; } catch(e){}
-                  
-                  const bCoche = b.comision_coche_real !== null && b.comision_coche_real !== undefined ? Number(b.comision_coche_real) : ((b.comision_base_vn || 0) + (b.comision_usado || 0));
-                  const bFinan = b.comision_financiacion_real !== null && b.comision_financiacion_real !== undefined ? Number(b.comision_financiacion_real) : ((b.comision_financiacion || 0) + (b.comision_preference || 0));
-                  let bExtra = 0;
-                  try { bExtra = b.conceptos_adicionales ? JSON.parse(b.conceptos_adicionales).reduce((acc: number, c: any) => acc + (c.valor || 0), 0) : 0; } catch(e){}
-
-                  aVal = aCoche + aFinan + aExtra;
-                  bVal = bCoche + bFinan + bExtra;
+                  const getTot = (x: any) => {
+                    const coche = x.comision_coche_real !== null && x.comision_coche_real !== undefined ? Number(x.comision_coche_real) : (x.comision_base_vn || 0);
+                    const finan = x.comision_financiacion_real !== null && x.comision_financiacion_real !== undefined ? Number(x.comision_financiacion_real) : (x.comision_financiacion || 0);
+                    let ext = 0;
+                    try { ext = x.conceptos_adicionales ? JSON.parse(x.conceptos_adicionales).reduce((acc: number, c: any) => acc + (c.valor || 0), 0) : 0; } catch(e){}
+                    return coche + (x.comision_usado || 0) + finan + (x.comision_preference || 0) + (x.bonus_acumulado || 0) + ext;
+                  };
+                  aVal = getTot(a);
+                  bVal = getTot(b);
                 }
 
                 if (typeof aVal === "string" && typeof bVal === "string") {
@@ -1900,16 +1915,22 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               });
 
               // Totales para el footer
-              let sumCoche = 0;
+              let sumVnBase = 0;
+              let sumUsado = 0;
               let sumFinan = 0;
+              let sumPref = 0;
+              let sumBonus = 0;
               let sumExtra = 0;
               let sumTotal = 0;
 
               sortedLines.forEach((l: any) => {
                 const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                 const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
-                const comCoche = hasCocheOverride ? Number(l.comision_coche_real) : ((l.comision_base_vn || 0) + (l.comision_usado || 0));
-                const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : ((l.comision_financiacion || 0) + (l.comision_preference || 0));
+                const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
+                const comUsado = l.comision_usado || 0;
+                const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
+                const comPref = l.comision_preference || 0;
+                const comBonus = l.bonus_acumulado || 0;
                 
                 let extraCom = 0;
                 if (l.conceptos_adicionales) {
@@ -1917,10 +1938,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     extraCom = JSON.parse(l.conceptos_adicionales).reduce((acc: number, c: any) => acc + (c.valor || 0), 0);
                   } catch (e) {}
                 }
-                sumCoche += comCoche;
+                sumVnBase += comVnBase;
+                sumUsado += comUsado;
                 sumFinan += comFinan;
+                sumPref += comPref;
+                sumBonus += comBonus;
                 sumExtra += extraCom;
-                sumTotal += (comCoche + comFinan + extraCom);
+                sumTotal += (comVnBase + comUsado + comFinan + comPref + comBonus + extraCom);
               });
 
               const renderCotejoSortIndicator = (field: string) => {
@@ -1957,8 +1981,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("cliente")}>Cliente{renderCotejoSortIndicator("cliente")}</th>
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("vehiculo")}>Vehículo{renderCotejoSortIndicator("vehiculo")}</th>
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("pago")}>Modo Pago{renderCotejoSortIndicator("pago")}</th>
-                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("coche")}>Comisión Coche{renderCotejoSortIndicator("coche")}</th>
-                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("finan")}>Comisión Finan.{renderCotejoSortIndicator("finan")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("vn_base")}>VN Base{renderCotejoSortIndicator("vn_base")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("usado")}>Usado{renderCotejoSortIndicator("usado")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("finan")}>Finan{renderCotejoSortIndicator("finan")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("pref")}>Pref/Box{renderCotejoSortIndicator("pref")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("bonus")}>Bonus{renderCotejoSortIndicator("bonus")}</th>
                           <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("extra")}>Conceptos Extra{renderCotejoSortIndicator("extra")}</th>
                           <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("total")}>Total Plan{renderCotejoSortIndicator("total")}</th>
                           <th style={{ width: "110px", textAlign: "center" }}>Acciones</th>
@@ -1968,8 +1995,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         {sortedLines.map((l: any, idx: number) => {
                           const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                           const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
-                          const comCoche = hasCocheOverride ? Number(l.comision_coche_real) : ((l.comision_base_vn || 0) + (l.comision_usado || 0));
-                          const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : ((l.comision_financiacion || 0) + (l.comision_preference || 0));
+                          const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
+                          const comUsado = l.comision_usado || 0;
+                          const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
+                          const comPref = l.comision_preference || 0;
+                          const comBonus = l.bonus_acumulado || 0;
                           
                           let extraCom = 0;
                           let customConcepts: any[] = [];
@@ -1981,11 +2011,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               console.error(e);
                             }
                           }
-                          const totalVal = comCoche + comFinan + extraCom;
+                          const totalVal = comVnBase + comUsado + comFinan + comPref + comBonus + extraCom;
 
                           // Check general: ¿Todos los componentes están cobrados?
                           const allComponentsChecked = (l.comision_coche_cobrada || false) && 
+                                                      (l.comision_usado_cobrada || false) && 
                                                       (l.comision_financiacion_cobrada || false) && 
+                                                      (l.comision_preference_cobrada || false) && 
+                                                      (l.comision_bonus_cobrada || false) && 
                                                       customConcepts.every(c => c.cobrado);
                           
                           return (
@@ -2019,7 +2052,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   {l.tipo_venta_nombre || "Contado/Otro"}
                                 </span>
                               </td>
-                              {/* Comisión Coche Individual */}
+                              {/* Comisión VN Base Individual */}
                               <td style={{ textAlign: "right", fontWeight: 600 }}>
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
                                   <input 
@@ -2032,9 +2065,24 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                                     {hasCocheOverride && <span title="Valor modificado manualmente" style={{ fontSize: "0.75rem" }}>✍️</span>}
                                     <span style={{ textDecoration: l.comision_coche_cobrada ? "line-through" : "none", color: l.comision_coche_cobrada ? "var(--text-muted)" : "inherit" }}>
-                                      {comCoche.toLocaleString()} €
+                                      {comVnBase.toLocaleString()} €
                                     </span>
                                   </div>
+                                </div>
+                              </td>
+                              {/* Comisión Usado Individual */}
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                                  <input 
+                                    type="checkbox"
+                                    checked={l.comision_usado_cobrada || false}
+                                    onChange={() => handleToggleComponent(l, "usado")}
+                                    disabled={!l.id_expediente}
+                                    style={{ accentColor: "var(--success)", cursor: l.id_expediente ? "pointer" : "default" }}
+                                  />
+                                  <span style={{ textDecoration: l.comision_usado_cobrada ? "line-through" : "none", color: l.comision_usado_cobrada ? "var(--text-muted)" : "inherit" }}>
+                                    {comUsado.toLocaleString()} €
+                                  </span>
                                 </div>
                               </td>
                               {/* Comisión Financiación Individual */}
@@ -2053,6 +2101,36 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                       {comFinan.toLocaleString()} €
                                     </span>
                                   </div>
+                                </div>
+                              </td>
+                              {/* Comisión Pref/Box Individual */}
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                                  <input 
+                                    type="checkbox"
+                                    checked={l.comision_preference_cobrada || false}
+                                    onChange={() => handleToggleComponent(l, "preference")}
+                                    disabled={!l.id_expediente}
+                                    style={{ accentColor: "var(--success)", cursor: l.id_expediente ? "pointer" : "default" }}
+                                  />
+                                  <span style={{ textDecoration: l.comision_preference_cobrada ? "line-through" : "none", color: l.comision_preference_cobrada ? "var(--text-muted)" : "inherit" }}>
+                                    {comPref.toLocaleString()} €
+                                  </span>
+                                </div>
+                              </td>
+                              {/* Comisión Bonus Individual */}
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "8px" }}>
+                                  <input 
+                                    type="checkbox"
+                                    checked={l.comision_bonus_cobrada || false}
+                                    onChange={() => handleToggleComponent(l, "bonus")}
+                                    disabled={!l.id_expediente}
+                                    style={{ accentColor: "var(--success)", cursor: l.id_expediente ? "pointer" : "default" }}
+                                  />
+                                  <span style={{ textDecoration: l.comision_bonus_cobrada ? "line-through" : "none", color: l.comision_bonus_cobrada ? "var(--text-muted)" : "inherit" }}>
+                                    {comBonus.toLocaleString()} €
+                                  </span>
                                 </div>
                               </td>
                               {/* Conceptos Extra Individuales */}
@@ -2103,7 +2181,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         })}
                         {sortedLines.length === 0 && (
                           <tr>
-                            <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                            <td colSpan={13} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                               No se encontraron expedientes con los criterios de búsqueda aplicados.
                             </td>
                           </tr>
@@ -2114,8 +2192,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <tfoot>
                           <tr style={{ borderTop: "2px solid var(--border-light)", background: "rgba(255, 255, 255, 0.04)", fontWeight: 700 }}>
                             <td colSpan={5} style={{ padding: "12px 16px", color: "var(--text-primary)" }}>TOTALES</td>
-                            <td style={{ textAlign: "right" }}>{sumCoche.toLocaleString()} €</td>
+                            <td style={{ textAlign: "right" }}>{sumVnBase.toLocaleString()} €</td>
+                            <td style={{ textAlign: "right" }}>{sumUsado.toLocaleString()} €</td>
                             <td style={{ textAlign: "right" }}>{sumFinan.toLocaleString()} €</td>
+                            <td style={{ textAlign: "right" }}>{sumPref.toLocaleString()} €</td>
+                            <td style={{ textAlign: "right" }}>{sumBonus.toLocaleString()} €</td>
                             <td style={{ textAlign: "right", color: "var(--success)" }}>+{sumExtra.toLocaleString()} €</td>
                             <td style={{ textAlign: "right", color: "var(--success)" }}>{sumTotal.toLocaleString()} €</td>
                             <td></td>
@@ -2127,18 +2208,27 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
                   {/* Dashboard resumen de validación / cobros */}
                   {(() => {
-                    let totalCobradoCoche = 0;
-                    let totalPendienteCoche = 0;
+                    let totalCobradoVnBase = 0;
+                    let totalPendienteVnBase = 0;
+                    let totalCobradoUsado = 0;
+                    let totalPendienteUsado = 0;
                     let totalCobradoFinan = 0;
                     let totalPendienteFinan = 0;
+                    let totalCobradoPref = 0;
+                    let totalPendientePref = 0;
+                    let totalCobradoBonus = 0;
+                    let totalPendienteBonus = 0;
                     let totalCobradoExtra = 0;
                     let totalPendienteExtra = 0;
 
                     sortedLines.forEach((l: any) => {
                       const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                       const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
-                      const comCoche = hasCocheOverride ? Number(l.comision_coche_real) : ((l.comision_base_vn || 0) + (l.comision_usado || 0));
-                      const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : ((l.comision_financiacion || 0) + (l.comision_preference || 0));
+                      const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
+                      const comUsado = l.comision_usado || 0;
+                      const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
+                      const comPref = l.comision_preference || 0;
+                      const comBonus = l.bonus_acumulado || 0;
                       
                       let customConcepts: any[] = [];
                       if (l.conceptos_adicionales) {
@@ -2147,11 +2237,18 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         } catch (e) {}
                       }
 
-                      // Coche
+                      // VN Base
                       if (l.comision_coche_cobrada) {
-                        totalCobradoCoche += comCoche;
+                        totalCobradoVnBase += comVnBase;
                       } else {
-                        totalPendienteCoche += comCoche;
+                        totalPendienteVnBase += comVnBase;
+                      }
+
+                      // Usado
+                      if (l.comision_usado_cobrada) {
+                        totalCobradoUsado += comUsado;
+                      } else {
+                        totalPendienteUsado += comUsado;
                       }
 
                       // Finan
@@ -2159,6 +2256,20 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         totalCobradoFinan += comFinan;
                       } else {
                         totalPendienteFinan += comFinan;
+                      }
+
+                      // Pref
+                      if (l.comision_preference_cobrada) {
+                        totalCobradoPref += comPref;
+                      } else {
+                        totalPendientePref += comPref;
+                      }
+
+                      // Bonus
+                      if (l.comision_bonus_cobrada) {
+                        totalCobradoBonus += comBonus;
+                      } else {
+                        totalPendienteBonus += comBonus;
                       }
 
                       // Extra
@@ -2171,8 +2282,19 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       });
                     });
 
-                    const granTotalCobrado = totalCobradoCoche + totalCobradoFinan + totalCobradoExtra;
-                    const granTotalPendiente = totalPendienteCoche + totalPendienteFinan + totalPendienteExtra;
+                    // Obtener la penalización del plan si aplica para este mes
+                    const selectedCotejoPlan = planes.find(p => p.id_plan === cotejoPlanId);
+                    const penalizacionPlan = selectedCotejoPlan?.penalizacion_importe || 0;
+                    const penalizacionPlanTitulo = selectedCotejoPlan?.penalizacion_titulo || "Penalización por no llegar al mínimo";
+
+                    const granTotalCobrado = totalCobradoVnBase + totalCobradoUsado + totalCobradoFinan + totalCobradoPref + totalCobradoBonus + totalCobradoExtra;
+                    const granTotalCalculado = sumTotal; // comisiones calculadas
+
+                    // El neto cobrado descuenta la penalización si la hay
+                    const finalNetoCobrado = granTotalCobrado - penalizacionPlan;
+                    const finalNetoCalculado = granTotalCalculado - penalizacionPlan;
+                    
+                    const ratioValidacion = granTotalCalculado > 0 ? Math.round((granTotalCobrado / granTotalCalculado) * 100) : 0;
 
                     return (
                       <div className="glass-panel" style={{
@@ -2191,9 +2313,17 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--success)" }}>
                             {granTotalCobrado.toLocaleString()} €
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span>• Coche: {totalCobradoCoche.toLocaleString()} €</span>
-                            <span>• Financiación: {totalCobradoFinan.toLocaleString()} €</span>
+                          {penalizacionPlan > 0 && (
+                            <div style={{ fontSize: "0.85rem", color: "var(--danger)", fontWeight: 600 }}>
+                              Neto Final: {finalNetoCobrado.toLocaleString()} € (Penalización aplicada)
+                            </div>
+                          )}
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
+                            <span>• VN Base: {totalCobradoVnBase.toLocaleString()} €</span>
+                            <span>• Usado: {totalCobradoUsado.toLocaleString()} €</span>
+                            <span>• Finan: {totalCobradoFinan.toLocaleString()} €</span>
+                            <span>• Pref/Box: {totalCobradoPref.toLocaleString()} €</span>
+                            <span>• Bonus VN/VO: {totalCobradoBonus.toLocaleString()} €</span>
                             <span>• Extras: {totalCobradoExtra.toLocaleString()} €</span>
                           </div>
                         </div>
@@ -2202,11 +2332,14 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                           <div style={{ fontSize: "0.8rem", color: "var(--warning)", fontWeight: 600 }}>🕒 TOTAL PENDIENTE DE COBRO</div>
                           <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--warning)" }}>
-                            {granTotalPendiente.toLocaleString()} €
+                            {(granTotalCalculado - granTotalCobrado).toLocaleString()} €
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span>• Coche: {totalPendienteCoche.toLocaleString()} €</span>
-                            <span>• Financiación: {totalPendienteFinan.toLocaleString()} €</span>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
+                            <span>• VN Base: {totalPendienteVnBase.toLocaleString()} €</span>
+                            <span>• Usado: {totalPendienteUsado.toLocaleString()} €</span>
+                            <span>• Finan: {totalPendienteFinan.toLocaleString()} €</span>
+                            <span>• Pref/Box: {totalPendientePref.toLocaleString()} €</span>
+                            <span>• Bonus VN/VO: {totalPendienteBonus.toLocaleString()} €</span>
                             <span>• Extras: {totalPendienteExtra.toLocaleString()} €</span>
                           </div>
                         </div>
@@ -2215,10 +2348,15 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderLeft: "1px solid var(--border-light)", paddingLeft: "20px" }}>
                           <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>📊 RATIO DE VALIDACIÓN</div>
                           <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                            {sumTotal > 0 ? Math.round((granTotalCobrado / sumTotal) * 100) : 0} %
+                            {ratioValidacion} %
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                            Has validado {granTotalCobrado.toLocaleString()} € de un total de {sumTotal.toLocaleString()} € de comisiones calculadas.
+                          {penalizacionPlan > 0 && (
+                            <div style={{ fontSize: "0.8rem", color: "var(--danger)", padding: "4px 8px", background: "rgba(239, 68, 68, 0.1)", borderRadius: "4px", margin: "4px 0" }}>
+                              ⚠️ <strong>{penalizacionPlanTitulo}:</strong> -{penalizacionPlan} €
+                            </div>
+                          )}
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                            Has validado {granTotalCobrado.toLocaleString()} € de un total de {granTotalCalculado.toLocaleString()} € calculados.
                           </div>
                         </div>
                       </div>

@@ -54,7 +54,10 @@ export async function GET(req: NextRequest) {
     let expedientesData: Record<number, { 
       comision_cobrada: boolean; 
       comision_coche_cobrada: boolean;
+      comision_usado_cobrada: boolean;
       comision_financiacion_cobrada: boolean;
+      comision_preference_cobrada: boolean;
+      comision_bonus_cobrada: boolean;
       matricula: string | null;
       comision_coche_real: number | null;
       comision_financiacion_real: number | null;
@@ -68,7 +71,10 @@ export async function GET(req: NextRequest) {
         id_expediente: expedientes.id_expediente,
         comision_cobrada: expedientes.comision_cobrada,
         comision_coche_cobrada: expedientes.comision_coche_cobrada,
+        comision_usado_cobrada: expedientes.comision_usado_cobrada,
         comision_financiacion_cobrada: expedientes.comision_financiacion_cobrada,
+        comision_preference_cobrada: expedientes.comision_preference_cobrada,
+        comision_bonus_cobrada: expedientes.comision_bonus_cobrada,
         matricula: expedientes.matricula,
         comision_coche_real: expedientes.comision_coche_real,
         comision_financiacion_real: expedientes.comision_financiacion_real,
@@ -81,7 +87,10 @@ export async function GET(req: NextRequest) {
         expedientesData[e.id_expediente] = {
           comision_cobrada: e.comision_cobrada,
           comision_coche_cobrada: e.comision_coche_cobrada,
+          comision_usado_cobrada: e.comision_usado_cobrada,
           comision_financiacion_cobrada: e.comision_financiacion_cobrada,
+          comision_preference_cobrada: e.comision_preference_cobrada,
+          comision_bonus_cobrada: e.comision_bonus_cobrada,
           matricula: e.matricula,
           comision_coche_real: e.comision_coche_real,
           comision_financiacion_real: e.comision_financiacion_real,
@@ -99,7 +108,10 @@ export async function GET(req: NextRequest) {
         ...l,
         comision_cobrada: exp ? exp.comision_cobrada : false,
         comision_coche_cobrada: exp ? exp.comision_coche_cobrada : false,
+        comision_usado_cobrada: exp ? exp.comision_usado_cobrada : false,
         comision_financiacion_cobrada: exp ? exp.comision_financiacion_cobrada : false,
+        comision_preference_cobrada: exp ? exp.comision_preference_cobrada : false,
+        comision_bonus_cobrada: exp ? exp.comision_bonus_cobrada : false,
         matricula: exp ? exp.matricula : null,
         vin: exp ? exp.vin : null,
         comision_coche_real: exp ? exp.comision_coche_real : null,
