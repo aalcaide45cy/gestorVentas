@@ -34,25 +34,52 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Obtener el estado real de comision_cobrada de los expedientes
+    // Obtener el estado real de comision_cobrada, la matrícula y overrides de los expedientes
     const expIds = liq.lines.map(l => l.id_expediente).filter(id => id !== null) as number[];
-    let expedientesCobrados: Record<number, boolean> = {};
+    let expedientesData: Record<number, { 
+      comision_cobrada: boolean; 
+      matricula: string | null;
+      comision_coche_real: number | null;
+      comision_financiacion_real: number | null;
+      conceptos_adicionales: string | null;
+      vin: string | null;
+    }> = {};
 
     if (expIds.length > 0) {
       const dbExps = await db.select({
         id_expediente: expedientes.id_expediente,
-        comision_cobrada: expedientes.comision_cobrada
+        comision_cobrada: expedientes.comision_cobrada,
+        matricula: expedientes.matricula,
+        comision_coche_real: expedientes.comision_coche_real,
+        comision_financiacion_real: expedientes.comision_financiacion_real,
+        conceptos_adicionales: expedientes.conceptos_adicionales,
+        vin: expedientes.vin
       }).from(expedientes).where(inArray(expedientes.id_expediente, expIds));
 
       dbExps.forEach(e => {
-        expedientesCobrados[e.id_expediente] = e.comision_cobrada;
+        expedientesData[e.id_expediente] = {
+          comision_cobrada: e.comision_cobrada,
+          matricula: e.matricula,
+          comision_coche_real: e.comision_coche_real,
+          comision_financiacion_real: e.comision_financiacion_real,
+          conceptos_adicionales: e.conceptos_adicionales,
+          vin: e.vin
+        };
       });
     }
 
-    const linesWithCobrado = liq.lines.map(l => ({
-      ...l,
-      comision_cobrada: l.id_expediente ? (expedientesCobrados[l.id_expediente] || false) : false
-    }));
+    const linesWithCobrado = liq.lines.map(l => {
+      const exp = l.id_expediente ? expedientesData[l.id_expediente] : null;
+      return {
+        ...l,
+        comision_cobrada: exp ? exp.comision_cobrada : false,
+        matricula: exp ? exp.matricula : null,
+        vin: exp ? exp.vin : null,
+        comision_coche_real: exp ? exp.comision_coche_real : null,
+        comision_financiacion_real: exp ? exp.comision_financiacion_real : null,
+        conceptos_adicionales: exp ? exp.conceptos_adicionales : null
+      };
+    });
 
     return NextResponse.json({ success: true, lines: linesWithCobrado }, { status: 200 });
   } catch (error: any) {

@@ -197,6 +197,124 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [cotejoFilter, setCotejoFilter] = useState<"todos" | "pendientes" | "cobrados">("todos");
   const [cotejoSearch, setCotejoSearch] = useState("");
 
+  const [editingExp, setEditingExp] = useState<any | null>(null);
+  const [editMatricula, setEditMatricula] = useState("");
+  const [editVin, setEditVin] = useState("");
+  const [editComisionCocheReal, setEditComisionCocheReal] = useState<string>("");
+  const [editComisionFinanciacionReal, setEditComisionFinanciacionReal] = useState<string>("");
+  const [editConceptosAdicionales, setEditConceptosAdicionales] = useState<any[]>([]);
+  const [newConceptTitulo, setNewConceptTitulo] = useState("");
+  const [newConceptValor, setNewConceptValor] = useState("");
+  const [newConceptDescripcion, setNewConceptDescripcion] = useState("");
+
+  const openEditModal = (line: any) => {
+    setEditingExp(line);
+    setEditMatricula(line.matricula || "");
+    setEditVin(line.vin || "");
+    setEditComisionCocheReal(line.comision_coche_real !== null && line.comision_coche_real !== undefined ? String(line.comision_coche_real) : "");
+    setEditComisionFinanciacionReal(line.comision_financiacion_real !== null && line.comision_financiacion_real !== undefined ? String(line.comision_financiacion_real) : "");
+    
+    let concepts = [];
+    if (line.conceptos_adicionales) {
+      try {
+        concepts = JSON.parse(line.conceptos_adicionales);
+      } catch (err) {
+        console.error("Error parsing conceptos_adicionales:", err);
+      }
+    }
+    setEditConceptosAdicionales(concepts);
+    
+    setNewConceptTitulo("");
+    setNewConceptValor("");
+    setNewConceptDescripcion("");
+  };
+
+  const handleAddConcept = () => {
+    if (!newConceptTitulo.trim()) {
+      showNotification("El título del concepto es obligatorio.", "error");
+      return;
+    }
+    const val = parseFloat(newConceptValor);
+    if (isNaN(val)) {
+      showNotification("El valor de la comisión debe ser un número válido.", "error");
+      return;
+    }
+    const newConcept = {
+      id: Math.random().toString(36).substr(2, 9),
+      titulo: newConceptTitulo.trim(),
+      valor: val,
+      descripcion: newConceptDescripcion.trim()
+    };
+    setEditConceptosAdicionales(prev => [...prev, newConcept]);
+    setNewConceptTitulo("");
+    setNewConceptValor("");
+    setNewConceptDescripcion("");
+  };
+
+  const handleRemoveConcept = (id: string) => {
+    setEditConceptosAdicionales(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleSaveExpedienteChanges = async () => {
+    if (!editingExp) return;
+    
+    const cocheVal = editComisionCocheReal.trim() === "" ? null : parseFloat(editComisionCocheReal);
+    const finanVal = editComisionFinanciacionReal.trim() === "" ? null : parseFloat(editComisionFinanciacionReal);
+    
+    if (cocheVal !== null && isNaN(cocheVal)) {
+      showNotification("Comisión de coche no es un número válido.", "error");
+      return;
+    }
+    if (finanVal !== null && isNaN(finanVal)) {
+      showNotification("Comisión de financiación no es un número válido.", "error");
+      return;
+    }
+
+    const body = {
+      id_expediente: editingExp.id_expediente,
+      expediente: {
+        matricula: editMatricula.trim(),
+        vin: editVin.trim(),
+        comision_coche_real: cocheVal,
+        comision_financiacion_real: finanVal,
+        conceptos_adicionales: JSON.stringify(editConceptosAdicionales)
+      }
+    };
+
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || "Error al actualizar expediente");
+      }
+      
+      // Actualizar listado local
+      setCotejoLines(prev => prev.map(l => {
+        if (l.id_expediente === editingExp.id_expediente) {
+          return {
+            ...l,
+            matricula: editMatricula.trim(),
+            vin: editVin.trim(),
+            comision_coche_real: cocheVal,
+            comision_financiacion_real: finanVal,
+            conceptos_adicionales: JSON.stringify(editConceptosAdicionales)
+          };
+        }
+        return l;
+      }));
+      
+      setEditingExp(null);
+      showNotification("Expediente actualizado con éxito.", "success");
+    } catch (err: any) {
+      console.error(err);
+      showNotification(err.message || "Error al guardar los cambios del expediente.", "error");
+    }
+  };
+
   const handleLoadCotejoPlanes = async (planId: number) => {
     setLoadingPlan(true);
     try {
@@ -1500,13 +1618,30 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <th>Vehículo</th>
                           <th style={{ textAlign: "right" }}>Comisión Coche</th>
                           <th style={{ textAlign: "right" }}>Comisión Finan.</th>
+                          <th style={{ textAlign: "right" }}>Conceptos Extra</th>
                           <th style={{ textAlign: "right" }}>Total Plan</th>
+                          <th style={{ width: "110px", textAlign: "center" }}>Acciones</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredLines.map((l: any, idx: number) => {
-                          const comCoche = (l.comision_base_vn || 0) + (l.comision_usado || 0);
-                          const comFinan = (l.comision_financiacion || 0) + (l.comision_preference || 0);
+                          const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
+                          const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
+                          const comCoche = hasCocheOverride ? Number(l.comision_coche_real) : ((l.comision_base_vn || 0) + (l.comision_usado || 0));
+                          const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : ((l.comision_financiacion || 0) + (l.comision_preference || 0));
+                          
+                          let extraCom = 0;
+                          let customConcepts: any[] = [];
+                          if (l.conceptos_adicionales) {
+                            try {
+                              customConcepts = JSON.parse(l.conceptos_adicionales);
+                              extraCom = customConcepts.reduce((acc: number, c: any) => acc + (c.valor || 0), 0);
+                            } catch (e) {
+                              console.error(e);
+                            }
+                          }
+                          const totalVal = comCoche + comFinan + extraCom;
+                          
                           return (
                             <tr key={l.id_line || idx} style={{ opacity: l.comision_cobrada ? 0.75 : 1 }}>
                               <td style={{ textAlign: "center" }}>
@@ -1518,22 +1653,61 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   style={{ width: "18px", height: "18px", accentColor: "var(--success)", cursor: l.id_expediente ? "pointer" : "not-allowed" }}
                                 />
                               </td>
-                              <td style={{ fontWeight: 700, color: "var(--primary)" }}>{l.matricula || "S/M"}</td>
+                              <td style={{ fontWeight: 700, color: "var(--primary)" }}>
+                                <div>{l.matricula || "S/M"}</div>
+                                {l.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: "normal" }}>VIN: {l.vin}</div>}
+                              </td>
                               <td>{l.vendedor_nombre}</td>
                               <td>{l.cliente_nombre}</td>
                               <td>
                                 <div style={{ fontWeight: 500 }}>{l.modelo_nombre}</div>
                                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{l.marca_nombre}</div>
                               </td>
-                              <td style={{ textAlign: "right", fontWeight: 600 }}>{comCoche.toLocaleString()} €</td>
-                              <td style={{ textAlign: "right", fontWeight: 600 }}>{comFinan.toLocaleString()} €</td>
-                              <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{l.total_generado.toLocaleString()} €</td>
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "4px" }}>
+                                  {hasCocheOverride && <span title="Valor modificado manualmente" style={{ fontSize: "0.75rem" }}>✍️</span>}
+                                  <span>{comCoche.toLocaleString()} €</span>
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "4px" }}>
+                                  {hasFinanOverride && <span title="Valor modificado manualmente" style={{ fontSize: "0.75rem" }}>✍️</span>}
+                                  <span>{comFinan.toLocaleString()} €</span>
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>
+                                {customConcepts.length > 0 ? (
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                                    <span style={{ color: "var(--success)", fontWeight: 700 }}>+{extraCom.toLocaleString()} €</span>
+                                    <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }} title={customConcepts.map(c => `${c.titulo}: ${c.valor}€`).join(", ")}>
+                                      {customConcepts.length} concepto(s)
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)" }}>-</span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{totalVal.toLocaleString()} €</td>
+                              <td style={{ textAlign: "center" }}>
+                                {l.id_expediente ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditModal(l)}
+                                    className="btn btn-secondary"
+                                    style={{ padding: "4px 8px", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                                  >
+                                    ✏️ Modificar
+                                  </button>
+                                ) : (
+                                  <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>N/D</span>
+                                )}
+                              </td>
                             </tr>
                           );
                         })}
                         {filteredLines.length === 0 && (
                           <tr>
-                            <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                            <td colSpan={10} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                               No se encontraron expedientes con los criterios de búsqueda aplicados.
                             </td>
                           </tr>
@@ -4498,6 +4672,166 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 disabled={bulkSaving}
               >
                 {bulkSaving ? "Aplicando..." : "Aplicar en Lote"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL 4: EDICIÓN MANUAL DE COMISIONES Y CONCEPTOS ADICIONALES */}
+      {editingExp && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "600px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", maxHeight: "90vh", overflowY: "auto" }}>
+            <div>
+              <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
+                ✏️ Editar Expediente de Comisión: {editingExp.matricula || "S/M"}
+              </h3>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", marginTop: "4px" }}>
+                Cliente: <strong>{editingExp.cliente_nombre}</strong> | Vendedor: <strong>{editingExp.vendedor_nombre}</strong>
+              </p>
+            </div>
+
+            {/* Campos Estándar */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <div className="form-group">
+                <label className="form-label">Matrícula</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editMatricula} 
+                  onChange={e => setEditMatricula(e.target.value)} 
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">VIN (Bastidor)</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  value={editVin} 
+                  onChange={e => setEditVin(e.target.value)} 
+                />
+              </div>
+            </div>
+
+            {/* Comisión Coche y Comisión Financiación */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
+              <div className="form-group">
+                <label className="form-label">Comisión Coche (€)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  placeholder={`Calculado: ${((editingExp.comision_base_vn || 0) + (editingExp.comision_usado || 0))} €`}
+                  value={editComisionCocheReal} 
+                  onChange={e => setEditComisionCocheReal(e.target.value)} 
+                />
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Deja en blanco para usar el cálculo del plan</span>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Comisión Financiación (€)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  placeholder={`Calculado: ${((editingExp.comision_financiacion || 0) + (editingExp.comision_preference || 0))} €`}
+                  value={editComisionFinanciacionReal} 
+                  onChange={e => setEditComisionFinanciacionReal(e.target.value)} 
+                />
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Deja en blanco para usar el cálculo del plan</span>
+              </div>
+            </div>
+
+            {/* Conceptos Adicionales */}
+            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <h4 style={{ fontSize: "0.95rem", color: "var(--text-primary)", margin: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Bonificaciones / Penalizaciones Extra</span>
+                <span style={{ fontSize: "0.8rem", color: "var(--success)" }}>
+                  Total Extra: {editConceptosAdicionales.reduce((acc, c) => acc + (c.valor || 0), 0)} €
+                </span>
+              </h4>
+
+              {/* Lista de conceptos actuales */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
+                {editConceptosAdicionales.map(c => (
+                  <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,0.02)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{c.titulo}</div>
+                      {c.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{c.descripcion}</div>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <strong style={{ fontSize: "0.85rem", color: c.valor >= 0 ? "var(--success)" : "var(--danger)" }}>
+                        {c.valor >= 0 ? "+" : ""}{c.valor} €
+                      </strong>
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveConcept(c.id)} 
+                        style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: "0.85rem" }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {editConceptosAdicionales.length === 0 && (
+                  <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", textAlign: "center", padding: "10px" }}>
+                    No hay conceptos adicionales configurados.
+                  </div>
+                )}
+              </div>
+
+              {/* Formulario para añadir concepto */}
+              <div style={{ background: "rgba(255,255,255,0.01)", padding: "12px", borderRadius: "6px", border: "1px dashed var(--border-light)", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>Añadir Concepto Especial</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "10px" }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    placeholder="Título (ej. Plus Campaña VN)" 
+                    value={newConceptTitulo} 
+                    onChange={e => setNewConceptTitulo(e.target.value)} 
+                  />
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    placeholder="Comisión (€)" 
+                    value={newConceptValor} 
+                    onChange={e => setNewConceptValor(e.target.value)} 
+                  />
+                </div>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Descripción / Nota aclaratoria (opcional)" 
+                  value={newConceptDescripcion} 
+                  onChange={e => setNewConceptDescripcion(e.target.value)} 
+                />
+                <button 
+                  type="button" 
+                  onClick={handleAddConcept}
+                  className="btn btn-secondary"
+                  style={{ alignSelf: "flex-end", fontSize: "0.8rem", padding: "6px 12px" }}
+                >
+                  ➕ Añadir Concepto
+                </button>
+              </div>
+            </div>
+
+            {/* Acciones del Modal */}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "16px", marginTop: "8px" }}>
+              <button 
+                type="button" 
+                onClick={() => setEditingExp(null)} 
+                className="btn btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSaveExpedienteChanges} 
+                className="btn btn-primary"
+              >
+                💾 Guardar Cambios
               </button>
             </div>
           </div>

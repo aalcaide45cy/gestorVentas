@@ -124,6 +124,9 @@ export const expedientes = pgTable('expedientes', {
   cobrado_otra_fecha: boolean('cobrado_otra_fecha').notNull().default(false),
   fecha_cobrado: date('fecha_cobrado'),
   comision_cobrada: boolean('comision_cobrada').notNull().default(false),
+  comision_coche_real: doublePrecision('comision_coche_real'),
+  comision_financiacion_real: doublePrecision('comision_financiacion_real'),
+  conceptos_adicionales: text('conceptos_adicionales'),
 });
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===

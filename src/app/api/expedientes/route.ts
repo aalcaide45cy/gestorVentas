@@ -379,6 +379,9 @@ export async function PUT(req: NextRequest) {
       cobrado_otra_fecha: expedienteData.cobrado_otra_fecha !== undefined ? expedienteData.cobrado_otra_fecha : undefined,
       fecha_cobrado: expedienteData.fecha_cobrado !== undefined ? (expedienteData.fecha_cobrado === "" ? null : expedienteData.fecha_cobrado) : undefined,
       comision_cobrada: expedienteData.comision_cobrada !== undefined ? expedienteData.comision_cobrada : undefined,
+      comision_coche_real: expedienteData.comision_coche_real !== undefined ? (expedienteData.comision_coche_real !== null ? Number(expedienteData.comision_coche_real) : null) : undefined,
+      comision_financiacion_real: expedienteData.comision_financiacion_real !== undefined ? (expedienteData.comision_financiacion_real !== null ? Number(expedienteData.comision_financiacion_real) : null) : undefined,
+      conceptos_adicionales: expedienteData.conceptos_adicionales !== undefined ? expedienteData.conceptos_adicionales : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 
     return NextResponse.json({ success: true, message: "Expediente actualizado correctamente" }, { status: 200 });
