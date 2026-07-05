@@ -262,6 +262,35 @@ export default function EditarExpedienteForm({
   const [cobradoOtraFecha, setCobradoOtraFecha] = useState<boolean>(expediente.cobrado_otra_fecha || false);
   const [fechaCobrado, setFechaCobrado] = useState<string>(expediente.fecha_cobrado || "");
 
+  // Estados de Verificación y Control de Comisiones
+  const [comisionCocheCobrada, setComisionCocheCobrada] = useState<boolean>(expediente.comision_coche_cobrada || false);
+  const [comisionUsadoCobrada, setComisionUsadoCobrada] = useState<boolean>(expediente.comision_usado_cobrada || false);
+  const [comisionFinanciacionCobrada, setComisionFinanciacionCobrada] = useState<boolean>(expediente.comision_financiacion_cobrada || false);
+  const [comisionPreferenceCobrada, setComisionPreferenceCobrada] = useState<boolean>(expediente.comision_preference_cobrada || false);
+  const [comisionBonusCobrada, setComisionBonusCobrada] = useState<boolean>(expediente.comision_bonus_cobrada || false);
+
+  const [comisionCocheReal, setComisionCocheReal] = useState<string>(
+    expediente.comision_coche_real !== null && expediente.comision_coche_real !== undefined ? String(expediente.comision_coche_real) : ""
+  );
+  const [comisionFinanciacionReal, setComisionFinanciacionReal] = useState<string>(
+    expediente.comision_financiacion_real !== null && expediente.comision_financiacion_real !== undefined ? String(expediente.comision_financiacion_real) : ""
+  );
+
+  const [conceptosAdicionales, setConceptosAdicionales] = useState<any[]>(() => {
+    if (expediente.conceptos_adicionales) {
+      try {
+        return JSON.parse(expediente.conceptos_adicionales);
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const [newConceptTitulo, setNewConceptTitulo] = useState("");
+  const [newConceptValor, setNewConceptValor] = useState("");
+  const [newConceptDescripcion, setNewConceptDescripcion] = useState("");
+
   // Gestión de Emails Dinámicos (solo si creamos/modificamos un cliente no asignado o suelto)
   const addEmail = () => setEmails([...emails, { email: "", tipo: "Alternativo" }]);
   const removeEmail = (index: number) => setEmails(emails.filter((item, i) => i !== index));
@@ -406,6 +435,16 @@ export default function EditarExpedienteForm({
         });
       }
 
+      const cocheVal = comisionCocheReal.trim() === "" ? null : parseFloat(comisionCocheReal);
+      const finanVal = comisionFinanciacionReal.trim() === "" ? null : parseFloat(comisionFinanciacionReal);
+      const allMainConceptsCobrado = comisionCocheCobrada && 
+                                     comisionUsadoCobrada && 
+                                     comisionFinanciacionCobrada && 
+                                     comisionPreferenceCobrada && 
+                                     comisionBonusCobrada;
+      const allExtraCobrado = conceptosAdicionales.every((c: any) => c.cobrado);
+      const finalCobrado = allMainConceptsCobrado && allExtraCobrado;
+
       const response = await fetch("/api/expedientes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -428,6 +467,15 @@ export default function EditarExpedienteForm({
             min_coches_multiplicador: minCochesMultiplicador,
             cobrado_otra_fecha: cobradoOtraFecha,
             fecha_cobrado: cobradoOtraFecha ? (fechaCobrado || null) : null,
+            comision_coche_real: cocheVal,
+            comision_financiacion_real: finanVal,
+            conceptos_adicionales: JSON.stringify(conceptosAdicionales),
+            comision_coche_cobrada: comisionCocheCobrada,
+            comision_usado_cobrada: comisionUsadoCobrada,
+            comision_financiacion_cobrada: comisionFinanciacionCobrada,
+            comision_preference_cobrada: comisionPreferenceCobrada,
+            comision_bonus_cobrada: comisionBonusCobrada,
+            comision_cobrada: finalCobrado
           }
         })
       });
@@ -1153,6 +1201,198 @@ export default function EditarExpedienteForm({
                 onChange={e => setMinCochesMultiplicador(Number(e.target.value))}
                 min={0}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* SECCIÓN NUEVA: CONTROL Y VERIFICACIÓN DE COBROS DE COMISIONES */}
+        <div className="glass-panel" style={{ padding: "32px", marginTop: "24px" }}>
+          <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            Control y Verificación de Cobros de Comisiones
+          </h2>
+
+          {/* Overrides de Comisión Coche y Financiación */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+            <div className="form-group">
+              <label className="form-label">Comisión Coche Manual (€)</label>
+              <input 
+                type="number" 
+                className="form-input" 
+                placeholder="Dejar en blanco para autocalcular"
+                value={comisionCocheReal} 
+                onChange={e => setComisionCocheReal(e.target.value)} 
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Comisión Financiación Manual (€)</label>
+              <input 
+                type="number" 
+                className="form-input" 
+                placeholder="Dejar en blanco para autocalcular"
+                value={comisionFinanciacionReal} 
+                onChange={e => setComisionFinanciacionReal(e.target.value)} 
+              />
+            </div>
+          </div>
+
+          {/* Checkboxes de cobro */}
+          <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", marginBottom: "24px" }}>
+            <label className="form-label" style={{ fontWeight: 700 }}>✅ Estado de Cobro por Concepto</label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginTop: "12px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  checked={comisionCocheCobrada}
+                  onChange={(e) => setComisionCocheCobrada(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>VN Base Cobrado</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  checked={comisionUsadoCobrada}
+                  onChange={(e) => setComisionUsadoCobrada(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>Usado Cobrado</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  checked={comisionFinanciacionCobrada}
+                  onChange={(e) => setComisionFinanciacionCobrada(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>Financiación Cobrada</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  checked={comisionPreferenceCobrada}
+                  onChange={(e) => setComisionPreferenceCobrada(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>Pref/Box Cobrado</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  checked={comisionBonusCobrada}
+                  onChange={(e) => setComisionBonusCobrada(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>Bonus Cobrado</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Conceptos Adicionales */}
+          <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <h4 style={{ fontSize: "0.95rem", color: "var(--text-primary)", margin: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Bonificaciones / Penalizaciones Extra</span>
+              <span style={{ fontSize: "0.8rem", color: "var(--success)" }}>
+                Total Extra: {conceptosAdicionales.reduce((acc, c) => acc + (c.valor || 0), 0)} €
+              </span>
+            </h4>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
+              {conceptosAdicionales.map(c => (
+                <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,0.02)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={c.cobrado || false}
+                      onChange={() => {
+                        setConceptosAdicionales(prev => prev.map(item => {
+                          if (item.id === c.id) return { ...item, cobrado: !item.cobrado };
+                          return item;
+                        }));
+                      }}
+                      style={{ cursor: "pointer" }}
+                    />
+                    <div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, textDecoration: c.cobrado ? "line-through" : "none", color: c.cobrado ? "var(--text-muted)" : "inherit" }}>{c.titulo}</div>
+                      {c.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{c.descripcion}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <strong style={{ fontSize: "0.85rem", color: c.valor >= 0 ? "var(--success)" : "var(--danger)" }}>
+                      {c.valor >= 0 ? "+" : ""}{c.valor} €
+                    </strong>
+                    <button 
+                      type="button" 
+                      onClick={() => setConceptosAdicionales(prev => prev.filter(item => item.id !== c.id))} 
+                      style={{ background: "transparent", border: "none", color: "var(--danger)", cursor: "pointer", fontSize: "0.85rem" }}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {conceptosAdicionales.length === 0 && (
+                <div style={{ color: "var(--text-muted)", fontSize: "0.8rem", textAlign: "center", padding: "10px" }}>
+                  No hay conceptos adicionales configurados.
+                </div>
+              )}
+            </div>
+
+            {/* Añadir Concepto */}
+            <div style={{ background: "rgba(255,255,255,0.01)", padding: "12px", borderRadius: "6px", border: "1px dashed var(--border-light)", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-secondary)" }}>Añadir Concepto Especial</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "10px" }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  style={{ fontSize: "0.8rem" }}
+                  placeholder="Título (Ej. Bonus Rappel)" 
+                  value={newConceptTitulo}
+                  onChange={e => setNewConceptTitulo(e.target.value)}
+                />
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  style={{ fontSize: "0.8rem" }}
+                  placeholder="Importe (Ej. 100 o -50)" 
+                  value={newConceptValor}
+                  onChange={e => setNewConceptValor(e.target.value)}
+                />
+              </div>
+              <input 
+                type="text" 
+                className="form-input" 
+                style={{ fontSize: "0.8rem" }}
+                placeholder="Descripción (Opcional)" 
+                value={newConceptDescripcion}
+                onChange={e => setNewConceptDescripcion(e.target.value)}
+              />
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ alignSelf: "flex-end", padding: "6px 12px", fontSize: "0.8rem" }}
+                onClick={() => {
+                  if (!newConceptTitulo.trim()) return;
+                  const val = parseFloat(newConceptValor);
+                  if (isNaN(val)) return;
+                  const newConcept = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    titulo: newConceptTitulo.trim(),
+                    valor: val,
+                    descripcion: newConceptDescripcion.trim(),
+                    cobrado: false
+                  };
+                  setConceptosAdicionales(prev => [...prev, newConcept]);
+                  setNewConceptTitulo("");
+                  setNewConceptValor("");
+                  setNewConceptDescripcion("");
+                }}
+              >
+                + Añadir Concepto
+              </button>
             </div>
           </div>
         </div>
