@@ -64,6 +64,10 @@ export async function GET(req: NextRequest) {
       conceptos_adicionales: string | null;
       vin: string | null;
       id_tipo_de_venta: number | null;
+      fecha_matriculacion: string | null;
+      fecha_rci: string | null;
+      cobrado_otra_fecha: boolean;
+      fecha_cobrado: string | null;
     }> = {};
 
     if (expIds.length > 0) {
@@ -80,7 +84,11 @@ export async function GET(req: NextRequest) {
         comision_financiacion_real: expedientes.comision_financiacion_real,
         conceptos_adicionales: expedientes.conceptos_adicionales,
         vin: expedientes.vin,
-        id_tipo_de_venta: expedientes.id_tipo_de_venta
+        id_tipo_de_venta: expedientes.id_tipo_de_venta,
+        fecha_matriculacion: expedientes.fecha_matriculacion,
+        fecha_rci: expedientes.fecha_rci,
+        cobrado_otra_fecha: expedientes.cobrado_otra_fecha,
+        fecha_cobrado: expedientes.fecha_cobrado
       }).from(expedientes).where(inArray(expedientes.id_expediente, expIds));
 
       dbExps.forEach(e => {
@@ -96,7 +104,11 @@ export async function GET(req: NextRequest) {
           comision_financiacion_real: e.comision_financiacion_real,
           conceptos_adicionales: e.conceptos_adicionales,
           vin: e.vin,
-          id_tipo_de_venta: e.id_tipo_de_venta
+          id_tipo_de_venta: e.id_tipo_de_venta,
+          fecha_matriculacion: e.fecha_matriculacion,
+          fecha_rci: e.fecha_rci,
+          cobrado_otra_fecha: e.cobrado_otra_fecha,
+          fecha_cobrado: e.fecha_cobrado
         };
       });
     }
@@ -118,7 +130,11 @@ export async function GET(req: NextRequest) {
         comision_financiacion_real: exp ? exp.comision_financiacion_real : null,
         conceptos_adicionales: exp ? exp.conceptos_adicionales : null,
         tipo_venta_nombre: tipoVentaInfo ? tipoVentaInfo.nombre : "Contado/Otro",
-        tipo_venta_color: tipoVentaInfo ? tipoVentaInfo.color : "#3b82f6"
+        tipo_venta_color: tipoVentaInfo ? tipoVentaInfo.color : "#3b82f6",
+        fecha_matriculacion: exp ? exp.fecha_matriculacion : l.fecha_matriculacion,
+        fecha_rci: exp ? exp.fecha_rci : null,
+        cobrado_otra_fecha: exp ? exp.cobrado_otra_fecha : false,
+        fecha_cobrado: exp ? exp.fecha_cobrado : null
       };
     });
 

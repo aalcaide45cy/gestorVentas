@@ -2098,6 +2098,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("matricula")}>Matrícula{renderCotejoSortIndicator("matricula")}</th>
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("cliente")}>Cliente{renderCotejoSortIndicator("cliente")}</th>
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("vehiculo")}>Vehículo{renderCotejoSortIndicator("vehiculo")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "center" }} onClick={() => handleCotejoSort("fecha_matriculacion")}>Fecha Mat{renderCotejoSortIndicator("fecha_matriculacion")}</th>
+                          <th style={{ cursor: "pointer", textAlign: "center" }} onClick={() => handleCotejoSort("fecha_rci")}>Fecha RCI{renderCotejoSortIndicator("fecha_rci")}</th>
                           <th style={{ cursor: "pointer" }} onClick={() => handleCotejoSort("pago")}>Modo Pago{renderCotejoSortIndicator("pago")}</th>
                           <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("vn_base")}>VN Base{renderCotejoSortIndicator("vn_base")}</th>
                           <th style={{ cursor: "pointer", textAlign: "right" }} onClick={() => handleCotejoSort("usado")}>Usado{renderCotejoSortIndicator("usado")}</th>
@@ -2163,6 +2165,22 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               <td>
                                 <div style={{ fontWeight: 500 }}>{l.modelo_nombre}</div>
                                 <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{l.marca_nombre}</div>
+                              </td>
+                              {/* Fechas */}
+                              <td style={{ textAlign: "center" }}>
+                                {l.cobrado_otra_fecha ? (
+                                  <span
+                                    style={{ textDecoration: "underline", cursor: "help" }}
+                                    title={l.fecha_cobrado ? `Cobrado en otra fecha: ${formatDate(l.fecha_cobrado)}` : undefined}
+                                  >
+                                    {formatDate(l.fecha_matriculacion)}
+                                  </span>
+                                ) : (
+                                  formatDate(l.fecha_matriculacion) || "-"
+                                )}
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                {formatDate(l.fecha_rci) || "-"}
                               </td>
                               {/* Modo de Pago */}
                               <td>
