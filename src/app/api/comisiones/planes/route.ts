@@ -476,6 +476,7 @@ export async function PUT(req: NextRequest) {
       penalizacion_importe,
       penalizacion_titulo,
       penalizacion_descripcion,
+      notas_adicionales,
       // Actualizaciones anidadas opcionales
       rates,
       financeRules,
@@ -505,6 +506,7 @@ export async function PUT(req: NextRequest) {
     if (penalizacion_importe !== undefined) updateData.penalizacion_importe = Number(penalizacion_importe);
     if (penalizacion_titulo !== undefined) updateData.penalizacion_titulo = penalizacion_titulo;
     if (penalizacion_descripcion !== undefined) updateData.penalizacion_descripcion = penalizacion_descripcion;
+    if (notas_adicionales !== undefined) updateData.notas_adicionales = notas_adicionales;
 
     if (Object.keys(updateData).length > 0) {
       await db.update(commissionPlans).set(updateData).where(eq(commissionPlans.id_plan, Number(id_plan)));

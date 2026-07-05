@@ -124,6 +124,8 @@ export const expedientes = pgTable('expedientes', {
   cobrado_otra_fecha: boolean('cobrado_otra_fecha').notNull().default(false),
   fecha_cobrado: date('fecha_cobrado'),
   comision_cobrada: boolean('comision_cobrada').notNull().default(false),
+  comision_coche_cobrada: boolean('comision_coche_cobrada').notNull().default(false),
+  comision_financiacion_cobrada: boolean('comision_financiacion_cobrada').notNull().default(false),
   comision_coche_real: doublePrecision('comision_coche_real'),
   comision_financiacion_real: doublePrecision('comision_financiacion_real'),
   conceptos_adicionales: text('conceptos_adicionales'),
@@ -248,6 +250,7 @@ export const commissionPlans = pgTable('commission_plans', {
   penalizacion_importe: integer('penalizacion_importe').notNull().default(0),
   penalizacion_titulo: text('penalizacion_titulo'),
   penalizacion_descripcion: text('penalizacion_descripcion'),
+  notas_adicionales: text('notas_adicionales'),
 });
 
 // 2. TABLA: COMMISSION_PLAN_MODEL_RATES (Tramos de comisión por modelo)

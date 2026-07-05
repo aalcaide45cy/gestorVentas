@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { eq, inArray } from "drizzle-orm";
-import { commissionLiquidations, expedientes } from "@/db/schema";
+import { commissionLiquidations, expedientes, tipoDeVenta } from "@/db/schema";
 
 export const dynamic = 'force-dynamic';
 
@@ -34,50 +34,79 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // Obtener todos los tipos de venta para mapear el modo de pago
+    const allTiposVenta = await db.select({
+      id_tipo_de_venta: tipoDeVenta.id_tipo_de_venta,
+      nombre_tipo_venta: tipoDeVenta.nombre_tipo_venta,
+      color: tipoDeVenta.color
+    }).from(tipoDeVenta);
+
+    const tipoVentaMap: Record<number, { nombre: string; color: string }> = {};
+    allTiposVenta.forEach(t => {
+      tipoVentaMap[t.id_tipo_de_venta] = {
+        nombre: t.nombre_tipo_venta,
+        color: t.color || "#3b82f6"
+      };
+    });
+
     // Obtener el estado real de comision_cobrada, la matrícula y overrides de los expedientes
     const expIds = liq.lines.map(l => l.id_expediente).filter(id => id !== null) as number[];
     let expedientesData: Record<number, { 
       comision_cobrada: boolean; 
+      comision_coche_cobrada: boolean;
+      comision_financiacion_cobrada: boolean;
       matricula: string | null;
       comision_coche_real: number | null;
       comision_financiacion_real: number | null;
       conceptos_adicionales: string | null;
       vin: string | null;
+      id_tipo_de_venta: number | null;
     }> = {};
 
     if (expIds.length > 0) {
       const dbExps = await db.select({
         id_expediente: expedientes.id_expediente,
         comision_cobrada: expedientes.comision_cobrada,
+        comision_coche_cobrada: expedientes.comision_coche_cobrada,
+        comision_financiacion_cobrada: expedientes.comision_financiacion_cobrada,
         matricula: expedientes.matricula,
         comision_coche_real: expedientes.comision_coche_real,
         comision_financiacion_real: expedientes.comision_financiacion_real,
         conceptos_adicionales: expedientes.conceptos_adicionales,
-        vin: expedientes.vin
+        vin: expedientes.vin,
+        id_tipo_de_venta: expedientes.id_tipo_de_venta
       }).from(expedientes).where(inArray(expedientes.id_expediente, expIds));
 
       dbExps.forEach(e => {
         expedientesData[e.id_expediente] = {
           comision_cobrada: e.comision_cobrada,
+          comision_coche_cobrada: e.comision_coche_cobrada,
+          comision_financiacion_cobrada: e.comision_financiacion_cobrada,
           matricula: e.matricula,
           comision_coche_real: e.comision_coche_real,
           comision_financiacion_real: e.comision_financiacion_real,
           conceptos_adicionales: e.conceptos_adicionales,
-          vin: e.vin
+          vin: e.vin,
+          id_tipo_de_venta: e.id_tipo_de_venta
         };
       });
     }
 
     const linesWithCobrado = liq.lines.map(l => {
       const exp = l.id_expediente ? expedientesData[l.id_expediente] : null;
+      const tipoVentaInfo = exp?.id_tipo_de_venta ? tipoVentaMap[exp.id_tipo_de_venta] : null;
       return {
         ...l,
         comision_cobrada: exp ? exp.comision_cobrada : false,
+        comision_coche_cobrada: exp ? exp.comision_coche_cobrada : false,
+        comision_financiacion_cobrada: exp ? exp.comision_financiacion_cobrada : false,
         matricula: exp ? exp.matricula : null,
         vin: exp ? exp.vin : null,
         comision_coche_real: exp ? exp.comision_coche_real : null,
         comision_financiacion_real: exp ? exp.comision_financiacion_real : null,
-        conceptos_adicionales: exp ? exp.conceptos_adicionales : null
+        conceptos_adicionales: exp ? exp.conceptos_adicionales : null,
+        tipo_venta_nombre: tipoVentaInfo ? tipoVentaInfo.nombre : "Contado/Otro",
+        tipo_venta_color: tipoVentaInfo ? tipoVentaInfo.color : "#3b82f6"
       };
     });
 
