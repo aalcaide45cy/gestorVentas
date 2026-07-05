@@ -202,6 +202,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   };
 
   const [cotejoLines, setCotejoLines] = useState<any[]>([]);
+  const [cotejoPenalizacionImporte, setCotejoPenalizacionImporte] = useState<number>(0);
+  const [cotejoPenalizacionTitulo, setCotejoPenalizacionTitulo] = useState<string>("");
   const [cotejoFilter, setCotejoFilter] = useState<"todos" | "pendientes" | "cobrados">("todos");
   const [cotejoSearch, setCotejoSearch] = useState("");
   const [cotejoVendedorFilter, setCotejoVendedorFilter] = useState("");
@@ -540,6 +542,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         return;
       }
       setCotejoLines(data.lines || []);
+      setCotejoPenalizacionImporte(data.penalizacion_importe || 0);
+      setCotejoPenalizacionTitulo(data.penalizacion_titulo || "Penalización");
       showNotification("Expedientes del plan cargados con éxito.", "success");
     } catch (e: any) {
       console.error(e);
@@ -2283,9 +2287,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     });
 
                     // Obtener la penalización del plan si aplica para este mes
-                    const selectedCotejoPlan = planes.find(p => p.id_plan === cotejoPlanId);
-                    const penalizacionPlan = selectedCotejoPlan?.penalizacion_importe || 0;
-                    const penalizacionPlanTitulo = selectedCotejoPlan?.penalizacion_titulo || "Penalización por no llegar al mínimo";
+                    const penalizacionPlan = cotejoPenalizacionImporte;
+                    const penalizacionPlanTitulo = cotejoPenalizacionTitulo;
 
                     const granTotalCobrado = totalCobradoVnBase + totalCobradoUsado + totalCobradoFinan + totalCobradoPref + totalCobradoBonus + totalCobradoExtra;
                     const granTotalCalculado = sumTotal; // comisiones calculadas

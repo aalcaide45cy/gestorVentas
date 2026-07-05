@@ -122,7 +122,13 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ success: true, lines: linesWithCobrado }, { status: 200 });
+    return NextResponse.json({ 
+      success: true, 
+      lines: linesWithCobrado,
+      penalizacion_importe: liq.penalizacion_importe_snapshot,
+      penalizacion_titulo: liq.penalizacion_titulo_snapshot || "Penalización",
+      penalizacion_descripcion: liq.penalizacion_descripcion_snapshot || ""
+    }, { status: 200 });
   } catch (error: any) {
     console.error("Error al obtener líneas de liquidación para verificación:", error);
     return NextResponse.json({ message: error.message || "Error interno del servidor" }, { status: 500 });
