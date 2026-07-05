@@ -39,7 +39,7 @@ interface AdminCatalogosFormProps {
   tiendaPredeterminadaIdInicial?: number | null;
 }
 
-type TabType = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes";
+type TabType = "marcas" | "modelos" | "tiendas" | "pagos" | "estados" | "expedientes" | "bbdd";
 
 export default function AdminCatalogosForm({
   marcasIniciales,
@@ -63,6 +63,11 @@ export default function AdminCatalogosForm({
 
   // Preferencias de expedientes (localStorage)
   const [expDefaultPageSize, setExpDefaultPageSize] = useState<number>(20);
+
+  // Estados para limpieza de base de datos BBDD
+  const [analyzingDb, setAnalyzingDb] = useState(false);
+  const [cleaningDb, setCleaningDb] = useState(false);
+  const [dbAnalysis, setDbAnalysis] = useState<any | null>(null);
 
   // Cargar preferencias guardadas al montar
   const [prefLoaded, setPrefLoaded] = useState(false);
@@ -241,6 +246,94 @@ export default function AdminCatalogosForm({
     } else {
       setError(text);
       setTimeout(() => setError(null), 4000);
+    }
+  };
+
+  const handleAnalyzeDb = async () => {
+    setAnalyzingDb(true);
+    try {
+      const res = await fetch("/api/admin/db-cleanup");
+      const data = await res.json();
+      if (data.success) {
+        setDbAnalysis(data);
+        showNotification("Análisis de base de datos completado.", "success");
+      } else {
+        showNotification(data.message || "Error al analizar base de datos.", "error");
+      }
+    } catch (e) {
+      console.error(e);
+      showNotification("Error de conexión al analizar la base de datos.", "error");
+    } finally {
+      setAnalyzingDb(false);
+    }
+  };
+
+  const handleBackupAndCleanDb = async () => {
+    if (!dbAnalysis || !dbAnalysis.stats || dbAnalysis.stats.totalAnomalies === 0) {
+      showNotification("No hay anomalías que limpiar.", "error");
+      return;
+    }
+
+    if (!window.confirm(`¿Estás seguro de que deseas limpiar las ${dbAnalysis.stats.totalAnomalies} anomalías detectadas?\n\nSe descargará automáticamente un backup JSON antes de proceder de forma segura.`)) {
+      return;
+    }
+
+    setCleaningDb(true);
+    try {
+      // 1. Exportar backup primero
+      const backupRes = await fetch("/api/admin/backup", { method: "GET" });
+      if (!backupRes.ok) throw new Error("Error al generar el backup previo.");
+      const backupData = await backupRes.json();
+      
+      const backupWithPrefs = {
+        ...backupData,
+        preferences: {
+          expDefaultPageSize
+        }
+      };
+
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+        JSON.stringify(backupWithPrefs, null, 2)
+      )}`;
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", jsonString);
+      downloadAnchor.setAttribute(
+        "download",
+        `backup_previo_limpieza_${new Date().toISOString().split("T")[0]}.json`
+      );
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      // 2. Ejecutar limpieza en el servidor
+      const details = dbAnalysis.details || {};
+      const payload = {
+        cleanLines: details.orphanLines?.map((l: any) => l.id_line) || [],
+        cleanEmails: details.orphanEmails?.map((e: any) => e.id) || [],
+        cleanTelefonos: details.orphanTelefonos?.map((t: any) => t.id) || [],
+        cleanUserTiendas: details.orphanUserTiendas?.map((ut: any) => ut.id) || [],
+        cleanImportRegistros: details.orphanImportRegistros?.map((ir: any) => ir.id) || []
+      };
+
+      const cleanRes = await fetch("/api/admin/db-cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const cleanData = await cleanRes.json();
+
+      if (cleanData.success) {
+        showNotification("Base de datos limpiada con éxito. Backup descargado.", "success");
+        await handleAnalyzeDb();
+        router.refresh();
+      } else {
+        showNotification(cleanData.message || "Error al ejecutar limpieza.", "error");
+      }
+    } catch (e: any) {
+      console.error(e);
+      showNotification(e.message || "Error al realizar backup y limpieza.", "error");
+    } finally {
+      setCleaningDb(false);
     }
   };
 
@@ -1032,6 +1125,14 @@ export default function AdminCatalogosForm({
           style={{ padding: "10px 20px", fontSize: "0.9rem" }}
         >
           📋 Expedientes
+        </button>
+        <button
+          type="button"
+          className={`btn ${activeTab === "bbdd" ? "btn-primary" : "btn-secondary"}`}
+          onClick={() => changeTab("bbdd")}
+          style={{ padding: "10px 20px", fontSize: "0.9rem" }}
+        >
+          🗄️ BBDD
         </button>
       </div>
 
@@ -2078,6 +2179,118 @@ export default function AdminCatalogosForm({
               </span>
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === "bbdd" && (
+        <div className="glass-panel" style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div>
+            <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>🗄️ Herramientas de Mantenimiento y Limpieza de BBDD</h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5" }}>
+              Analiza y depura registros huérfanos o anomalías de la base de datos de manera segura. 
+              <br />
+              <strong style={{ color: "var(--warning)" }}>IMPORTANTE:</strong> Para garantizar la seguridad de tus datos, se descargará automáticamente un backup JSON completo antes de ejecutar cualquier acción de limpieza.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleAnalyzeDb}
+              disabled={analyzingDb || cleaningDb}
+              style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px" }}
+            >
+              {analyzingDb ? "Analizando..." : "🔍 Analizar Base de Datos"}
+            </button>
+
+            {dbAnalysis && dbAnalysis.stats && dbAnalysis.stats.totalAnomalies > 0 && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleBackupAndCleanDb}
+                disabled={analyzingDb || cleaningDb}
+                style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "var(--warning)", borderColor: "var(--warning)" }}
+              >
+                {cleaningDb ? "Limpiando BBDD..." : "💾 Descargar Backup y Limpiar BBDD"}
+              </button>
+            )}
+          </div>
+
+          {dbAnalysis && dbAnalysis.stats && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "8px" }}>
+              <h4 style={{ fontSize: "1rem", color: "var(--text-primary)" }}>Resultados del Análisis:</h4>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px" }}>
+                <div style={{ padding: "16px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>LÍNEAS FANTASMA (#EXP-null)</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color: dbAnalysis.stats.orphanLinesCount > 0 ? "var(--warning)" : "var(--text-muted)" }}>
+                    {dbAnalysis.stats.orphanLinesCount}
+                  </div>
+                </div>
+
+                <div style={{ padding: "16px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>EMAILS HUÉRFANOS DE CLIENTES</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color: dbAnalysis.stats.orphanEmailsCount > 0 ? "var(--warning)" : "var(--text-muted)" }}>
+                    {dbAnalysis.stats.orphanEmailsCount}
+                  </div>
+                </div>
+
+                <div style={{ padding: "16px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>TELÉFONOS HUÉRFANOS DE CLIENTES</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color: dbAnalysis.stats.orphanTelefonosCount > 0 ? "var(--warning)" : "var(--text-muted)" }}>
+                    {dbAnalysis.stats.orphanTelefonosCount}
+                  </div>
+                </div>
+
+                <div style={{ padding: "16px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>RELACIONES TIENDA-USUARIO OBSOLETAS</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color: dbAnalysis.stats.orphanUserTiendasCount > 0 ? "var(--warning)" : "var(--text-muted)" }}>
+                    {dbAnalysis.stats.orphanUserTiendasCount}
+                  </div>
+                </div>
+
+                <div style={{ padding: "16px", background: "rgba(255, 255, 255, 0.02)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)", gridColumn: "span 2" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>REGISTROS DE IMPORTACIÓN HUÉRFANOS</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: 800, marginTop: "4px", color: dbAnalysis.stats.orphanImportRegistrosCount > 0 ? "var(--warning)" : "var(--text-muted)" }}>
+                    {dbAnalysis.stats.orphanImportRegistrosCount}
+                  </div>
+                </div>
+              </div>
+
+              {dbAnalysis.stats.totalAnomalies === 0 ? (
+                <div style={{
+                  padding: "16px 20px",
+                  background: "rgba(16, 185, 129, 0.06)",
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--success)",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  <span>✅ Base de datos completamente optimizada. No se detectaron registros huérfanos.</span>
+                </div>
+              ) : (
+                <div style={{
+                  padding: "16px 20px",
+                  background: "rgba(245, 158, 11, 0.06)",
+                  border: "1px solid rgba(245, 158, 11, 0.2)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--warning)",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  <span>⚠️ Se han detectado {dbAnalysis.stats.totalAnomalies} registros huérfanos/obsoletos que pueden ser depurados de forma segura.</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
