@@ -2124,6 +2124,106 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       )}
                     </table>
                   </div>
+
+                  {/* Dashboard resumen de validación / cobros */}
+                  {(() => {
+                    let totalCobradoCoche = 0;
+                    let totalPendienteCoche = 0;
+                    let totalCobradoFinan = 0;
+                    let totalPendienteFinan = 0;
+                    let totalCobradoExtra = 0;
+                    let totalPendienteExtra = 0;
+
+                    sortedLines.forEach((l: any) => {
+                      const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
+                      const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
+                      const comCoche = hasCocheOverride ? Number(l.comision_coche_real) : ((l.comision_base_vn || 0) + (l.comision_usado || 0));
+                      const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : ((l.comision_financiacion || 0) + (l.comision_preference || 0));
+                      
+                      let customConcepts: any[] = [];
+                      if (l.conceptos_adicionales) {
+                        try {
+                          customConcepts = JSON.parse(l.conceptos_adicionales);
+                        } catch (e) {}
+                      }
+
+                      // Coche
+                      if (l.comision_coche_cobrada) {
+                        totalCobradoCoche += comCoche;
+                      } else {
+                        totalPendienteCoche += comCoche;
+                      }
+
+                      // Finan
+                      if (l.comision_financiacion_cobrada) {
+                        totalCobradoFinan += comFinan;
+                      } else {
+                        totalPendienteFinan += comFinan;
+                      }
+
+                      // Extra
+                      customConcepts.forEach(cc => {
+                        if (cc.cobrado) {
+                          totalCobradoExtra += (cc.valor || 0);
+                        } else {
+                          totalPendienteExtra += (cc.valor || 0);
+                        }
+                      });
+                    });
+
+                    const granTotalCobrado = totalCobradoCoche + totalCobradoFinan + totalCobradoExtra;
+                    const granTotalPendiente = totalPendienteCoche + totalPendienteFinan + totalPendienteExtra;
+
+                    return (
+                      <div className="glass-panel" style={{
+                        padding: "20px",
+                        background: "rgba(255, 255, 255, 0.02)",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "8px",
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr 1fr",
+                        gap: "20px",
+                        marginTop: "8px"
+                      }}>
+                        {/* Tarjeta 1: Total General Cobrado/Validado */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ fontSize: "0.8rem", color: "var(--success)", fontWeight: 600 }}>💰 TOTAL VALIDADO / COBRADO</div>
+                          <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--success)" }}>
+                            {granTotalCobrado.toLocaleString()} €
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span>• Coche: {totalCobradoCoche.toLocaleString()} €</span>
+                            <span>• Financiación: {totalCobradoFinan.toLocaleString()} €</span>
+                            <span>• Extras: {totalCobradoExtra.toLocaleString()} €</span>
+                          </div>
+                        </div>
+
+                        {/* Tarjeta 2: Total General Pendiente */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <div style={{ fontSize: "0.8rem", color: "var(--warning)", fontWeight: 600 }}>🕒 TOTAL PENDIENTE DE COBRO</div>
+                          <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--warning)" }}>
+                            {granTotalPendiente.toLocaleString()} €
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span>• Coche: {totalPendienteCoche.toLocaleString()} €</span>
+                            <span>• Financiación: {totalPendienteFinan.toLocaleString()} €</span>
+                            <span>• Extras: {totalPendienteExtra.toLocaleString()} €</span>
+                          </div>
+                        </div>
+
+                        {/* Tarjeta 3: Ratio de Conciliación */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", borderLeft: "1px solid var(--border-light)", paddingLeft: "20px" }}>
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 600 }}>📊 RATIO DE VALIDACIÓN</div>
+                          <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                            {sumTotal > 0 ? Math.round((granTotalCobrado / sumTotal) * 100) : 0} %
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                            Has validado {granTotalCobrado.toLocaleString()} € de un total de {sumTotal.toLocaleString()} € de comisiones calculadas.
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })()}
