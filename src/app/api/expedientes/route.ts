@@ -378,6 +378,7 @@ export async function PUT(req: NextRequest) {
       min_coches_multiplicador: expedienteData.min_coches_multiplicador !== undefined ? (expedienteData.min_coches_multiplicador !== null ? Number(expedienteData.min_coches_multiplicador) : 0) : undefined,
       cobrado_otra_fecha: expedienteData.cobrado_otra_fecha !== undefined ? expedienteData.cobrado_otra_fecha : undefined,
       fecha_cobrado: expedienteData.fecha_cobrado !== undefined ? (expedienteData.fecha_cobrado === "" ? null : expedienteData.fecha_cobrado) : undefined,
+      comision_cobrada: expedienteData.comision_cobrada !== undefined ? expedienteData.comision_cobrada : undefined,
     }).where(eq(expedientes.id_expediente, id_expediente));
 
     return NextResponse.json({ success: true, message: "Expediente actualizado correctamente" }, { status: 200 });

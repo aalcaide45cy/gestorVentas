@@ -68,6 +68,7 @@ interface Expediente {
   min_coches_multiplicador?: number | null;
   cobrado_otra_fecha?: boolean | null;
   fecha_cobrado?: string | null;
+  comision_cobrada?: boolean | null;
   
   cliente?: Cliente | null;
   modelo?: Modelo | null;
@@ -98,6 +99,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   }, [expedientesIniciales]);
 
   const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
+  const [showCobroStatus, setShowCobroStatus] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("exp-show-cobro-status") === "true";
+    }
+    return false;
+  });
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -2363,6 +2370,38 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             <span>Ocultar Entregados</span>
           </label>
 
+          <label style={{ 
+            display: "inline-flex", 
+            alignItems: "center", 
+            gap: "8px", 
+            fontSize: "0.85rem", 
+            color: "var(--text-primary)", 
+            cursor: "pointer", 
+            background: showCobroStatus ? "rgba(var(--primary-rgb), 0.12)" : "rgba(255, 255, 255, 0.05)", 
+            border: `1px solid ${showCobroStatus ? "var(--primary)" : "var(--border-light)"}`, 
+            padding: "8px 14px", 
+            borderRadius: "var(--radius-sm)",
+            fontWeight: 600,
+            transition: "all 0.2s"
+          }}>
+            <input
+              type="checkbox"
+              checked={showCobroStatus}
+              onChange={e => {
+                const newValue = e.target.checked;
+                setShowCobroStatus(newValue);
+                localStorage.setItem("exp-show-cobro-status", String(newValue));
+              }}
+              style={{
+                width: "15px",
+                height: "15px",
+                accentColor: "var(--primary)",
+                cursor: "pointer"
+              }}
+            />
+            <span>👁️ Mostrar Cobros</span>
+          </label>
+
           <button
             type="button"
             className="btn"
@@ -2773,6 +2812,11 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 <th onClick={() => handleSort("fecha_entrega")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
                   F. Entrega{renderSortIndicator("fecha_entrega")}
                 </th>
+                {showCobroStatus && (
+                  <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.06)", userSelect: "none" }}>
+                    Cobro
+                  </th>
+                )}
                 <th>Acciones</th>
               </tr>
             </thead>
@@ -2885,6 +2929,19 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                   {renderDateField(exp, "fecha_rci", "RCI", "rgba(128, 128, 128, 0.03)")}
                   {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.09)")}
                   {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.03)")}
+                  {showCobroStatus && (
+                    <td style={{ textAlign: "center" }}>
+                      {exp.comision_cobrada ? (
+                        <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                          💰 Cobrado
+                        </span>
+                      ) : (
+                        <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                          🕒 Pendiente
+                        </span>
+                      )}
+                    </td>
+                  )}
                   <td>
                     <div style={{ display: "flex", alignItems: "center" }}>
                       <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
@@ -2919,7 +2976,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               ))}
               {paginatedExpedientes.length === 0 && (
                 <tr>
-                  <td colSpan={bulkSelectionUnlocked ? 12 : 11} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                  <td colSpan={bulkSelectionUnlocked ? (showCobroStatus ? 14 : 13) : (showCobroStatus ? 13 : 12)} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                     {expedientes.length === 0
                       ? "No hay expedientes registrados en el sistema."
                       : "No se encontraron expedientes con los filtros aplicados."

@@ -123,6 +123,7 @@ export const expedientes = pgTable('expedientes', {
   min_coches_multiplicador: integer('min_coches_multiplicador').notNull().default(0),
   cobrado_otra_fecha: boolean('cobrado_otra_fecha').notNull().default(false),
   fecha_cobrado: date('fecha_cobrado'),
+  comision_cobrada: boolean('comision_cobrada').notNull().default(false),
 });
 
 // === RELACIONES DRIZZLE (Para facilitar consultas y joins de TypeScript) ===

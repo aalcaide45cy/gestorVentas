@@ -124,8 +124,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   // Estados para cotejo/verificación de comisiones
   const [cotejoPlanId, setCotejoPlanId] = useState<number | null>(null);
-  const [cotejoPastedText, setCotejoPastedText] = useState("");
-  const [cotejoResult, setCotejoResult] = useState<any | null>(null);
 
 
 
@@ -195,183 +193,66 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setPlanCurrentPage(Math.max(1, Math.min(page, totalPlanPages)));
   };
 
-  const handleExecuteCotejo = async () => {
-    if (!cotejoPlanId) return;
+  const [cotejoLines, setCotejoLines] = useState<any[]>([]);
+  const [cotejoFilter, setCotejoFilter] = useState<"todos" | "pendientes" | "cobrados">("todos");
+  const [cotejoSearch, setCotejoSearch] = useState("");
+
+  const handleLoadCotejoPlanes = async (planId: number) => {
     setLoadingPlan(true);
     try {
-      const res = await fetch(`/api/comisiones/verificar?id_plan=${cotejoPlanId}`);
+      const res = await fetch(`/api/comisiones/verificar?id_plan=${planId}`);
       const data = await res.json();
       if (!data.success) {
         showNotification(data.message || "Error al obtener las líneas del plan", "error");
-        setLoadingPlan(false);
+        setCotejoLines([]);
         return;
       }
-
-      const appLines = data.lines || [];
-      const rows = cotejoPastedText.split(/\r?\n/).map(row => row.split(/\t/));
-      if (rows.length === 0 || rows[0].length === 0) {
-        showNotification("El contenido pegado no tiene datos válidos", "error");
-        setLoadingPlan(false);
-        return;
-      }
-      
-      let headerRow = rows[0];
-      let matriculaColIdx = 0;
-      let cocheColIdx = 1;
-      let finanColIdx = 2;
-
-      const headerLower = headerRow.map(h => h.toLowerCase().trim());
-      
-      const foundMatIdx = headerLower.findIndex(h => h.includes("matri") || h.includes("coche") || h.includes("placa") || h.includes("patente") || h.includes("bastidor") || h.includes("vin"));
-      if (foundMatIdx !== -1) matriculaColIdx = foundMatIdx;
-
-      const foundCocheIdx = headerLower.findIndex(h => h.includes("comis") || h.includes("base") || h.includes("vn") || h.includes("vo") || h.includes("importe") || h.includes("pago"));
-      if (foundCocheIdx !== -1) cocheColIdx = foundCocheIdx;
-
-      const foundFinanIdx = headerLower.findIndex(h => h.includes("finan") || h.includes("rci") || h.includes("box3") || h.includes("pref"));
-      if (foundFinanIdx !== -1) finanColIdx = foundFinanIdx;
-
-      let dataRows = rows;
-      if (headerLower.some(h => isNaN(Number(h)) && h.length > 0)) {
-        dataRows = rows.slice(1);
-      }
-
-      const sheetData: any[] = [];
-      dataRows.forEach(row => {
-        if (row.length === 0 || !row[0]) return;
-        const matRaw = row[matriculaColIdx]?.trim().toUpperCase();
-        if (!matRaw) return;
-
-        const matricula = matRaw.replace(/[^A-Z0-9]/g, "");
-        if (matricula.length < 4) return;
-
-        const parseMoney = (val: string) => {
-          if (!val) return 0;
-          const clean = val.replace(/[^0-9,.-]/g, "").replace(",", ".");
-          const num = parseFloat(clean);
-          return isNaN(num) ? 0 : num;
-        };
-
-        const cocheVal = parseMoney(row[cocheColIdx]);
-        const finanVal = row[finanColIdx] ? parseMoney(row[finanColIdx]) : 0;
-        const totalVal = row.length > Math.max(cocheColIdx, finanColIdx) + 1 ? parseMoney(row[row.length - 1]) : (cocheVal + finanVal);
-
-        sheetData.push({
-          matricula,
-          coche: cocheVal,
-          finan: finanVal,
-          total: totalVal
-        });
-      });
-
-      const matchedLines: any[] = [];
-      const stats = {
-        correct: 0,
-        discrepancies: 0,
-        missingInSheet: 0,
-        extraInSheet: 0
-      };
-
-      const appMap = new Map<string, any>();
-      appLines.forEach((l: any) => {
-        if (l.matricula) {
-          const normMat = l.matricula.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-          appMap.set(normMat, l);
-        }
-      });
-
-      const sheetMap = new Map<string, any>();
-      sheetData.forEach((s: any) => {
-        sheetMap.set(s.matricula, s);
-      });
-
-      appLines.forEach((l: any) => {
-        if (!l.matricula) return;
-        const normMat = l.matricula.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-        const sheetItem = sheetMap.get(normMat);
-
-        const appCoche = (l.comision_base_vn || 0) + (l.comision_usado || 0);
-        const appFinan = (l.comision_financiacion || 0) + (l.comision_preference || 0);
-        const appTotal = l.total_generado || 0;
-
-        if (sheetItem) {
-          const isCorrect = appCoche === sheetItem.coche && appFinan === sheetItem.finan;
-          if (isCorrect) {
-            stats.correct++;
-            matchedLines.push({
-              matricula: l.matricula,
-              type: "correct",
-              appCoche,
-              sheetCoche: sheetItem.coche,
-              appFinan,
-              sheetFinan: sheetItem.finan,
-              appTotal,
-              sheetTotal: sheetItem.total
-            });
-          } else {
-            stats.discrepancies++;
-            matchedLines.push({
-              matricula: l.matricula,
-              type: "discrepancy",
-              appCoche,
-              sheetCoche: sheetItem.coche,
-              appFinan,
-              sheetFinan: sheetItem.finan,
-              appTotal,
-              sheetTotal: sheetItem.total
-            });
-          }
-        } else {
-          stats.missingInSheet++;
-          matchedLines.push({
-            matricula: l.matricula,
-            type: "missing_in_sheet",
-            appCoche,
-            sheetCoche: 0,
-            appFinan,
-            sheetFinan: 0,
-            appTotal,
-            sheetTotal: 0
-          });
-        }
-      });
-
-      sheetData.forEach((s: any) => {
-        const appItem = appMap.get(s.matricula);
-        if (!appItem) {
-          stats.extraInSheet++;
-          matchedLines.push({
-            matricula: s.matricula,
-            type: "extra_in_sheet",
-            appCoche: null,
-            sheetCoche: s.coche,
-            appFinan: null,
-            sheetFinan: s.finan,
-            appTotal: null,
-            sheetTotal: s.total
-          });
-        }
-      });
-
-      const statusOrder = {
-        discrepancy: 1,
-        missing_in_sheet: 2,
-        extra_in_sheet: 3,
-        correct: 4
-      };
-      matchedLines.sort((a, b) => statusOrder[a.type as keyof typeof statusOrder] - statusOrder[b.type as keyof typeof statusOrder]);
-
-      setCotejoResult({
-        stats,
-        lines: matchedLines
-      });
-
-      showNotification("Cotejo de comisiones ejecutado con éxito.", "success");
+      setCotejoLines(data.lines || []);
+      showNotification("Expedientes del plan cargados con éxito.", "success");
     } catch (e: any) {
       console.error(e);
-      showNotification(e.message || "Error al realizar el cotejo.", "error");
+      showNotification("Error de conexión al cargar expedientes del plan.", "error");
+      setCotejoLines([]);
     } finally {
       setLoadingPlan(false);
+    }
+  };
+
+  const handleToggleComisionCobrada = async (idExpediente: number, currentValue: boolean) => {
+    // Optimistic update
+    setCotejoLines(prev => prev.map(l => {
+      if (l.id_expediente === idExpediente) {
+        return { ...l, comision_cobrada: !currentValue };
+      }
+      return l;
+    }));
+
+    try {
+      const res = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: idExpediente,
+          expediente: {
+            comision_cobrada: !currentValue
+          }
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || "Error al guardar el estado");
+      }
+      showNotification("Estado de cobro actualizado.", "success");
+    } catch (e: any) {
+      console.error(e);
+      showNotification(e.message || "Error al actualizar estado en la base de datos.", "error");
+      // Revert optimistic update
+      setCotejoLines(prev => prev.map(l => {
+        if (l.id_expediente === idExpediente) {
+          return { ...l, comision_cobrada: currentValue };
+        }
+        return l;
+      }));
     }
   };
 
@@ -1507,167 +1388,162 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               <h2 style={{ fontSize: "1.25rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="16" x2="12" y2="12" />
-                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                  <polyline points="12 6 12 12 16 14" />
                 </svg>
-                🔍 Cotejo y Verificación de Hojas de Comisiones
+                🔍 Control y Verificación de Cobros de Comisiones
               </h2>
               <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: "6px" }}>
-                Verifica y contrasta la hoja de comisiones recibida con los datos registrados y liquidados en la aplicación. 
-                El sistema cruzará la información a mes vencido (ej. coches matriculados/financiados en el mes del plan).
+                Visualiza los expedientes que corresponden al plan mensual seleccionado y márcalos como cobrados a medida que verifiques tus comisiones.
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
-              {/* CONFIGURACIÓN COTEJO */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">1. Seleccionar Plan de Comisión (Periodo)</label>
-                  <select 
-                    className="form-select" 
-                    value={cotejoPlanId || ""} 
-                    onChange={e => {
-                      setCotejoPlanId(e.target.value ? Number(e.target.value) : null);
-                      setCotejoResult(null);
-                    }}
-                  >
-                    <option value="">Selecciona un plan...</option>
-                    {planes.map(p => (
-                      <option key={p.id_plan} value={p.id_plan}>
-                        {p.nombre} ({formatDate(p.fecha_inicio)} a {formatDate(p.fecha_fin)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">2. Copiar y Pegar Datos desde Excel (Matrícula y Comisiones)</label>
-                  <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>
-                    Copia las columnas en tu Excel (Matrícula, Comisión Coche, Comisión Financiación) y pégalas aquí.
-                  </span>
-                  <textarea
-                    className="form-input"
-                    style={{ minHeight: "150px", fontFamily: "monospace", fontSize: "0.85rem" }}
-                    placeholder="Ejemplo:&#10;1234ABC&#9;150&#9;90&#10;5678DEF&#9;100&#9;0&#10;9012GHI&#9;150&#9;90"
-                    value={cotejoPastedText}
-                    onChange={e => setCotejoPastedText(e.target.value)}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={handleExecuteCotejo}
-                  disabled={!cotejoPlanId || !cotejoPastedText.trim()}
-                  style={{ width: "100%", justifyContent: "center", padding: "12px" }}
+            <div style={{ display: "flex", gap: "16px", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div className="form-group" style={{ marginBottom: 0, minWidth: "280px" }}>
+                <label className="form-label">Seleccionar Plan de Comisión (Periodo)</label>
+                <select 
+                  className="form-select" 
+                  value={cotejoPlanId || ""} 
+                  onChange={e => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    setCotejoPlanId(val);
+                    if (val) {
+                      handleLoadCotejoPlanes(val);
+                    } else {
+                      setCotejoLines([]);
+                    }
+                  }}
                 >
-                  🔍 Iniciar Cotejo de Comisiones
-                </button>
+                  <option value="">Selecciona un plan...</option>
+                  {planes.map(p => (
+                    <option key={p.id_plan} value={p.id_plan}>
+                      {p.nombre} ({formatDate(p.fecha_inicio)} a {formatDate(p.fecha_fin)})
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* MAPEO DE COLUMNAS / INFORMACIÓN */}
-              <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255,255,255,0.01)" }}>
-                <h4 style={{ fontSize: "0.95rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px" }}>
-                  Instrucciones de Uso
-                </h4>
-                <ul style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "8px", paddingLeft: "16px" }}>
-                  <li>Selecciona el plan mensual que corresponde a la hoja que deseas verificar.</li>
-                  <li>En tu Excel, selecciona las filas y cópialas (Ctrl+C). Asegúrate de incluir la columna de la **Matrícula**, la **Comisión del Coche** y/o la **Comisión de Financiación**.</li>
-                  <li>Pega el contenido directamente en la caja de texto (Ctrl+V).</li>
-                  <li>El sistema de forma inteligente detectará las columnas numéricas y de texto y contrastará matrícula a matrícula.</li>
-                  <li>Si una financiación fue contratada en otro mes, se cobra de forma separada según la configuración del expediente o si se cobró en otra fecha, lo cual se calculará automáticamente con las reglas vigentes.</li>
-                </ul>
-              </div>
+              {cotejoPlanId && (
+                <>
+                  <div className="form-group" style={{ marginBottom: 0, minWidth: "200px" }}>
+                    <label className="form-label">Filtrar por Estado</label>
+                    <select 
+                      className="form-select" 
+                      value={cotejoFilter} 
+                      onChange={e => setCotejoFilter(e.target.value as any)}
+                    >
+                      <option value="todos">Todos los expedientes</option>
+                      <option value="pendientes">🕒 Solo Pendientes</option>
+                      <option value="cobrados">💰 Solo Cobrados</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: "200px" }}>
+                    <label className="form-label">Buscar Expediente</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      placeholder="Buscar por matrícula, cliente o vendedor..." 
+                      value={cotejoSearch}
+                      onChange={e => setCotejoSearch(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* RESULTADOS DEL COTEJO */}
-            {cotejoResult && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "24px" }}>
-                <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "6px" }}>
-                  📊 Informe de Discrepancias y Cotejo
-                </h3>
+            {cotejoPlanId && cotejoLines.length > 0 && (() => {
+              // Filtrar y buscar
+              const searchLower = cotejoSearch.toLowerCase().trim();
+              const filteredLines = cotejoLines.filter(l => {
+                // Filtro por estado
+                if (cotejoFilter === "pendientes" && l.comision_cobrada) return false;
+                if (cotejoFilter === "cobrados" && !l.comision_cobrada) return false;
 
-                {/* Resumen de estadísticas */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
-                  <div style={{ padding: "12px 16px", background: "rgba(16, 185, 129, 0.08)", borderLeft: "4px solid var(--success)", borderRadius: "4px" }}>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>COINCIDENTES Y CORRECTOS</div>
-                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px" }}>{cotejoResult.stats.correct} uds</div>
-                  </div>
-                  <div style={{ padding: "12px 16px", background: "rgba(245, 158, 11, 0.08)", borderLeft: "4px solid var(--warning)", borderRadius: "4px" }}>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>CON DISCREPANCIAS</div>
-                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px", color: "var(--warning)" }}>{cotejoResult.stats.discrepancies} uds</div>
-                  </div>
-                  <div style={{ padding: "12px 16px", background: "rgba(239, 68, 68, 0.08)", borderLeft: "4px solid var(--danger)", borderRadius: "4px" }}>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>NO PAGADOS (NO EN LA HOJA)</div>
-                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px", color: "var(--danger)" }}>{cotejoResult.stats.missingInSheet} uds</div>
-                  </div>
-                  <div style={{ padding: "12px 16px", background: "rgba(255, 255, 255, 0.03)", borderLeft: "4px solid var(--text-muted)", borderRadius: "4px" }}>
-                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>EXCESOS (NO EN LA APP)</div>
-                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px", color: "var(--text-muted)" }}>{cotejoResult.stats.extraInSheet} uds</div>
-                  </div>
-                </div>
+                // Búsqueda
+                if (!searchLower) return true;
+                return (
+                  (l.matricula && l.matricula.toLowerCase().includes(searchLower)) ||
+                  (l.cliente_nombre && l.cliente_nombre.toLowerCase().includes(searchLower)) ||
+                  (l.vendedor_nombre && l.vendedor_nombre.toLowerCase().includes(searchLower)) ||
+                  (l.modelo_nombre && l.modelo_nombre.toLowerCase().includes(searchLower))
+                );
+              });
 
-                {/* Tabla de discrepancias */}
-                <div className="table-container" style={{ marginTop: "8px" }}>
-                  <table className="table-premium">
-                    <thead>
-                      <tr>
-                        <th>Matrícula</th>
-                        <th>Coche (App / Hoja)</th>
-                        <th>Financiación (App / Hoja)</th>
-                        <th>Total (App / Hoja)</th>
-                        <th>Estado / Resultado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cotejoResult.lines.map((l: any, idx: number) => {
-                        let statusBg = "transparent";
-                        let statusColor = "var(--text-primary)";
-                        let statusText = "Coincidente";
+              const totalCount = filteredLines.length;
+              const cobradosCount = filteredLines.filter(l => l.comision_cobrada).length;
+              const pendientesCount = totalCount - cobradosCount;
 
-                        if (l.type === "correct") {
-                          statusBg = "rgba(16, 185, 129, 0.06)";
-                          statusColor = "var(--success)";
-                          statusText = "✓ Correcto";
-                        } else if (l.type === "discrepancy") {
-                          statusBg = "rgba(245, 158, 11, 0.06)";
-                          statusColor = "var(--warning)";
-                          statusText = "⚠️ Discrepancia";
-                        } else if (l.type === "missing_in_sheet") {
-                          statusBg = "rgba(239, 68, 68, 0.06)";
-                          statusColor = "var(--danger)";
-                          statusText = "❌ No pagado por el jefe";
-                        } else if (l.type === "extra_in_sheet") {
-                          statusBg = "rgba(255, 255, 255, 0.02)";
-                          statusColor = "var(--text-muted)";
-                          statusText = "❓ No registrado en la App";
-                        }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "24px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+                    <h3 style={{ fontSize: "1.1rem" }}>
+                      📋 Expedientes a Verificar ({totalCount})
+                    </h3>
+                    <div style={{ display: "flex", gap: "12px", fontSize: "0.85rem" }}>
+                      <span className="badge" style={{ backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)" }}>
+                        💰 Cobrados: {cobradosCount}
+                      </span>
+                      <span className="badge" style={{ backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)" }}>
+                        🕒 Pendientes: {pendientesCount}
+                      </span>
+                    </div>
+                  </div>
 
-                        return (
-                          <tr key={idx} style={{ backgroundColor: statusBg }}>
-                            <td style={{ fontWeight: 700 }}>{l.matricula}</td>
-                            <td>
-                              {l.appCoche !== null ? `${l.appCoche} €` : "-"} / <strong style={{ color: l.appCoche !== l.sheetCoche ? "var(--warning)" : "inherit" }}>{l.sheetCoche} €</strong>
-                            </td>
-                            <td>
-                              {l.appFinan !== null ? `${l.appFinan} €` : "-"} / <strong style={{ color: l.appFinan !== l.sheetFinan ? "var(--warning)" : "inherit" }}>{l.sheetFinan} €</strong>
-                            </td>
-                            <td>
-                              {l.appTotal !== null ? `${l.appTotal} €` : "-"} / <strong style={{ color: l.appTotal !== l.sheetTotal ? "var(--danger)" : "inherit" }}>{l.sheetTotal} €</strong>
-                            </td>
-                            <td>
-                              <span style={{ color: statusColor, fontWeight: 700, fontSize: "0.85rem" }}>
-                                {statusText}
-                              </span>
+                  <div className="table-container">
+                    <table className="table-premium">
+                      <thead>
+                        <tr>
+                          <th style={{ width: "80px", textAlign: "center" }}>Cobrado</th>
+                          <th>Matrícula</th>
+                          <th>Vendedor</th>
+                          <th>Cliente</th>
+                          <th>Vehículo</th>
+                          <th style={{ textAlign: "right" }}>Comisión Coche</th>
+                          <th style={{ textAlign: "right" }}>Comisión Finan.</th>
+                          <th style={{ textAlign: "right" }}>Total Plan</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLines.map((l: any, idx: number) => {
+                          const comCoche = (l.comision_base_vn || 0) + (l.comision_usado || 0);
+                          const comFinan = (l.comision_financiacion || 0) + (l.comision_preference || 0);
+                          return (
+                            <tr key={l.id_line || idx} style={{ opacity: l.comision_cobrada ? 0.75 : 1 }}>
+                              <td style={{ textAlign: "center" }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={l.comision_cobrada || false} 
+                                  onChange={() => handleToggleComisionCobrada(l.id_expediente, l.comision_cobrada || false)}
+                                  disabled={!l.id_expediente}
+                                  style={{ width: "18px", height: "18px", accentColor: "var(--success)", cursor: l.id_expediente ? "pointer" : "not-allowed" }}
+                                />
+                              </td>
+                              <td style={{ fontWeight: 700, color: "var(--primary)" }}>{l.matricula || "S/M"}</td>
+                              <td>{l.vendedor_nombre}</td>
+                              <td>{l.cliente_nombre}</td>
+                              <td>
+                                <div style={{ fontWeight: 500 }}>{l.modelo_nombre}</div>
+                                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{l.marca_nombre}</div>
+                              </td>
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>{comCoche.toLocaleString()} €</td>
+                              <td style={{ textAlign: "right", fontWeight: 600 }}>{comFinan.toLocaleString()} €</td>
+                              <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-primary)" }}>{l.total_generado.toLocaleString()} €</td>
+                            </tr>
+                          );
+                        })}
+                        {filteredLines.length === 0 && (
+                          <tr>
+                            <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                              No se encontraron expedientes con los criterios de búsqueda aplicados.
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}
