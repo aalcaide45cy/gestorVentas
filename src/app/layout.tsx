@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { esES } from "@clerk/localizations";
 import "./globals.css";
+import GlobalModalKeyboardHandler from "@/components/GlobalModalKeyboardHandler";
 
 export const metadata: Metadata = {
   title: "Gestor de Ventas | Concesionarios",
@@ -31,6 +32,7 @@ export default function RootLayout({
           />
         </head>
         <body>
+          <GlobalModalKeyboardHandler />
           {children}
         </body>
       </html>
