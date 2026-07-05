@@ -169,12 +169,10 @@ export async function POST(req: NextRequest) {
 
     // 5. Filtrar que entren en el período (incluyendo RCI)
     const qualExpedientes = allExpedientes.filter((exp) => {
-      const pedidoIn = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
-      const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
       const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
       const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
-      return pedidoIn || afectacionIn || matriculacionIn || rciIn;
+      return matriculacionIn || rciIn;
     });
 
     const isVOVendedor = sellerUser.tipo_vendedor === "VO";

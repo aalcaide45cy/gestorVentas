@@ -122,14 +122,12 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // 4. Filtrar expedientes que cualifiquen por fechas de Pedido, Afectación, Matriculación o RCI
+    // 4. Filtrar expedientes que cualifiquen por fechas de Matriculación o RCI
     const qualExpedientes = allExpedientes.filter((exp) => {
-      const pedidoIn = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
-      const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
       const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
       const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
-      return pedidoIn || afectacionIn || matriculacionIn || rciIn;
+      return matriculacionIn || rciIn;
     });
 
     // 5. Agrupar expedientes por vendedor (id_usuario) para calcular tramos individuales
