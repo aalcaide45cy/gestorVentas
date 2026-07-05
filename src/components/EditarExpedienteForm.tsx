@@ -269,6 +269,12 @@ export default function EditarExpedienteForm({
   const [comisionPreferenceCobrada, setComisionPreferenceCobrada] = useState<boolean>(expediente.comision_preference_cobrada || false);
   const [comisionBonusCobrada, setComisionBonusCobrada] = useState<boolean>(expediente.comision_bonus_cobrada || false);
 
+  const [baselineExpediente, setBaselineExpediente] = useState(expediente);
+
+  useEffect(() => {
+    setBaselineExpediente(expediente);
+  }, [expediente]);
+
   const [comisionCocheReal, setComisionCocheReal] = useState<string>(
     expediente.comision_coche_real !== null && expediente.comision_coche_real !== undefined ? String(expediente.comision_coche_real) : ""
   );
@@ -605,6 +611,152 @@ export default function EditarExpedienteForm({
     matricula,
     vin
   ]);
+
+  const isVNSelected = () => {
+    if (estadoVehiculoSeleccionado) {
+      const activeEstado = estadosVehiculo.find(e => e.id === Number(estadoVehiculoSeleccionado));
+      const name = activeEstado?.nombre?.toLowerCase() || "";
+      return name === "nuevo" || name === "demo";
+    }
+    const name = expediente.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+    return name === "nuevo" || name === "demo";
+  };
+
+  const getConceptValue = (conceptType: string) => {
+    if (!comisionBreakdown || !comisionBreakdown.items) return 0;
+    
+    // Si hay un override manual de coche, VN Base o Usado se reemplaza por el override
+    const cocheOverride = comisionCocheReal.trim() !== "" ? parseFloat(comisionCocheReal) : null;
+    const finanOverride = comisionFinanciacionReal.trim() !== "" ? parseFloat(comisionFinanciacionReal) : null;
+
+    if (conceptType === "vn_base") {
+      if (cocheOverride !== null && isVNSelected()) return cocheOverride;
+      return comisionBreakdown.items
+        .filter((item: any) => item.concepto.includes("Comisión Base VN"))
+        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+    }
+    if (conceptType === "usado") {
+      if (cocheOverride !== null && !isVNSelected()) return cocheOverride;
+      return comisionBreakdown.items
+        .filter((item: any) => item.concepto.includes("Comisión VO") || item.concepto.includes("VO Progresiva"))
+        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+    }
+    if (conceptType === "financiacion") {
+      if (finanOverride !== null) return finanOverride;
+      return comisionBreakdown.items
+        .filter((item: any) => item.concepto.includes("Incentivo Financiación"))
+        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+    }
+    if (conceptType === "preference") {
+      return comisionBreakdown.items
+        .filter((item: any) => item.concepto.includes("Regla Preference") || item.concepto.includes("BOX3"))
+        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+    }
+    if (conceptType === "bonus") {
+      return comisionBreakdown.items
+        .filter((item: any) => item.concepto.includes("Regla Comisión") || item.concepto.includes("Bonus Campaña"))
+        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+    }
+    return 0;
+  };
+
+  const handleRestoreVerification = () => {
+    setComisionCocheCobrada(baselineExpediente.comision_coche_cobrada || false);
+    setComisionUsadoCobrada(baselineExpediente.comision_usado_cobrada || false);
+    setComisionFinanciacionCobrada(baselineExpediente.comision_financiacion_cobrada || false);
+    setComisionPreferenceCobrada(baselineExpediente.comision_preference_cobrada || false);
+    setComisionBonusCobrada(baselineExpediente.comision_bonus_cobrada || false);
+    setComisionCocheReal(baselineExpediente.comision_coche_real !== null && baselineExpediente.comision_coche_real !== undefined ? String(baselineExpediente.comision_coche_real) : "");
+    setComisionFinanciacionReal(baselineExpediente.comision_financiacion_real !== null && baselineExpediente.comision_financiacion_real !== undefined ? String(baselineExpediente.comision_financiacion_real) : "");
+    if (baselineExpediente.conceptos_adicionales) {
+      try {
+        setConceptosAdicionales(JSON.parse(baselineExpediente.conceptos_adicionales));
+      } catch (e) {
+        setConceptosAdicionales([]);
+      }
+    } else {
+      setConceptosAdicionales([]);
+    }
+  };
+
+  const handleSaveVerificationOnly = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const cocheVal = comisionCocheReal.trim() === "" ? null : parseFloat(comisionCocheReal);
+      const finanVal = comisionFinanciacionReal.trim() === "" ? null : parseFloat(comisionFinanciacionReal);
+      const allMainConceptsCobrado = comisionCocheCobrada && 
+                                     comisionUsadoCobrada && 
+                                     comisionFinanciacionCobrada && 
+                                     comisionPreferenceCobrada && 
+                                     comisionBonusCobrada;
+      const allExtraCobrado = conceptosAdicionales.every((c: any) => c.cobrado);
+      const finalCobrado = allMainConceptsCobrado && allExtraCobrado;
+
+      const response = await fetch("/api/expedientes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_expediente: expediente.id_expediente,
+          id_cliente: clienteAsignado ? clienteAsignado.id : null,
+          expediente: {
+            id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
+            id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
+            id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
+            id_tienda: tiendaId ? Number(tiendaId) : null,
+            fecha_expediente: fechaExpediente || null,
+            fecha_afectacion: fechaAfectacion || null,
+            fecha_rci: fechaRci || null,
+            fecha_matriculacion: fechaMatriculacion || null,
+            fecha_entrega: fechaEntrega || null,
+            matricula: matricula || null,
+            vin: vin || null,
+            valor_objetivo: valorObjetivo,
+            min_coches_multiplicador: minCochesMultiplicador,
+            cobrado_otra_fecha: cobradoOtraFecha,
+            fecha_cobrado: cobradoOtraFecha ? (fechaCobrado || null) : null,
+            comision_coche_real: cocheVal,
+            comision_financiacion_real: finanVal,
+            conceptos_adicionales: JSON.stringify(conceptosAdicionales),
+            comision_coche_cobrada: comisionCocheCobrada,
+            comision_usado_cobrada: comisionUsadoCobrada,
+            comision_financiacion_cobrada: comisionFinanciacionCobrada,
+            comision_preference_cobrada: comisionPreferenceCobrada,
+            comision_bonus_cobrada: comisionBonusCobrada,
+            comision_cobrada: finalCobrado
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Error al actualizar la verificación.");
+      }
+
+      setBaselineExpediente({
+        ...baselineExpediente,
+        comision_coche_cobrada: comisionCocheCobrada,
+        comision_usado_cobrada: comisionUsadoCobrada,
+        comision_financiacion_cobrada: comisionFinanciacionCobrada,
+        comision_preference_cobrada: comisionPreferenceCobrada,
+        comision_bonus_cobrada: comisionBonusCobrada,
+        comision_coche_real: cocheVal,
+        comision_financiacion_real: finanVal,
+        conceptos_adicionales: JSON.stringify(conceptosAdicionales),
+        comision_cobrada: finalCobrado
+      });
+
+      setClientNotification("Verificación e importes de comisión guardados correctamente.");
+      setTimeout(() => setClientNotification(null), 3000);
+      return true;
+    } catch (err: any) {
+      setError(err.message || "Ocurrió un error inesperado al guardar la verificación.");
+      setTimeout(() => setError(null), 4000);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Envío del Formulario
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -1207,13 +1359,35 @@ export default function EditarExpedienteForm({
 
         {/* SECCIÓN NUEVA: CONTROL Y VERIFICACIÓN DE COBROS DE COMISIONES */}
         <div className="glass-panel" style={{ padding: "32px", marginTop: "24px" }}>
-          <h2 style={{ fontSize: "1.25rem", marginBottom: "24px", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            Control y Verificación de Cobros de Comisiones
-          </h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+            <h2 style={{ fontSize: "1.25rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px", margin: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              Control y Verificación de Cobros de Comisiones
+            </h2>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleRestoreVerification}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}
+                title="Restaurar valores de cobro a su último estado guardado"
+              >
+                <span>🔄 Restaurar</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSaveVerificationOnly}
+                disabled={saving}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px", backgroundColor: "var(--success)", border: "none", color: "#fff" }}
+              >
+                <span>💾 {saving ? "Guardando..." : "Guardar Verificación"}</span>
+              </button>
+            </div>
+          </div>
 
           {/* Overrides de Comisión Coche y Financiación */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
@@ -1242,7 +1416,7 @@ export default function EditarExpedienteForm({
           {/* Checkboxes de cobro */}
           <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", marginBottom: "24px" }}>
             <label className="form-label" style={{ fontWeight: 700 }}>✅ Estado de Cobro por Concepto</label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginTop: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: "12px", marginTop: "12px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 <input
                   type="checkbox"
@@ -1250,7 +1424,7 @@ export default function EditarExpedienteForm({
                   onChange={(e) => setComisionCocheCobrada(e.target.checked)}
                   style={{ cursor: "pointer" }}
                 />
-                <span>VN Base Cobrado</span>
+                <span>VN Base Cobrado: <strong>{getConceptValue("vn_base").toLocaleString()} €</strong></span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 <input
@@ -1259,7 +1433,7 @@ export default function EditarExpedienteForm({
                   onChange={(e) => setComisionUsadoCobrada(e.target.checked)}
                   style={{ cursor: "pointer" }}
                 />
-                <span>Usado Cobrado</span>
+                <span>Usado Cobrado: <strong>{getConceptValue("usado").toLocaleString()} €</strong></span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 <input
@@ -1268,7 +1442,7 @@ export default function EditarExpedienteForm({
                   onChange={(e) => setComisionFinanciacionCobrada(e.target.checked)}
                   style={{ cursor: "pointer" }}
                 />
-                <span>Financiación Cobrada</span>
+                <span>Financiación Cobrada: <strong>{getConceptValue("financiacion").toLocaleString()} €</strong></span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 <input
@@ -1277,7 +1451,7 @@ export default function EditarExpedienteForm({
                   onChange={(e) => setComisionPreferenceCobrada(e.target.checked)}
                   style={{ cursor: "pointer" }}
                 />
-                <span>Pref/Box Cobrado</span>
+                <span>Pref/Box Cobrado: <strong>{getConceptValue("preference").toLocaleString()} €</strong></span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
                 <input
@@ -1286,7 +1460,7 @@ export default function EditarExpedienteForm({
                   onChange={(e) => setComisionBonusCobrada(e.target.checked)}
                   style={{ cursor: "pointer" }}
                 />
-                <span>Bonus Cobrado</span>
+                <span>Bonus Cobrado: <strong>{getConceptValue("bonus").toLocaleString()} €</strong></span>
               </label>
             </div>
           </div>
