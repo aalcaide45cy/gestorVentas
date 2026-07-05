@@ -694,7 +694,13 @@ export async function POST(req: NextRequest) {
         const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
 
         if (filterMarcaMatches && filterModeloMatches) {
-          bonusAcumulado += rule.importe;
+          if (rule.tipo_evento === "preference") {
+            comisionPreference += rule.importe;
+          } else if (rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion") {
+            comisionFinanciacion += rule.importe;
+          } else {
+            bonusAcumulado += rule.importe;
+          }
           finalItems.push({
             concepto: `Regla Comisión: ${rule.nombre}`,
             importe: rule.importe,
@@ -726,7 +732,7 @@ export async function POST(req: NextRequest) {
             });
 
             if (matchingCreditRule) {
-              bonusAcumulado += matchingCreditRule.importe;
+              comisionFinanciacion += matchingCreditRule.importe;
               finalItems.push({
                 concepto: `Regla Comisión Ligada (Crédito): ${matchingCreditRule.nombre}`,
                 importe: matchingCreditRule.importe,
@@ -783,6 +789,11 @@ export async function POST(req: NextRequest) {
           matriculacionesRealesVendedor,
           minMatriculacionesPlan: plan.min_matriculaciones,
           items: finalItems,
+          comisionBaseVN,
+          comisionUsado,
+          comisionFinanciacion,
+          comisionPreference,
+          bonusAcumulado,
           planNombre: plan.nombre,
           entraPedido,
           entraAfectacion,

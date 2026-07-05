@@ -623,7 +623,7 @@ export default function EditarExpedienteForm({
   };
 
   const getConceptValue = (conceptType: string) => {
-    if (!comisionBreakdown || !comisionBreakdown.items) return 0;
+    if (!comisionBreakdown) return 0;
     
     // Si hay un override manual de coche, VN Base o Usado se reemplaza por el override
     const cocheOverride = comisionCocheReal.trim() !== "" ? parseFloat(comisionCocheReal) : null;
@@ -631,31 +631,21 @@ export default function EditarExpedienteForm({
 
     if (conceptType === "vn_base") {
       if (cocheOverride !== null && isVNSelected()) return cocheOverride;
-      return comisionBreakdown.items
-        .filter((item: any) => item.concepto.includes("Comisión Base VN"))
-        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+      return comisionBreakdown.comisionBaseVN || 0;
     }
     if (conceptType === "usado") {
       if (cocheOverride !== null && !isVNSelected()) return cocheOverride;
-      return comisionBreakdown.items
-        .filter((item: any) => item.concepto.includes("Comisión VO") || item.concepto.includes("VO Progresiva"))
-        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+      return comisionBreakdown.comisionUsado || 0;
     }
     if (conceptType === "financiacion") {
       if (finanOverride !== null) return finanOverride;
-      return comisionBreakdown.items
-        .filter((item: any) => item.concepto.includes("Incentivo Financiación"))
-        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+      return comisionBreakdown.comisionFinanciacion || 0;
     }
     if (conceptType === "preference") {
-      return comisionBreakdown.items
-        .filter((item: any) => item.concepto.includes("Regla Preference") || item.concepto.includes("BOX3"))
-        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+      return comisionBreakdown.comisionPreference || 0;
     }
     if (conceptType === "bonus") {
-      return comisionBreakdown.items
-        .filter((item: any) => item.concepto.includes("Regla Comisión") || item.concepto.includes("Bonus Campaña"))
-        .reduce((sum: number, item: any) => sum + (item.importe || 0), 0);
+      return comisionBreakdown.bonusAcumulado || 0;
     }
     return 0;
   };
