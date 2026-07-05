@@ -69,6 +69,11 @@ interface Expediente {
   cobrado_otra_fecha?: boolean | null;
   fecha_cobrado?: string | null;
   comision_cobrada?: boolean | null;
+  comision_coche_real?: number | null;
+  comision_financiacion_real?: number | null;
+  comision_preference_real?: number | null;
+  comision_usado_real?: number | null;
+  comision_bonus_real?: number | null;
   
   cliente?: Cliente | null;
   modelo?: Modelo | null;
@@ -1545,9 +1550,18 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         let reglasPenalizacion = 0;
 
         if (activePlan) {
+          const hasCocheOverride = exp.comision_coche_real !== null && exp.comision_coche_real !== undefined;
+          const hasFinanOverride = exp.comision_financiacion_real !== null && exp.comision_financiacion_real !== undefined;
+
           // Comisión base VN/VO (se abona por fecha_matriculacion)
           if (isMatriculadoThisMonth) {
-            if (isVN) {
+            if (hasCocheOverride) {
+              if (isVN) {
+                baseVN = Number(exp.comision_coche_real);
+              } else {
+                baseUsado = Number(exp.comision_coche_real);
+              }
+            } else if (isVN) {
               if (!isVOVendedor) {
                 const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
                 // Simular checkTasaCumplida para el vendedor
@@ -1628,48 +1642,54 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           const isPreferenceVenta = salesTypeNameLower.includes("preference");
           const isFinancedType = isCreditoVenta || isPreferenceVenta;
 
-          if (entraRci && isFinancedType && exp.id_tipo_de_venta) {
-            let matchedFinanceType = "";
-            if (salesTypeNameLower.includes("preference")) matchedFinanceType = "Preference";
-            else if (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado")) matchedFinanceType = "Crédito";
-            else if (salesTypeNameLower.includes("renting")) matchedFinanceType = "Renting";
-            else if (salesTypeNameLower.includes("contado")) matchedFinanceType = "Contado";
-
-            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-            if (matchedFinanceType && brandId) {
-              const finRate = activePlan.financeRates?.find(
-                (r: any) => r.id_marca === brandId && r.tipo_financiacion === matchedFinanceType
-              );
-              if (finRate) {
-                baseFinanciacion = finRate.importe;
-              }
-            }
-          }
-
-          // Reglas Preference / BOX3 (se abona por fecha_rci)
           if (entraRci) {
-            activePlan.preferenceRules?.forEach((rule: any) => {
-              if (!rule.activa) return;
-              const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
-              const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
-              const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+            if (hasFinanOverride) {
+              baseFinanciacion = Number(exp.comision_financiacion_real);
+              basePreference = 0;
+            } else {
+              if (isFinancedType && exp.id_tipo_de_venta) {
+                let matchedFinanceType = "";
+                if (salesTypeNameLower.includes("preference")) matchedFinanceType = "Preference";
+                else if (salesTypeNameLower.includes("crédito") || salesTypeNameLower.includes("credito") || salesTypeNameLower.includes("financiado")) matchedFinanceType = "Crédito";
+                else if (salesTypeNameLower.includes("renting")) matchedFinanceType = "Renting";
+                else if (salesTypeNameLower.includes("contado")) matchedFinanceType = "Contado";
 
-              let finMatches = true;
-              if (rule.tipo_financiacion) {
-                const ruleFin = rule.tipo_financiacion.toLowerCase();
-                const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
-                finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
+                const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+                if (matchedFinanceType && brandId) {
+                  const finRate = activePlan.financeRates?.find(
+                    (r: any) => r.id_marca === brandId && r.tipo_financiacion === matchedFinanceType
+                  );
+                  if (finRate) {
+                    baseFinanciacion = finRate.importe;
+                  }
+                }
               }
 
-              if (filterMarcaMatches && filterModeloMatches && finMatches) {
-                basePreference += rule.importe;
-              }
-            });
+              // Reglas Preference / BOX3 (se abona por fecha_rci)
+              activePlan.preferenceRules?.forEach((rule: any) => {
+                if (!rule.activa) return;
+                const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+                const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+                const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+                let finMatches = true;
+                if (rule.tipo_financiacion) {
+                  const ruleFin = rule.tipo_financiacion.toLowerCase();
+                  const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+                  finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
+                }
+
+                if (filterMarcaMatches && filterModeloMatches && finMatches) {
+                  basePreference += rule.importe;
+                }
+              });
+            }
           }
 
           // Reglas generales (se abonan según tipo de evento)
           activePlan.rules?.forEach((rule: any) => {
             if (!rule.activa || !rule.afecta_comision) return;
+            if (hasFinanOverride && (rule.tipo_evento === "preference" || rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion")) return;
             const eventMatches = 
               (rule.tipo_evento === "pedido" && entraPedido) ||
               (rule.tipo_evento === "afectacion" && entraAfectacion) ||
