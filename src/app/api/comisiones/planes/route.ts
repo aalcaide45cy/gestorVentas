@@ -90,7 +90,8 @@ export async function GET(req: NextRequest) {
             with: {
               lines: {
                 with: {
-                  items: true
+                  items: true,
+                  expediente: true
                 }
               }
             }
