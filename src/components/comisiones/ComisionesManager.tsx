@@ -213,7 +213,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
   const handleToggleAllComponents = async (line: any) => {
     const isCocheCobrada = line.comision_coche_cobrada || false;
+    const isUsadoCobrada = line.comision_usado_cobrada || false;
     const isFinanCobrada = line.comision_financiacion_cobrada || false;
+    const isPrefCobrada = line.comision_preference_cobrada || false;
+    const isBonusCobrada = line.comision_bonus_cobrada || false;
     let customConcepts: any[] = [];
     if (line.conceptos_adicionales) {
       try {
@@ -224,7 +227,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     }
     const allConceptsCobrados = customConcepts.every(c => c.cobrado);
     
-    const targetValue = !(isCocheCobrada && isFinanCobrada && allConceptsCobrados);
+    const targetValue = !(isCocheCobrada && isUsadoCobrada && isFinanCobrada && isPrefCobrada && isBonusCobrada && allConceptsCobrados);
     const updatedConcepts = customConcepts.map(c => ({ ...c, cobrado: targetValue }));
     
     // Optimistic update
@@ -234,7 +237,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           ...l,
           comision_cobrada: targetValue,
           comision_coche_cobrada: targetValue,
+          comision_usado_cobrada: targetValue,
           comision_financiacion_cobrada: targetValue,
+          comision_preference_cobrada: targetValue,
+          comision_bonus_cobrada: targetValue,
           conceptos_adicionales: JSON.stringify(updatedConcepts)
         };
       }
@@ -250,7 +256,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           expediente: {
             comision_cobrada: targetValue,
             comision_coche_cobrada: targetValue,
+            comision_usado_cobrada: targetValue,
             comision_financiacion_cobrada: targetValue,
+            comision_preference_cobrada: targetValue,
+            comision_bonus_cobrada: targetValue,
             conceptos_adicionales: JSON.stringify(updatedConcepts)
           }
         })
@@ -266,7 +275,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             ...l,
             comision_cobrada: line.comision_cobrada,
             comision_coche_cobrada: isCocheCobrada,
+            comision_usado_cobrada: isUsadoCobrada,
             comision_financiacion_cobrada: isFinanCobrada,
+            comision_preference_cobrada: isPrefCobrada,
+            comision_bonus_cobrada: isBonusCobrada,
             conceptos_adicionales: line.conceptos_adicionales
           };
         }
@@ -2497,6 +2509,11 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           <div style={{ fontSize: "1.6rem", fontWeight: 700, color: "var(--warning)" }}>
                             {(granTotalCalculado - granTotalCobrado).toLocaleString()} €
                           </div>
+                          {penalizacionPlan > 0 && (
+                            <div style={{ fontSize: "0.85rem", color: "var(--danger)", fontWeight: 600 }}>
+                              Neto Final: {Math.max(0, finalNetoCalculado - granTotalCobrado).toLocaleString()} € (Penalización aplicada)
+                            </div>
+                          )}
                           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
                             <span>• VN Base: {totalPendienteVnBase.toLocaleString()} €</span>
                             <span>• Usado: {totalPendienteUsado.toLocaleString()} €</span>
