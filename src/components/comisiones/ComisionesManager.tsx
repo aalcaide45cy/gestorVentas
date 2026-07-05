@@ -115,6 +115,266 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [financeRates, setFinanceRates] = useState<any[]>([]);
   const [brandInterventionRates, setBrandInterventionRates] = useState<any[]>([]);
 
+  // Estados para listado, ordenación, filtrado y paginación de planes
+  const [planPageSize, setPlanPageSize] = useState(10);
+  const [planCurrentPage, setPlanCurrentPage] = useState(1);
+  const [planSortField, setPlanSortField] = useState<string>("fecha_inicio");
+  const [planSortOrder, setPlanSortOrder] = useState<"asc" | "desc">("desc");
+  const [planSearchQuery, setPlanSearchQuery] = useState("");
+
+  // Estados para cotejo/verificación de comisiones
+  const [cotejoPlanId, setCotejoPlanId] = useState<number | null>(null);
+  const [cotejoPastedText, setCotejoPastedText] = useState("");
+  const [cotejoResult, setCotejoResult] = useState<any | null>(null);
+
+
+
+  const handlePlanSort = (field: string) => {
+    if (planSortField === field) {
+      setPlanSortOrder(planSortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setPlanSortField(field);
+      setPlanSortOrder("asc");
+    }
+    setPlanCurrentPage(1);
+  };
+
+  const renderPlanSortIndicator = (field: string) => {
+    if (planSortField !== field) return " ↕";
+    return planSortOrder === "asc" ? " ▲" : " ▼";
+  };
+
+  const handlePlanPageSizeChange = (newSize: number) => {
+    setPlanPageSize(newSize);
+    setPlanCurrentPage(1);
+  };
+
+
+
+  const filteredPlanes = planes.filter((p) => {
+    const q = planSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      p.nombre.toLowerCase().includes(q) ||
+      p.fecha_inicio.includes(q) ||
+      p.fecha_fin.includes(q)
+    );
+  });
+
+  const sortedPlanes = [...filteredPlanes].sort((a, b) => {
+    let aVal: any = a[planSortField];
+    let bVal: any = b[planSortField];
+    
+    if (planSortField === "liquidacion") {
+      const aLiq = a.liquidations?.[0];
+      const bLiq = b.liquidations?.[0];
+      aVal = aLiq ? (aLiq.total_comision_economica - Math.abs(aLiq.penalizacion_importe_snapshot || 0)) : -1;
+      bVal = bLiq ? (bLiq.total_comision_economica - Math.abs(bLiq.penalizacion_importe_snapshot || 0)) : -1;
+    } else if (planSortField === "objetivo") {
+      aVal = a.objetivo_base + a.arrastre;
+      bVal = b.objetivo_base + b.arrastre;
+    }
+
+    if (aVal === undefined || aVal === null) return 1;
+    if (bVal === undefined || bVal === null) return -1;
+
+    if (aVal < bVal) return planSortOrder === "asc" ? -1 : 1;
+    if (aVal > bVal) return planSortOrder === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const totalFilteredPlanes = sortedPlanes.length;
+  const totalPlanPages = Math.max(1, Math.ceil(totalFilteredPlanes / planPageSize));
+  const safePlanPage = Math.min(planCurrentPage, totalPlanPages);
+  const paginatedPlanes = sortedPlanes.slice(
+    (safePlanPage - 1) * planPageSize,
+    safePlanPage * planPageSize
+  );
+
+  const goToPlanPage = (page: number) => {
+    setPlanCurrentPage(Math.max(1, Math.min(page, totalPlanPages)));
+  };
+
+  const handleExecuteCotejo = async () => {
+    if (!cotejoPlanId) return;
+    setLoadingPlan(true);
+    try {
+      const res = await fetch(`/api/comisiones/verificar?id_plan=${cotejoPlanId}`);
+      const data = await res.json();
+      if (!data.success) {
+        showNotification(data.message || "Error al obtener las líneas del plan", "error");
+        setLoadingPlan(false);
+        return;
+      }
+
+      const appLines = data.lines || [];
+      const rows = cotejoPastedText.split(/\r?\n/).map(row => row.split(/\t/));
+      if (rows.length === 0 || rows[0].length === 0) {
+        showNotification("El contenido pegado no tiene datos válidos", "error");
+        setLoadingPlan(false);
+        return;
+      }
+      
+      let headerRow = rows[0];
+      let matriculaColIdx = 0;
+      let cocheColIdx = 1;
+      let finanColIdx = 2;
+
+      const headerLower = headerRow.map(h => h.toLowerCase().trim());
+      
+      const foundMatIdx = headerLower.findIndex(h => h.includes("matri") || h.includes("coche") || h.includes("placa") || h.includes("patente") || h.includes("bastidor") || h.includes("vin"));
+      if (foundMatIdx !== -1) matriculaColIdx = foundMatIdx;
+
+      const foundCocheIdx = headerLower.findIndex(h => h.includes("comis") || h.includes("base") || h.includes("vn") || h.includes("vo") || h.includes("importe") || h.includes("pago"));
+      if (foundCocheIdx !== -1) cocheColIdx = foundCocheIdx;
+
+      const foundFinanIdx = headerLower.findIndex(h => h.includes("finan") || h.includes("rci") || h.includes("box3") || h.includes("pref"));
+      if (foundFinanIdx !== -1) finanColIdx = foundFinanIdx;
+
+      let dataRows = rows;
+      if (headerLower.some(h => isNaN(Number(h)) && h.length > 0)) {
+        dataRows = rows.slice(1);
+      }
+
+      const sheetData: any[] = [];
+      dataRows.forEach(row => {
+        if (row.length === 0 || !row[0]) return;
+        const matRaw = row[matriculaColIdx]?.trim().toUpperCase();
+        if (!matRaw) return;
+
+        const matricula = matRaw.replace(/[^A-Z0-9]/g, "");
+        if (matricula.length < 4) return;
+
+        const parseMoney = (val: string) => {
+          if (!val) return 0;
+          const clean = val.replace(/[^0-9,.-]/g, "").replace(",", ".");
+          const num = parseFloat(clean);
+          return isNaN(num) ? 0 : num;
+        };
+
+        const cocheVal = parseMoney(row[cocheColIdx]);
+        const finanVal = row[finanColIdx] ? parseMoney(row[finanColIdx]) : 0;
+        const totalVal = row.length > Math.max(cocheColIdx, finanColIdx) + 1 ? parseMoney(row[row.length - 1]) : (cocheVal + finanVal);
+
+        sheetData.push({
+          matricula,
+          coche: cocheVal,
+          finan: finanVal,
+          total: totalVal
+        });
+      });
+
+      const matchedLines: any[] = [];
+      const stats = {
+        correct: 0,
+        discrepancies: 0,
+        missingInSheet: 0,
+        extraInSheet: 0
+      };
+
+      const appMap = new Map<string, any>();
+      appLines.forEach((l: any) => {
+        if (l.matricula) {
+          const normMat = l.matricula.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+          appMap.set(normMat, l);
+        }
+      });
+
+      const sheetMap = new Map<string, any>();
+      sheetData.forEach((s: any) => {
+        sheetMap.set(s.matricula, s);
+      });
+
+      appLines.forEach((l: any) => {
+        if (!l.matricula) return;
+        const normMat = l.matricula.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const sheetItem = sheetMap.get(normMat);
+
+        const appCoche = (l.comision_base_vn || 0) + (l.comision_usado || 0);
+        const appFinan = (l.comision_financiacion || 0) + (l.comision_preference || 0);
+        const appTotal = l.total_generado || 0;
+
+        if (sheetItem) {
+          const isCorrect = appCoche === sheetItem.coche && appFinan === sheetItem.finan;
+          if (isCorrect) {
+            stats.correct++;
+            matchedLines.push({
+              matricula: l.matricula,
+              type: "correct",
+              appCoche,
+              sheetCoche: sheetItem.coche,
+              appFinan,
+              sheetFinan: sheetItem.finan,
+              appTotal,
+              sheetTotal: sheetItem.total
+            });
+          } else {
+            stats.discrepancies++;
+            matchedLines.push({
+              matricula: l.matricula,
+              type: "discrepancy",
+              appCoche,
+              sheetCoche: sheetItem.coche,
+              appFinan,
+              sheetFinan: sheetItem.finan,
+              appTotal,
+              sheetTotal: sheetItem.total
+            });
+          }
+        } else {
+          stats.missingInSheet++;
+          matchedLines.push({
+            matricula: l.matricula,
+            type: "missing_in_sheet",
+            appCoche,
+            sheetCoche: 0,
+            appFinan,
+            sheetFinan: 0,
+            appTotal,
+            sheetTotal: 0
+          });
+        }
+      });
+
+      sheetData.forEach((s: any) => {
+        const appItem = appMap.get(s.matricula);
+        if (!appItem) {
+          stats.extraInSheet++;
+          matchedLines.push({
+            matricula: s.matricula,
+            type: "extra_in_sheet",
+            appCoche: null,
+            sheetCoche: s.coche,
+            appFinan: null,
+            sheetFinan: s.finan,
+            appTotal: null,
+            sheetTotal: s.total
+          });
+        }
+      });
+
+      const statusOrder = {
+        discrepancy: 1,
+        missing_in_sheet: 2,
+        extra_in_sheet: 3,
+        correct: 4
+      };
+      matchedLines.sort((a, b) => statusOrder[a.type as keyof typeof statusOrder] - statusOrder[b.type as keyof typeof statusOrder]);
+
+      setCotejoResult({
+        stats,
+        lines: matchedLines
+      });
+
+      showNotification("Cotejo de comisiones ejecutado con éxito.", "success");
+    } catch (e: any) {
+      console.error(e);
+      showNotification(e.message || "Error al realizar el cotejo.", "error");
+    } finally {
+      setLoadingPlan(false);
+    }
+  };
+
   // Clipboard para copiar/pegar valores de tarifas
   const [rateClipboard, setRateClipboard] = useState<{
     rate_x_minus_4: number;
@@ -1046,21 +1306,56 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
           </div>
 
           <div className="glass-panel" style={{ padding: "8px" }}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "16px",
+              padding: "12px 16px",
+              borderBottom: "1px solid var(--border-light)",
+              marginBottom: "8px"
+            }}>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Buscar plan por nombre o fecha..."
+                value={planSearchQuery}
+                onChange={e => {
+                  setPlanSearchQuery(e.target.value);
+                  setPlanCurrentPage(1);
+                }}
+                style={{ maxWidth: "350px" }}
+              />
+            </div>
+
             <div className="table-container">
               <table className="table-premium">
                 <thead>
                   <tr>
-                    <th>Nombre del Plan</th>
-                    <th>Inicio</th>
-                    <th>Fin</th>
-                    <th style={{ textAlign: "center" }}>Objetivo (X)</th>
-                    <th style={{ textAlign: "center" }}>Mínimo Mat.</th>
-                    <th style={{ textAlign: "center" }}>Liquidación</th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handlePlanSort("nombre")}>
+                      Nombre del Plan{renderPlanSortIndicator("nombre")}
+                    </th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handlePlanSort("fecha_inicio")}>
+                      Inicio{renderPlanSortIndicator("fecha_inicio")}
+                    </th>
+                    <th style={{ cursor: "pointer" }} onClick={() => handlePlanSort("fecha_fin")}>
+                      Fin{renderPlanSortIndicator("fecha_fin")}
+                    </th>
+                    <th style={{ cursor: "pointer", textAlign: "center" }} onClick={() => handlePlanSort("objetivo")}>
+                      Objetivo (X){renderPlanSortIndicator("objetivo")}
+                    </th>
+                    <th style={{ cursor: "pointer", textAlign: "center" }} onClick={() => handlePlanSort("min_matriculaciones")}>
+                      Mínimo Mat.{renderPlanSortIndicator("min_matriculaciones")}
+                    </th>
+                    <th style={{ cursor: "pointer", textAlign: "center" }} onClick={() => handlePlanSort("liquidacion")}>
+                      Liquidación{renderPlanSortIndicator("liquidacion")}
+                    </th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {planes.map((p) => {
+                  {paginatedPlanes.map((p) => {
                     const liq = p.liquidations?.[0];
                     const finalTotal = liq ? Math.max(0, liq.total_comision_economica - Math.abs(liq.penalizacion_importe_snapshot || 0)) : 0;
                     return (
@@ -1143,6 +1438,236 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 </tbody>
               </table>
             </div>
+
+            {/* Barra de Paginación */}
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "10px",
+              padding: "10px 16px",
+              background: "rgba(255, 255, 255, 0.02)",
+              borderTop: "1px solid var(--border-light)",
+              fontSize: "0.85rem",
+              color: "var(--text-secondary)",
+              marginTop: "8px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>Mostrar:</span>
+                {[5, 10, 20, 50].map(size => (
+                  <button
+                    key={size}
+                    type="button"
+                    onClick={() => handlePlanPageSizeChange(size)}
+                    style={{
+                      padding: "3px 10px",
+                      fontSize: "0.8rem",
+                      border: `1px solid ${planPageSize === size ? "var(--primary)" : "var(--border-light)"}`,
+                      borderRadius: "4px",
+                      background: planPageSize === size ? "rgba(var(--primary-rgb), 0.12)" : "transparent",
+                      color: planPageSize === size ? "var(--primary)" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      fontWeight: planPageSize === size ? 700 : 400
+                    }}
+                  >{size}</button>
+                ))}
+                <span style={{ marginLeft: "8px" }}>
+                  {totalFilteredPlanes} resultado(s)
+                  {totalFilteredPlanes !== planes.length ? ` (de ${planes.length} totales)` : ""}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <button type="button" onClick={() => goToPlanPage(1)} disabled={safePlanPage === 1}
+                  style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePlanPage === 1 ? "var(--text-muted)" : "var(--text-primary)", cursor: safePlanPage === 1 ? "default" : "pointer", fontSize: "0.8rem" }}
+                  title="Primera página"
+                >«</button>
+                <button type="button" onClick={() => goToPlanPage(safePlanPage - 1)} disabled={safePlanPage === 1}
+                  style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePlanPage === 1 ? "var(--text-muted)" : "var(--text-primary)", cursor: safePlanPage === 1 ? "default" : "pointer", fontSize: "0.8rem" }}
+                  title="Página anterior"
+                >‹</button>
+                <span style={{ padding: "4px 12px", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Pág. {safePlanPage} / {totalPlanPages}
+                </span>
+                <button type="button" onClick={() => goToPlanPage(safePlanPage + 1)} disabled={safePlanPage === totalPlanPages}
+                  style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePlanPage === totalPlanPages ? "var(--text-muted)" : "var(--text-primary)", cursor: safePlanPage === totalPlanPages ? "default" : "pointer", fontSize: "0.8rem" }}
+                  title="Página siguiente"
+                >›</button>
+                <button type="button" onClick={() => goToPlanPage(totalPlanPages)} disabled={safePlanPage === totalPlanPages}
+                  style={{ padding: "4px 8px", border: "1px solid var(--border-light)", borderRadius: "4px", background: "transparent", color: safePlanPage === totalPlanPages ? "var(--text-muted)" : "var(--text-primary)", cursor: safePlanPage === totalPlanPages ? "default" : "pointer", fontSize: "0.8rem" }}
+                  title="Última página"
+                >»</button>
+              </div>
+            </div>
+          </div>
+
+          {/* SECCIÓN NUEVA: VERIFICACIÓN Y COTEJO DE COMISIONES */}
+          <div className="glass-panel" style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div>
+              <h2 style={{ fontSize: "1.25rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "10px" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                🔍 Cotejo y Verificación de Hojas de Comisiones
+              </h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", marginTop: "6px" }}>
+                Verifica y contrasta la hoja de comisiones recibida con los datos registrados y liquidados en la aplicación. 
+                El sistema cruzará la información a mes vencido (ej. coches matriculados/financiados en el mes del plan).
+              </p>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "24px" }}>
+              {/* CONFIGURACIÓN COTEJO */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">1. Seleccionar Plan de Comisión (Periodo)</label>
+                  <select 
+                    className="form-select" 
+                    value={cotejoPlanId || ""} 
+                    onChange={e => {
+                      setCotejoPlanId(e.target.value ? Number(e.target.value) : null);
+                      setCotejoResult(null);
+                    }}
+                  >
+                    <option value="">Selecciona un plan...</option>
+                    {planes.map(p => (
+                      <option key={p.id_plan} value={p.id_plan}>
+                        {p.nombre} ({formatDate(p.fecha_inicio)} a {formatDate(p.fecha_fin)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">2. Copiar y Pegar Datos desde Excel (Matrícula y Comisiones)</label>
+                  <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", display: "block", marginBottom: "6px" }}>
+                    Copia las columnas en tu Excel (Matrícula, Comisión Coche, Comisión Financiación) y pégalas aquí.
+                  </span>
+                  <textarea
+                    className="form-input"
+                    style={{ minHeight: "150px", fontFamily: "monospace", fontSize: "0.85rem" }}
+                    placeholder="Ejemplo:&#10;1234ABC&#9;150&#9;90&#10;5678DEF&#9;100&#9;0&#10;9012GHI&#9;150&#9;90"
+                    value={cotejoPastedText}
+                    onChange={e => setCotejoPastedText(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleExecuteCotejo}
+                  disabled={!cotejoPlanId || !cotejoPastedText.trim()}
+                  style={{ width: "100%", justifyContent: "center", padding: "12px" }}
+                >
+                  🔍 Iniciar Cotejo de Comisiones
+                </button>
+              </div>
+
+              {/* MAPEO DE COLUMNAS / INFORMACIÓN */}
+              <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255,255,255,0.01)" }}>
+                <h4 style={{ fontSize: "0.95rem", color: "var(--text-primary)", borderBottom: "1px solid var(--border-light)", paddingBottom: "8px" }}>
+                  Instrucciones de Uso
+                </h4>
+                <ul style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "8px", paddingLeft: "16px" }}>
+                  <li>Selecciona el plan mensual que corresponde a la hoja que deseas verificar.</li>
+                  <li>En tu Excel, selecciona las filas y cópialas (Ctrl+C). Asegúrate de incluir la columna de la **Matrícula**, la **Comisión del Coche** y/o la **Comisión de Financiación**.</li>
+                  <li>Pega el contenido directamente en la caja de texto (Ctrl+V).</li>
+                  <li>El sistema de forma inteligente detectará las columnas numéricas y de texto y contrastará matrícula a matrícula.</li>
+                  <li>Si una financiación fue contratada en otro mes, se cobra de forma separada según la configuración del expediente o si se cobró en otra fecha, lo cual se calculará automáticamente con las reglas vigentes.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* RESULTADOS DEL COTEJO */}
+            {cotejoResult && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "24px" }}>
+                <h3 style={{ fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                  📊 Informe de Discrepancias y Cotejo
+                </h3>
+
+                {/* Resumen de estadísticas */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+                  <div style={{ padding: "12px 16px", background: "rgba(16, 185, 129, 0.08)", borderLeft: "4px solid var(--success)", borderRadius: "4px" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>COINCIDENTES Y CORRECTOS</div>
+                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px" }}>{cotejoResult.stats.correct} uds</div>
+                  </div>
+                  <div style={{ padding: "12px 16px", background: "rgba(245, 158, 11, 0.08)", borderLeft: "4px solid var(--warning)", borderRadius: "4px" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>CON DISCREPANCIAS</div>
+                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px", color: "var(--warning)" }}>{cotejoResult.stats.discrepancies} uds</div>
+                  </div>
+                  <div style={{ padding: "12px 16px", background: "rgba(239, 68, 68, 0.08)", borderLeft: "4px solid var(--danger)", borderRadius: "4px" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>NO PAGADOS (NO EN LA HOJA)</div>
+                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px", color: "var(--danger)" }}>{cotejoResult.stats.missingInSheet} uds</div>
+                  </div>
+                  <div style={{ padding: "12px 16px", background: "rgba(255, 255, 255, 0.03)", borderLeft: "4px solid var(--text-muted)", borderRadius: "4px" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>EXCESOS (NO EN LA APP)</div>
+                    <div style={{ fontSize: "1.4rem", fontWeight: 800, marginTop: "2px", color: "var(--text-muted)" }}>{cotejoResult.stats.extraInSheet} uds</div>
+                  </div>
+                </div>
+
+                {/* Tabla de discrepancias */}
+                <div className="table-container" style={{ marginTop: "8px" }}>
+                  <table className="table-premium">
+                    <thead>
+                      <tr>
+                        <th>Matrícula</th>
+                        <th>Coche (App / Hoja)</th>
+                        <th>Financiación (App / Hoja)</th>
+                        <th>Total (App / Hoja)</th>
+                        <th>Estado / Resultado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cotejoResult.lines.map((l: any, idx: number) => {
+                        let statusBg = "transparent";
+                        let statusColor = "var(--text-primary)";
+                        let statusText = "Coincidente";
+
+                        if (l.type === "correct") {
+                          statusBg = "rgba(16, 185, 129, 0.06)";
+                          statusColor = "var(--success)";
+                          statusText = "✓ Correcto";
+                        } else if (l.type === "discrepancy") {
+                          statusBg = "rgba(245, 158, 11, 0.06)";
+                          statusColor = "var(--warning)";
+                          statusText = "⚠️ Discrepancia";
+                        } else if (l.type === "missing_in_sheet") {
+                          statusBg = "rgba(239, 68, 68, 0.06)";
+                          statusColor = "var(--danger)";
+                          statusText = "❌ No pagado por el jefe";
+                        } else if (l.type === "extra_in_sheet") {
+                          statusBg = "rgba(255, 255, 255, 0.02)";
+                          statusColor = "var(--text-muted)";
+                          statusText = "❓ No registrado en la App";
+                        }
+
+                        return (
+                          <tr key={idx} style={{ backgroundColor: statusBg }}>
+                            <td style={{ fontWeight: 700 }}>{l.matricula}</td>
+                            <td>
+                              {l.appCoche !== null ? `${l.appCoche} €` : "-"} / <strong style={{ color: l.appCoche !== l.sheetCoche ? "var(--warning)" : "inherit" }}>{l.sheetCoche} €</strong>
+                            </td>
+                            <td>
+                              {l.appFinan !== null ? `${l.appFinan} €` : "-"} / <strong style={{ color: l.appFinan !== l.sheetFinan ? "var(--warning)" : "inherit" }}>{l.sheetFinan} €</strong>
+                            </td>
+                            <td>
+                              {l.appTotal !== null ? `${l.appTotal} €` : "-"} / <strong style={{ color: l.appTotal !== l.sheetTotal ? "var(--danger)" : "inherit" }}>{l.sheetTotal} €</strong>
+                            </td>
+                            <td>
+                              <span style={{ color: statusColor, fontWeight: 700, fontSize: "0.85rem" }}>
+                                {statusText}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
