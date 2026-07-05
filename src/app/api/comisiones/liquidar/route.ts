@@ -531,9 +531,6 @@ export async function POST(req: NextRequest) {
 
       // --- Segunda Pasada: Calcular comisiones económicas ---
       expsClasificados.forEach(({ exp, entraPedido, entraAfectacion, entraMatriculacion, entraRci, isVN, tipoUsado, isCreditoVenta, isPreferenceVenta, valorObjetivoCalculado, itemsDetalleInitial }) => {
-        const hasCocheOverride = exp.comision_coche_real !== null && exp.comision_coche_real !== undefined;
-        const hasFinanOverride = exp.comision_financiacion_real !== null && exp.comision_financiacion_real !== undefined;
-
         let comisionBaseVN = 0;
         let comisionUsado = 0;
         let comisionFinanciacion = 0;
@@ -544,19 +541,7 @@ export async function POST(req: NextRequest) {
 
         if (entraMatriculacion) {
           // 1. Comisión Base VN o VO/Usado
-          if (hasCocheOverride) {
-            comisionBaseVN = Number(exp.comision_coche_real);
-            comisionUsado = 0;
-            if (!isVN && tipoUsado) {
-              currentUsedProcessedIndex[tipoUsado]++;
-            }
-            finalItems.push({
-              concepto: `Comisión VN/VO Coche (Modificado manualmente)`,
-              importe: comisionBaseVN,
-              afecta_objetivo: false,
-              valor_objetivo: 0
-            });
-          } else if (isVN) {
+          if (isVN) {
             if (!isVOVendedor) {
               // VN
               const brandId = exp.modelo?.marca_id;
@@ -636,7 +621,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Comisión por Financiación (configurable por Marca y Tipo Financiación) - Se abona según fecha RCI
-        if (!hasFinanOverride && entraRci && exp.id_tipo_de_venta) {
+        if (entraRci && exp.id_tipo_de_venta) {
           const salesTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
           let matchedFinanceType = "";
           if (salesTypeName.includes("preference")) {
@@ -666,7 +651,7 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Reglas Preference / BOX3 (commissionPreferenceRules) - Se aplican según fecha RCI
-        if (!hasFinanOverride && entraRci) {
+        if (entraRci) {
           plan.preferenceRules.forEach((rule) => {
             if (!rule.activa) return;
 
@@ -696,7 +681,6 @@ export async function POST(req: NextRequest) {
         // 4. Evaluar reglas generales de comisión (para dinero)
         plan.rules.forEach((rule) => {
           if (!rule.activa || !rule.afecta_comision) return;
-          if (hasFinanOverride && (rule.tipo_evento === "preference" || rule.tipo_evento === "credito" || rule.tipo_evento === "financiacion")) return;
 
           const eventMatches = 
             (rule.tipo_evento === "pedido" && entraPedido) ||
@@ -813,16 +797,6 @@ export async function POST(req: NextRequest) {
             }
           }
         });
-        if (hasFinanOverride) {
-          comisionFinanciacion = Number(exp.comision_financiacion_real);
-          comisionPreference = 0;
-          finalItems.push({
-            concepto: `Comisión Financiación (Modificado manualmente)`,
-            importe: comisionFinanciacion,
-            afecta_objetivo: false,
-            valor_objetivo: 0
-          });
-        }
 
         // Sumar todos los componentes para calcular la comisión económica teórica
         const totalTeoricoExpediente = comisionBaseVN + comisionUsado + comisionFinanciacion + comisionPreference + bonusAcumulado;

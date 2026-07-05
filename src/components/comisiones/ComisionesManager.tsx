@@ -3,7 +3,6 @@
 import { useState, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
 import { formatDate } from "@/lib/date-utils";
 
 interface DropdownItem {
@@ -203,8 +202,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   };
 
   const [cotejoLines, setCotejoLines] = useState<any[]>([]);
-  const [cotejoPenalizacionImporte, setCotejoPenalizacionImporte] = useState<number>(0);
-  const [cotejoPenalizacionTitulo, setCotejoPenalizacionTitulo] = useState<string>("");
   const [cotejoFilter, setCotejoFilter] = useState<"todos" | "pendientes" | "cobrados">("todos");
   const [cotejoSearch, setCotejoSearch] = useState("");
   const [cotejoVendedorFilter, setCotejoVendedorFilter] = useState("");
@@ -424,40 +421,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [newConceptValor, setNewConceptValor] = useState("");
   const [newConceptDescripcion, setNewConceptDescripcion] = useState("");
 
-  const [editComisionCocheCobrada, setEditComisionCocheCobrada] = useState(false);
-  const [editComisionUsadoCobrada, setEditComisionUsadoCobrada] = useState(false);
-  const [editComisionFinanciacionCobrada, setEditComisionFinanciacionCobrada] = useState(false);
-  const [editComisionPreferenceCobrada, setEditComisionPreferenceCobrada] = useState(false);
-  const [editComisionBonusCobrada, setEditComisionBonusCobrada] = useState(false);
-
-  const [liqVendedorFilter, setLiqVendedorFilter] = useState("");
-  const [calculatingCotejo, setCalculatingCotejo] = useState(false);
-
-  const { user } = useUser();
-  const uniqueSellersLiq = planData?.liquidations?.[0]?.lines 
-    ? Array.from(new Set(planData.liquidations[0].lines.map((l: any) => l.vendedor_nombre))).filter(Boolean) as string[]
-    : [];
-
-  const filteredLiqLines = planData?.liquidations?.[0]?.lines?.filter((line: any) => {
-    if (liqVendedorFilter && line.vendedor_nombre !== liqVendedorFilter) return false;
-    return true;
-  }) || [];
-
-  useEffect(() => {
-    if (user?.fullName && uniqueSellersLiq.length > 0) {
-      const userFullNameLower = user.fullName.toLowerCase();
-      const match = uniqueSellersLiq.find(s => s.toLowerCase() === userFullNameLower);
-      if (match) {
-        setLiqVendedorFilter(match);
-      } else {
-        const partialMatch = uniqueSellersLiq.find(s => s.toLowerCase().includes(userFullNameLower) || userFullNameLower.includes(s.toLowerCase()));
-        if (partialMatch) {
-          setLiqVendedorFilter(partialMatch);
-        }
-      }
-    }
-  }, [user, uniqueSellersLiq.length]);
-
   const openEditModal = (line: any) => {
     setEditingExp(line);
     setEditMatricula(line.matricula || "");
@@ -465,12 +428,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setEditComisionCocheReal(line.comision_coche_real !== null && line.comision_coche_real !== undefined ? String(line.comision_coche_real) : "");
     setEditComisionFinanciacionReal(line.comision_financiacion_real !== null && line.comision_financiacion_real !== undefined ? String(line.comision_financiacion_real) : "");
     
-    setEditComisionCocheCobrada(line.comision_coche_cobrada || false);
-    setEditComisionUsadoCobrada(line.comision_usado_cobrada || false);
-    setEditComisionFinanciacionCobrada(line.comision_financiacion_cobrada || false);
-    setEditComisionPreferenceCobrada(line.comision_preference_cobrada || false);
-    setEditComisionBonusCobrada(line.comision_bonus_cobrada || false);
-
     let concepts = [];
     if (line.conceptos_adicionales) {
       try {
@@ -512,15 +469,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     setEditConceptosAdicionales(prev => prev.filter(c => c.id !== id));
   };
 
-  const handleToggleConceptCobradoInModal = (id: string) => {
-    setEditConceptosAdicionales(prev => prev.map(c => {
-      if (c.id === id) {
-        return { ...c, cobrado: !c.cobrado };
-      }
-      return c;
-    }));
-  };
-
   const handleSaveExpedienteChanges = async () => {
     if (!editingExp) return;
     
@@ -536,14 +484,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       return;
     }
 
-    const allMainConceptsCobrado = editComisionCocheCobrada && 
-                                   editComisionUsadoCobrada && 
-                                   editComisionFinanciacionCobrada && 
-                                   editComisionPreferenceCobrada && 
-                                   editComisionBonusCobrada;
-    const allExtraCobrado = editConceptosAdicionales.every((c: any) => c.cobrado);
-    const finalCobrado = allMainConceptsCobrado && allExtraCobrado;
-
     const body = {
       id_expediente: editingExp.id_expediente,
       expediente: {
@@ -551,13 +491,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         vin: editVin.trim(),
         comision_coche_real: cocheVal,
         comision_financiacion_real: finanVal,
-        conceptos_adicionales: JSON.stringify(editConceptosAdicionales),
-        comision_coche_cobrada: editComisionCocheCobrada,
-        comision_usado_cobrada: editComisionUsadoCobrada,
-        comision_financiacion_cobrada: editComisionFinanciacionCobrada,
-        comision_preference_cobrada: editComisionPreferenceCobrada,
-        comision_bonus_cobrada: editComisionBonusCobrada,
-        comision_cobrada: finalCobrado
+        conceptos_adicionales: JSON.stringify(editConceptosAdicionales)
       }
     };
 
@@ -581,13 +515,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             vin: editVin.trim(),
             comision_coche_real: cocheVal,
             comision_financiacion_real: finanVal,
-            conceptos_adicionales: JSON.stringify(editConceptosAdicionales),
-            comision_coche_cobrada: editComisionCocheCobrada,
-            comision_usado_cobrada: editComisionUsadoCobrada,
-            comision_financiacion_cobrada: editComisionFinanciacionCobrada,
-            comision_preference_cobrada: editComisionPreferenceCobrada,
-            comision_bonus_cobrada: editComisionBonusCobrada,
-            comision_cobrada: finalCobrado
+            conceptos_adicionales: JSON.stringify(editConceptosAdicionales)
           };
         }
         return l;
@@ -612,8 +540,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
         return;
       }
       setCotejoLines(data.lines || []);
-      setCotejoPenalizacionImporte(data.penalizacion_importe || 0);
-      setCotejoPenalizacionTitulo(data.penalizacion_titulo || "Penalización");
       showNotification("Expedientes del plan cargados con éxito.", "success");
     } catch (e: any) {
       console.error(e);
@@ -621,30 +547,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       setCotejoLines([]);
     } finally {
       setLoadingPlan(false);
-    }
-  };
-
-  const handleRecalculateCotejoPlan = async () => {
-    if (!cotejoPlanId) return;
-    setCalculatingCotejo(true);
-    try {
-      const res = await fetch("/api/comisiones/liquidar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_plan: cotejoPlanId })
-      });
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.message || "Error al recalcular la liquidación");
-      }
-      showNotification("Liquidación recalculada con éxito.", "success");
-      // Refrescar listado
-      await handleLoadCotejoPlanes(cotejoPlanId);
-    } catch (err: any) {
-      console.error(err);
-      showNotification(err.message || "Error al recalcular.", "error");
-    } finally {
-      setCalculatingCotejo(false);
     }
   };
 
@@ -1893,26 +1795,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
 
               {cotejoPlanId && (
-                <button
-                  type="button"
-                  onClick={handleRecalculateCotejoPlan}
-                  disabled={calculatingCotejo}
-                  className="btn btn-secondary"
-                  style={{
-                    padding: "10px 18px",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "0.85rem",
-                    height: "42px",
-                    marginBottom: 0
-                  }}
-                >
-                  🔄 {calculatingCotejo ? "Recalculando..." : "Recalcular Liquidación"}
-                </button>
-              )}
-
-              {cotejoPlanId && (
                 <>
                   <div className="form-group" style={{ marginBottom: 0, minWidth: "200px" }}>
                     <label className="form-label">Filtrar por Estado</label>
@@ -2045,9 +1927,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                 const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                 const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
                 const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
-                const comUsado = hasCocheOverride ? 0 : (l.comision_usado || 0);
+                const comUsado = l.comision_usado || 0;
                 const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
-                const comPref = hasFinanOverride ? 0 : (l.comision_preference || 0);
+                const comPref = l.comision_preference || 0;
                 const comBonus = l.bonus_acumulado || 0;
                 
                 let extraCom = 0;
@@ -2114,9 +1996,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                           const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                           const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
                           const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
-                          const comUsado = hasCocheOverride ? 0 : (l.comision_usado || 0);
+                          const comUsado = l.comision_usado || 0;
                           const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
-                          const comPref = hasFinanOverride ? 0 : (l.comision_preference || 0);
+                          const comPref = l.comision_preference || 0;
                           const comBonus = l.bonus_acumulado || 0;
                           
                           let extraCom = 0;
@@ -2343,9 +2225,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       const hasCocheOverride = l.comision_coche_real !== null && l.comision_coche_real !== undefined;
                       const hasFinanOverride = l.comision_financiacion_real !== null && l.comision_financiacion_real !== undefined;
                       const comVnBase = hasCocheOverride ? Number(l.comision_coche_real) : (l.comision_base_vn || 0);
-                      const comUsado = hasCocheOverride ? 0 : (l.comision_usado || 0);
+                      const comUsado = l.comision_usado || 0;
                       const comFinan = hasFinanOverride ? Number(l.comision_financiacion_real) : (l.comision_financiacion || 0);
-                      const comPref = hasFinanOverride ? 0 : (l.comision_preference || 0);
+                      const comPref = l.comision_preference || 0;
                       const comBonus = l.bonus_acumulado || 0;
                       
                       let customConcepts: any[] = [];
@@ -2401,8 +2283,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                     });
 
                     // Obtener la penalización del plan si aplica para este mes
-                    const penalizacionPlan = cotejoPenalizacionImporte;
-                    const penalizacionPlanTitulo = cotejoPenalizacionTitulo;
+                    const selectedCotejoPlan = planes.find(p => p.id_plan === cotejoPlanId);
+                    const penalizacionPlan = selectedCotejoPlan?.penalizacion_importe || 0;
+                    const penalizacionPlanTitulo = selectedCotejoPlan?.penalizacion_titulo || "Penalización por no llegar al mínimo";
 
                     const granTotalCobrado = totalCobradoVnBase + totalCobradoUsado + totalCobradoFinan + totalCobradoPref + totalCobradoBonus + totalCobradoExtra;
                     const granTotalCalculado = sumTotal; // comisiones calculadas
@@ -4799,34 +4682,15 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
 
                     {/* DETALLE INDIVIDUAL DE LINEAS */}
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
-                        <h4 style={{ fontSize: "1.05rem", color: "var(--text-primary)", margin: 0 }}>Desglose por Expediente</h4>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <label style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Filtrar Vendedor:</label>
-                          <select
-                            value={liqVendedorFilter}
-                            onChange={(e) => setLiqVendedorFilter(e.target.value)}
-                            className="form-select"
-                            style={{ padding: "6px 12px", width: "200px", fontSize: "0.85rem" }}
-                          >
-                            <option value="">-- Todos --</option>
-                            {uniqueSellersLiq.map((sellerName) => (
-                              <option key={sellerName} value={sellerName}>
-                                {sellerName}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
+                      <h4 style={{ fontSize: "1.05rem", color: "var(--text-primary)", marginBottom: "16px" }}>Desglose por Expediente</h4>
                       <div className="table-container">
                         <table className="table-premium" style={{ fontSize: "0.85rem" }}>
                           <thead>
                             <tr>
+                              <th>Expediente</th>
+                              <th>Vendedor</th>
                               <th>Cliente</th>
                               <th>Coche</th>
-                              <th style={{ textAlign: "center" }}>Fecha Mat</th>
-                              <th style={{ textAlign: "center" }}>Fecha RCI</th>
                               <th style={{ textAlign: "center" }}>Ingresa Por</th>
                               <th style={{ textAlign: "center" }}>Obj</th>
                               <th style={{ textAlign: "right" }}>VN Base</th>
@@ -4839,31 +4703,18 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredLiqLines.map((line: any) => {
+                            {planData.liquidations[0].lines?.map((line: any) => {
                               const bonusTooltip = getBonusTooltip(line);
-                              const matDateVal = line.fecha_matriculacion || line.expediente?.fecha_matriculacion;
-                              const isCobradoOtraFecha = line.expediente?.cobrado_otra_fecha || false;
                               return (
                                 <tr key={line.id_line}>
+                                  <td style={{ fontWeight: 600, color: "var(--primary)" }}>
+                                    #EXP-{String(line.id_expediente).padStart(4, "0")}
+                                  </td>
+                                  <td style={{ color: "var(--text-primary)" }}>{line.vendedor_nombre}</td>
                                   <td>{line.cliente_nombre}</td>
                                   <td>
                                     <div style={{ fontWeight: 500 }}>{line.modelo_nombre}</div>
                                     <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{line.marca_nombre}</div>
-                                  </td>
-                                  <td style={{ textAlign: "center" }}>
-                                    {isCobradoOtraFecha ? (
-                                      <span
-                                        style={{ textDecoration: "underline", cursor: "help" }}
-                                        title={line.expediente?.fecha_cobrado ? `Cobrado en otra fecha: ${formatDate(line.expediente.fecha_cobrado)}` : undefined}
-                                      >
-                                        {formatDate(matDateVal)}
-                                      </span>
-                                    ) : (
-                                      formatDate(matDateVal) || "-"
-                                    )}
-                                  </td>
-                                  <td style={{ textAlign: "center" }}>
-                                    {formatDate(line.expediente?.fecha_rci) || "-"}
                                   </td>
                                   <td style={{ textAlign: "center" }}>
                                     {line.entra_por_pedido && <span className="badge badge-vendedor" style={{ fontSize: "0.65rem", marginRight: "2px" }}>Pedido</span>}
@@ -4924,8 +4775,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               );
                             })}
 
-                            {filteredLiqLines.length > 0 && (() => {
-                              const lines = filteredLiqLines;
+                            {planData.liquidations[0].lines && planData.liquidations[0].lines.length > 0 && (() => {
+                              const lines = planData.liquidations[0].lines;
                               const totalObj = lines.reduce((sum: number, l: any) => sum + (l.valor_para_objetivo || 0), 0);
                               const totalVN = lines.reduce((sum: number, l: any) => sum + (l.comision_base_vn || 0), 0);
                               const totalUsado = lines.reduce((sum: number, l: any) => sum + (l.comision_usado || 0), 0);
@@ -4948,14 +4799,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 </tr>
                               );
                             })()}
-
-                            {filteredLiqLines.length === 0 && (
-                              <tr>
-                                <td colSpan={13} style={{ textAlign: "center", color: "var(--text-secondary)", padding: "30px" }}>
-                                  No hay expedientes para el vendedor seleccionado.
-                                </td>
-                              </tr>
-                            )}
                           </tbody>
                         </table>
                       </div>
@@ -5731,60 +5574,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </div>
             </div>
 
-            {/* Estado de Cobro por Concepto */}
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-              <h4 style={{ fontSize: "0.95rem", color: "var(--text-primary)", margin: 0 }}>
-                ✅ Estado de Cobro por Concepto
-              </h4>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                  <input
-                    type="checkbox"
-                    checked={editComisionCocheCobrada}
-                    onChange={(e) => setEditComisionCocheCobrada(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  <span>VN Base Cobrado</span>
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                  <input
-                    type="checkbox"
-                    checked={editComisionUsadoCobrada}
-                    onChange={(e) => setEditComisionUsadoCobrada(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  <span>Usado Cobrado</span>
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                  <input
-                    type="checkbox"
-                    checked={editComisionFinanciacionCobrada}
-                    onChange={(e) => setEditComisionFinanciacionCobrada(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  <span>Financiación Cobrada</span>
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                  <input
-                    type="checkbox"
-                    checked={editComisionPreferenceCobrada}
-                    onChange={(e) => setEditComisionPreferenceCobrada(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  <span>Pref/Box Cobrado</span>
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: "pointer", color: "var(--text-secondary)" }}>
-                  <input
-                    type="checkbox"
-                    checked={editComisionBonusCobrada}
-                    onChange={(e) => setEditComisionBonusCobrada(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  <span>Bonus Cobrado</span>
-                </label>
-              </div>
-            </div>
-
             {/* Conceptos Adicionales */}
             <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
               <h4 style={{ fontSize: "0.95rem", color: "var(--text-primary)", margin: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -5798,17 +5587,9 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "150px", overflowY: "auto" }}>
                 {editConceptosAdicionales.map(c => (
                   <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "rgba(255,255,255,0.02)", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
-                      <input
-                        type="checkbox"
-                        checked={c.cobrado || false}
-                        onChange={() => handleToggleConceptCobradoInModal(c.id)}
-                        style={{ cursor: "pointer" }}
-                      />
-                      <div>
-                        <div style={{ fontSize: "0.85rem", fontWeight: 600, textDecoration: c.cobrado ? "line-through" : "none", color: c.cobrado ? "var(--text-muted)" : "inherit" }}>{c.titulo}</div>
-                        {c.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{c.descripcion}</div>}
-                      </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{c.titulo}</div>
+                      {c.descripcion && <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{c.descripcion}</div>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <strong style={{ fontSize: "0.85rem", color: c.valor >= 0 ? "var(--success)" : "var(--danger)" }}>
