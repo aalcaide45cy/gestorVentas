@@ -352,9 +352,10 @@ export default function EditarExpedienteForm({
   };
 
   const isSameMonthPedidoMatricula = () => {
-    if (!fechaExpediente || !fechaMatriculacion) return false;
+    const targetMatDate = cobradoOtraFecha && fechaCobrado ? fechaCobrado : fechaMatriculacion;
+    if (!fechaExpediente || !targetMatDate) return false;
     const expParts = fechaExpediente.split("-");
-    const matParts = fechaMatriculacion.split("-");
+    const matParts = targetMatDate.split("-");
     return expParts[0] === matParts[0] && expParts[1] === matParts[1];
   };
 
