@@ -2190,25 +2190,47 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
   const handleSetCurrentMonth = () => {
     const d = new Date();
-    setStatsYear(d.getFullYear());
-    setStatsMonth(d.getMonth() + 1);
+    const currYear = d.getFullYear();
+    const currMonth = d.getMonth() + 1;
+    setStatsYear(currYear);
+    setStatsMonth(currMonth);
+    if (filterFechaTipo === "fecha_comisionado") {
+      setFilterMes(String(currMonth).padStart(2, "0"));
+      setFilterAnio(String(currYear));
+    }
   };
 
   const handleSetPreviousMonth = () => {
+    let newMonth = statsMonth;
+    let newYear = statsYear;
     if (statsMonth === 1) {
-      setStatsMonth(12);
-      setStatsYear(prev => prev - 1);
+      newMonth = 12;
+      newYear = statsYear - 1;
     } else {
-      setStatsMonth(prev => prev - 1);
+      newMonth = statsMonth - 1;
+    }
+    setStatsMonth(newMonth);
+    setStatsYear(newYear);
+    if (filterFechaTipo === "fecha_comisionado") {
+      setFilterMes(String(newMonth).padStart(2, "0"));
+      setFilterAnio(String(newYear));
     }
   };
 
   const handleSetNextMonth = () => {
+    let newMonth = statsMonth;
+    let newYear = statsYear;
     if (statsMonth === 12) {
-      setStatsMonth(1);
-      setStatsYear(prev => prev + 1);
+      newMonth = 1;
+      newYear = statsYear + 1;
     } else {
-      setStatsMonth(prev => prev + 1);
+      newMonth = statsMonth + 1;
+    }
+    setStatsMonth(newMonth);
+    setStatsYear(newYear);
+    if (filterFechaTipo === "fecha_comisionado") {
+      setFilterMes(String(newMonth).padStart(2, "0"));
+      setFilterAnio(String(newYear));
     }
   };
 
@@ -2866,7 +2888,23 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             <select 
               className="form-input" 
               value={filterFechaTipo} 
-              onChange={e => { setFilterFechaTipo(e.target.value); setCurrentPage(1); }}
+              onChange={e => { 
+                const val = e.target.value;
+                setFilterFechaTipo(val); 
+                if (val === "fecha_comisionado") {
+                  if (!filterMes) {
+                    setFilterMes(String(statsMonth).padStart(2, "0"));
+                  } else {
+                    setStatsMonth(parseInt(filterMes, 10));
+                  }
+                  if (!filterAnio) {
+                    setFilterAnio(String(statsYear));
+                  } else {
+                    setStatsYear(parseInt(filterAnio, 10));
+                  }
+                }
+                setCurrentPage(1); 
+              }}
               style={{ padding: "8px" }}
             >
               <option value="fecha_expediente">Fecha Expediente</option>
@@ -2883,7 +2921,14 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             <select 
               className="form-input" 
               value={filterMes} 
-              onChange={e => { setFilterMes(e.target.value); setCurrentPage(1); }}
+              onChange={e => { 
+                const val = e.target.value;
+                setFilterMes(val); 
+                if (filterFechaTipo === "fecha_comisionado" && val) {
+                  setStatsMonth(parseInt(val, 10));
+                }
+                setCurrentPage(1); 
+              }}
               style={{ padding: "8px" }}
             >
               <option value="">Todos los meses</option>
@@ -2907,7 +2952,14 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             <select 
               className="form-input" 
               value={filterAnio} 
-              onChange={e => { setFilterAnio(e.target.value); setCurrentPage(1); }}
+              onChange={e => { 
+                const val = e.target.value;
+                setFilterAnio(val); 
+                if (filterFechaTipo === "fecha_comisionado" && val) {
+                  setStatsYear(parseInt(val, 10));
+                }
+                setCurrentPage(1); 
+              }}
               style={{ padding: "8px" }}
             >
               <option value="">Todos los años</option>
@@ -3329,7 +3381,13 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             <select
               className="form-select"
               value={statsMonth}
-              onChange={e => setStatsMonth(Number(e.target.value))}
+              onChange={e => {
+                const val = Number(e.target.value);
+                setStatsMonth(val);
+                if (filterFechaTipo === "fecha_comisionado") {
+                  setFilterMes(String(val).padStart(2, "0"));
+                }
+              }}
               style={{ padding: "6px 12px", fontSize: "0.85rem", minWidth: "120px" }}
             >
               {months.map(m => (
@@ -3339,7 +3397,13 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             <select
               className="form-select"
               value={statsYear}
-              onChange={e => setStatsYear(Number(e.target.value))}
+              onChange={e => {
+                const val = Number(e.target.value);
+                setStatsYear(val);
+                if (filterFechaTipo === "fecha_comisionado") {
+                  setFilterAnio(String(val));
+                }
+              }}
               style={{ padding: "6px 12px", fontSize: "0.85rem", minWidth: "90px" }}
             >
               {years.map(y => (
