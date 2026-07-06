@@ -186,6 +186,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   const [filterFechaTipo, setFilterFechaTipo] = useState("fecha_expediente");
   const [filterTienda, setFilterTienda] = useState("");
 
+  // Estado para el modal de detalle de comisiones estimadas
+  const [comisionesDetailModal, setComisionesDetailModal] = useState<{
+    type: "total_estimado" | "comision_teorica" | "base_vn" | "base_vo" | "credito" | "preference" | "bonus" | "penalizaciones" | "penalizacion_fija";
+    title: string;
+  } | null>(null);
+
   // Estados para estadísticas mensuales del final
   const todayDate = new Date();
   const [statsYear, setStatsYear] = useState<number>(todayDate.getFullYear());
@@ -2031,12 +2037,18 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           cliente: exp.cliente?.nombre || "Sin cliente",
           modelo: exp.modelo?.nombre_modelo || "S/D",
           marca: exp.modelo?.marca?.nombre || "VO",
+          vendedor: exp.usuario?.nombre || "Sin comercial",
+          matricula: exp.matricula || "S/M",
+          estado: exp.estadoVehiculo?.nombre_estado_vehiculo || "N/D",
+          tipoVenta: exp.tipoDeVenta?.nombre_tipo_venta || "N/D",
           baseVN,
           baseUsado,
           baseFinanciacion,
           basePreference,
           reglasBonus,
+          reglasPenalizacion,
           total: totalExp,
+          totalTeorico: totalTeoricoExp,
           fechaRef: getEffectiveMatDate(exp) || exp.fecha_rci || exp.fecha_afectacion || exp.fecha_expediente
         });
       });
@@ -2145,7 +2157,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       totalReglasPenalizacion,
       totalComisionTeorica: totalComisionGlobal,
       totalComisionGlobal: finalComisionConPenalizacion,
-      computedDetailsList: computedDetailsList.filter(d => d.total > 0).sort((a,b) => b.total - a.total)
+      computedDetailsList: computedDetailsList.filter(d => d.baseVN > 0 || d.baseUsado > 0 || d.baseFinanciacion > 0 || d.basePreference > 0 || d.reglasBonus > 0 || d.reglasPenalizacion > 0 || d.total > 0).sort((a,b) => b.total - a.total || b.totalTeorico - a.totalTeorico)
     };
   };
 
@@ -3479,14 +3491,22 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px" }}>
-                    <div style={{ background: "rgba(255, 255, 255, 0.01)", padding: "10px", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
-                      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", display: "block" }}>TOTAL ESTIMADO</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "total_estimado", title: "Total Estimado Neto" })}
+                      className="glass-panel-interactive"
+                      style={{ background: "rgba(16, 185, 129, 0.03)", padding: "10px", borderRadius: "4px", border: "1px solid rgba(16, 185, 129, 0.15)", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", display: "block" }}>TOTAL ESTIMADO 🔍</span>
                       <strong style={{ fontSize: "1.3rem", color: "var(--success)", fontWeight: 800 }}>
                         {stats.totalComisionGlobal.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
                       </strong>
                     </div>
-                    <div style={{ background: "rgba(255, 255, 255, 0.01)", padding: "10px", borderRadius: "4px", border: "1px solid var(--border-light)" }}>
-                      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", display: "block" }}>COMISIÓN TEÓRICA</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "comision_teorica", title: "Comisión Teórica Total" })}
+                      className="glass-panel-interactive"
+                      style={{ background: "rgba(255, 255, 255, 0.01)", padding: "10px", borderRadius: "4px", border: "1px solid var(--border-light)", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ fontSize: "0.68rem", color: "var(--text-secondary)", display: "block" }}>COMISIÓN TEÓRICA 🔍</span>
                       <strong style={{ fontSize: "1.3rem", color: "var(--text-primary)", fontWeight: 700 }}>
                         {stats.totalComisionTeorica.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
                       </strong>
@@ -3500,35 +3520,59 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                       <span style={{ flex: 1, textAlign: "right" }}>Importe</span>
                     </div>
 
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Base VN:</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "base_vn", title: "Detalle - Base VN" })}
+                      className="glass-panel-interactive"
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Base VN 🔍:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosVN} uds en Tramo {tramo}</span>
                       <strong style={{ flex: 1, textAlign: "right", color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalBaseVN.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Base VO / Usado:</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "base_vo", title: "Detalle - Base VO / Usado" })}
+                      className="glass-panel-interactive"
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Base VO / Usado 🔍:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculados - stats.matriculadosVN} uds</span>
                       <strong style={{ flex: 1, textAlign: "right", color: cumpleMinimoMat ? "var(--text-primary)" : "var(--text-muted)", textDecoration: cumpleMinimoMat ? "none" : "line-through" }}>{stats.totalUsado.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Crédito / Finan:</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "credito", title: "Detalle - Crédito / Financiación" })}
+                      className="glass-panel-interactive"
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Crédito / Finan 🔍:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosCredito} uds</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalFinanciacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Preference/BOX3:</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "preference", title: "Detalle - Preference / BOX3" })}
+                      className="glass-panel-interactive"
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", borderBottom: "1px solid rgba(255,255,255,0.03)", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Preference/BOX3 🔍:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>{stats.matriculadosPreference} uds</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalPreference.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: stats.totalReglasPenalizacion > 0 || (activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0) ? "1px solid rgba(255,255,255,0.03)" : "none" }}>
-                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Bonus Especiales:</span>
+                    <div 
+                      onClick={() => setComisionesDetailModal({ type: "bonus", title: "Detalle - Bonus Especiales" })}
+                      className="glass-panel-interactive"
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", borderBottom: stats.totalReglasPenalizacion > 0 || (activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0) ? "1px solid rgba(255,255,255,0.03)" : "none", cursor: "pointer", transition: "all 0.2s" }}
+                    >
+                      <span style={{ color: "var(--text-secondary)", flex: 1.2 }}>Bonus Especiales 🔍:</span>
                       <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Campañas / Reglas</span>
                       <strong style={{ flex: 1, textAlign: "right" }}>{stats.totalReglasBonus.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                     </div>
 
                     {stats.totalReglasPenalizacion > 0 && (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "4px", borderBottom: (activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0) ? "1px solid rgba(255,255,255,0.03)" : "none", color: "var(--danger)" }}>
-                        <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalizaciones:</span>
+                      <div 
+                        onClick={() => setComisionesDetailModal({ type: "penalizaciones", title: "Detalle - Penalizaciones" })}
+                        className="glass-panel-interactive"
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", borderBottom: (activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0) ? "1px solid rgba(255,255,255,0.03)" : "none", color: "var(--danger)", cursor: "pointer", transition: "all 0.2s" }}
+                      >
+                        <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalizaciones 🔍:</span>
                         <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center" }}>Reglas / Conceptos</span>
                         <strong style={{ flex: 1, textAlign: "right" }}>-{stats.totalReglasPenalizacion.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong>
                       </div>
@@ -3536,10 +3580,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
                     {activePlan && Math.abs(activePlan.penalizacion_importe || 0) > 0 && (
                       <div 
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "var(--danger)", cursor: activePlan.penalizacion_descripcion ? "help" : "default" }}
+                        onClick={() => setComisionesDetailModal({ type: "penalizacion_fija", title: "Detalle - Penalización Fija" })}
+                        className="glass-panel-interactive"
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", borderRadius: "4px", color: "var(--danger)", cursor: "pointer", transition: "all 0.2s" }}
                         title={activePlan.penalizacion_descripcion ? `${activePlan.penalizacion_titulo || "Penalización"}: ${activePlan.penalizacion_descripcion}` : undefined}
                       >
-                        <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalización Fija:</span>
+                        <span style={{ color: "var(--danger)", flex: 1.2 }}>Penalización Fija 🔍:</span>
                         <span style={{ color: "var(--text-muted)", fontSize: "0.72rem", flex: 1.5, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {activePlan.penalizacion_titulo || "Fija de liquidación"}
                         </span>
@@ -4583,6 +4629,212 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           </div>
         </div>
       )}
+
+      {/* MODAL DE DETALLE DE COMISIONES ESTIMADAS */}
+      {comisionesDetailModal && (() => {
+        const type = comisionesDetailModal.type;
+        const title = comisionesDetailModal.title;
+
+        // Filtrar y mapear expedientes correspondientes
+        let rows: any[] = [];
+        let showExplanation = "";
+        let showTotalLabel = "Total";
+        let isNegative = false;
+
+        if (type === "base_vn") {
+          rows = stats.computedDetailsList.filter(d => d.baseVN > 0).map(d => ({ ...d, value: d.baseVN }));
+          showExplanation = "Comisiones base de vehículos nuevos (VN) y demos matriculados en el período, calculadas según el tramo del comercial y marcas.";
+          showTotalLabel = "Total Base VN";
+        } else if (type === "base_vo") {
+          rows = stats.computedDetailsList.filter(d => d.baseUsado > 0).map(d => ({ ...d, value: d.baseUsado }));
+          showExplanation = "Comisiones de vehículos de ocasión (VO), seminuevos, KM0 o buybacks matriculados, calculadas según las tarifas de VO o patrón asignado.";
+          showTotalLabel = "Total Base VO";
+        } else if (type === "credito") {
+          rows = stats.computedDetailsList.filter(d => d.baseFinanciacion > 0).map(d => ({ ...d, value: d.baseFinanciacion }));
+          showExplanation = "Importes devengados por operaciones de financiación (Crédito/Renting RCI) con fecha RCI en el período.";
+          showTotalLabel = "Total Financiación";
+        } else if (type === "preference") {
+          rows = stats.computedDetailsList.filter(d => d.basePreference > 0).map(d => ({ ...d, value: d.basePreference }));
+          showExplanation = "Importes devengados por reglas de productos Preference o BOX3 en el período.";
+          showTotalLabel = "Total Preference";
+        } else if (type === "bonus") {
+          rows = stats.computedDetailsList.filter(d => d.reglasBonus > 0).map(d => ({ ...d, value: d.reglasBonus }));
+          showExplanation = "Bonus, campañas e incentivos adicionales que cumplen las condiciones del plan de comisiones.";
+          showTotalLabel = "Total Bonus";
+        } else if (type === "penalizaciones") {
+          rows = stats.computedDetailsList.filter(d => d.reglasPenalizacion > 0).map(d => ({ ...d, value: d.reglasPenalizacion }));
+          showExplanation = "Penalizaciones o descuentos aplicados individualmente a los expedientes según las reglas del plan.";
+          showTotalLabel = "Total Penalizaciones";
+          isNegative = true;
+        } else if (type === "comision_teorica") {
+          rows = stats.computedDetailsList.filter(d => d.totalTeorico > 0).map(d => ({ ...d, value: d.totalTeorico }));
+          showExplanation = "Suma acumulada de comisiones brutas devengadas por los expedientes antes de aplicar penalizaciones fijas globales o penalizaciones de mínimos.";
+          showTotalLabel = "Total Comisión Teórica";
+        } else if (type === "total_estimado") {
+          rows = stats.computedDetailsList.map(d => ({ ...d, value: d.total }));
+          showExplanation = "Comisión neta final a liquidar en este período. Si no se alcanza el mínimo de matriculaciones, se penaliza reduciéndose a 0 €.";
+          showTotalLabel = "Total Estimado Neto";
+        }
+
+        const sumTotal = rows.reduce((sum, r) => sum + r.value, 0);
+
+        return (
+          <div className="modal-overlay" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999,
+            padding: "20px"
+          }}>
+            <div className="modal-content glass-panel" style={{
+              background: "var(--bg-card, #111827)",
+              border: "1px solid var(--border-light, rgba(255,255,255,0.08))",
+              borderRadius: "var(--radius-md, 8px)",
+              padding: "24px",
+              width: "100%",
+              maxWidth: "850px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.4)"
+            }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", borderBottom: "1px solid var(--border-light, rgba(255,255,255,0.08))", paddingBottom: "12px" }}>
+                <h3 style={{ margin: 0, fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "8px", color: "var(--text-primary)" }}>
+                  <span>{title}</span>
+                </h3>
+                <button
+                  onClick={() => setComisionesDetailModal(null)}
+                  style={{ background: "none", border: "none", color: "var(--text-secondary)", cursor: "pointer", fontSize: "1.2rem" }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Contenido */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.02)",
+                  border: "1px solid var(--border-light, rgba(255,255,255,0.08))",
+                  borderRadius: "var(--radius-sm, 4px)",
+                  padding: "12px 16px",
+                  fontSize: "0.85rem",
+                  color: "var(--text-secondary)",
+                  lineHeight: "1.4"
+                }}>
+                  {showExplanation}
+                </div>
+
+                {type === "penalizacion_fija" ? (
+                  <div style={{
+                    padding: "20px",
+                    backgroundColor: "rgba(239, 68, 68, 0.03)",
+                    border: "1px dashed rgba(239, 68, 68, 0.2)",
+                    borderRadius: "4px",
+                    color: "var(--text-primary)"
+                  }}>
+                    <h4 style={{ margin: "0 0 8px 0", fontSize: "1rem", color: "var(--danger)" }}>
+                      ⚠️ {activePlan?.penalizacion_titulo || "Penalización Fija de Liquidación"}
+                    </h4>
+                    <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                      {activePlan?.penalizacion_descripcion || "No hay una descripción detallada en el plan activo."}
+                    </p>
+                    <div style={{ marginTop: "16px", fontSize: "1.2rem", fontWeight: "bold", color: "var(--danger)" }}>
+                      Importe: -{Math.abs(activePlan?.penalizacion_importe || 0).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {rows.length === 0 ? (
+                      <div style={{ padding: "30px 10px", textAlign: "center", color: "var(--text-muted)", fontStyle: "italic", fontSize: "0.85rem" }}>
+                        No hay expedientes que aporten a este importe en el periodo actual.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="table-container" style={{ border: "1px solid var(--border-light, rgba(255,255,255,0.08))", borderRadius: "var(--radius-sm, 4px)" }}>
+                          <table className="table-premium" style={{ fontSize: "0.82rem", width: "100%" }}>
+                            <thead>
+                              <tr>
+                                <th>Expediente</th>
+                                <th>Comercial</th>
+                                <th>Cliente</th>
+                                <th>Vehículo</th>
+                                <th>Fecha Ref</th>
+                                <th style={{ textAlign: "right" }}>Importe</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((r: any) => (
+                                <tr key={r.id_expediente}>
+                                  <td style={{ fontWeight: 600 }}>
+                                    <Link 
+                                      href={`/dashboard/expedientes/editar/${r.id_expediente}`}
+                                      onClick={() => setComisionesDetailModal(null)}
+                                      style={{ color: "var(--primary)", textDecoration: "none" }}
+                                    >
+                                      #EXP-{String(r.id_expediente).padStart(4, "0")}
+                                    </Link>
+                                  </td>
+                                  <td>{r.vendedor}</td>
+                                  <td style={{ maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.cliente}>
+                                    {r.cliente}
+                                  </td>
+                                  <td>
+                                    <span style={{ fontWeight: 600 }}>{r.marca}</span> {r.modelo} 
+                                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginLeft: "6px" }}>({r.estado})</span>
+                                  </td>
+                                  <td style={{ color: "var(--text-muted)" }}>{formatDate(r.fechaRef)}</td>
+                                  <td style={{ textAlign: "right", fontWeight: 700, color: isNegative ? "var(--danger)" : "var(--text-primary)" }}>
+                                    {isNegative ? "-" : ""}{r.value.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Sumario del total */}
+                        <div style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          marginTop: "16px",
+                          padding: "12px 16px",
+                          backgroundColor: "rgba(255, 255, 255, 0.02)",
+                          border: "1px solid var(--border-light, rgba(255,255,255,0.08))",
+                          borderRadius: "4px",
+                          fontSize: "0.95rem"
+                        }}>
+                          <span style={{ color: "var(--text-secondary)", marginRight: "12px" }}>{showTotalLabel}:</span>
+                          <strong style={{ color: isNegative ? "var(--danger)" : "var(--success)" }}>
+                            {isNegative ? "-" : ""}{sumTotal.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}
+                          </strong>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Footer del Modal */}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", borderTop: "1px solid var(--border-light, rgba(255,255,255,0.08))", paddingTop: "16px" }}>
+                  <button
+                    onClick={() => setComisionesDetailModal(null)}
+                    className="btn btn-secondary"
+                    style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+                  >
+                    Cerrar Detalle
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
