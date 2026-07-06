@@ -44,6 +44,8 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [newPlanArrastre, setNewPlanArrastre] = useState("0");
   const [newPlanMinMat, setNewPlanMinMat] = useState("6");
   const [cloneFromId, setCloneFromId] = useState<string>("");
+  const [modalRefDate, setModalRefDate] = useState<Date>(new Date());
+  const [showDuplicateConfirmModal, setShowDuplicateConfirmModal] = useState(false);
 
   // Estados para notas y comisiones pendientes del plan
   const [planNotes, setPlanNotes] = useState<any[]>([]);
@@ -1223,21 +1225,42 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     }
   };
 
-  // Crear o Clonar Plan
-  const handleCreatePlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPlanName || !newPlanStart || !newPlanEnd) {
-      showNotification("Por favor, rellene el nombre y las fechas.", "error");
-      return;
-    }
+  const updateModalDate = (targetDate: Date) => {
+    setModalRefDate(targetDate);
+    const meses = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+    const mesNombre = meses[targetDate.getMonth()];
+    const anio = targetDate.getFullYear();
+    
+    const primerDia = `${anio}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-01`;
+    const ultimoDiaDate = new Date(anio, targetDate.getMonth() + 1, 0);
+    const ultimoDia = `${anio}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(ultimoDiaDate.getDate()).padStart(2, '0')}`;
+    
+    setNewPlanName(`${mesNombre} ${anio}`);
+    setNewPlanStart(primerDia);
+    setNewPlanEnd(ultimoDia);
+  };
 
+  const getUniquePlanName = (baseName: string) => {
+    let counter = 1;
+    let currentName = `${baseName} (${counter})`;
+    while (planes.some((p: any) => p.nombre.toLowerCase().trim() === currentName.toLowerCase().trim())) {
+      counter++;
+      currentName = `${baseName} (${counter})`;
+    }
+    return currentName;
+  };
+
+  const executePlanCreation = async (planNameValue: string) => {
     setSaving(true);
     try {
       const res = await fetch("/api/comisiones/planes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nombre: newPlanName,
+          nombre: planNameValue,
           fecha_inicio: newPlanStart,
           fecha_fin: newPlanEnd,
           objetivo_base: Number(newPlanBase),
@@ -1273,6 +1296,23 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     } finally {
       setSaving(false);
     }
+  };
+
+  // Crear o Clonar Plan
+  const handleCreatePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlanName || !newPlanStart || !newPlanEnd) {
+      showNotification("Por favor, rellene el nombre y las fechas.", "error");
+      return;
+    }
+
+    const nameExists = planes.some((p: any) => p.nombre.toLowerCase().trim() === newPlanName.toLowerCase().trim());
+    if (nameExists) {
+      setShowDuplicateConfirmModal(true);
+      return;
+    }
+
+    await executePlanCreation(newPlanName);
   };
 
   // Eliminar Plan
@@ -1617,6 +1657,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               <button
                 onClick={() => {
                   setCloneFromId("");
+                  setModalRefDate(new Date());
                   
                   const meses = [
                     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -1752,7 +1793,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                               <button
                                 onClick={() => {
                                   setCloneFromId(String(p.id_plan));
-                                  setNewPlanName(`Copia de ${p.nombre}`);
+                                  setModalRefDate(new Date());
                                   
                                   const meses = [
                                     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -1765,6 +1806,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   const ultimoDiaDate = new Date(anio, hoy.getMonth() + 1, 0);
                                   const ultimoDia = `${anio}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(ultimoDiaDate.getDate()).padStart(2, '0')}`;
                                   
+                                  setNewPlanName(`${mesNombre} ${anio}`);
                                   setNewPlanStart(primerDia);
                                   setNewPlanEnd(ultimoDia);
                                   setShowCreateModal(true);
@@ -5602,6 +5644,32 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </>
             )}
 
+            {/* Botones de navegación de mes para el plan */}
+            <div style={{ display: "flex", justifyContent: "center", gap: "16px", margin: "8px 0", borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const prevDate = new Date(modalRefDate.getFullYear(), modalRefDate.getMonth() - 1, 1);
+                  updateModalDate(prevDate);
+                }}
+                style={{ padding: "6px 16px", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem" }}
+              >
+                ← Mes Anterior
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const nextDate = new Date(modalRefDate.getFullYear(), modalRefDate.getMonth() + 1, 1);
+                  updateModalDate(nextDate);
+                }}
+                style={{ padding: "6px 16px", display: "flex", alignItems: "center", gap: "6px", fontSize: "0.85rem" }}
+              >
+                Mes Siguiente →
+              </button>
+            </div>
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
               <button
                 type="button"
@@ -5620,6 +5688,52 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN DE NOMBRE DUPLICADO */}
+      {showDuplicateConfirmModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
+          background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "420px", padding: "28px", display: "flex", flexDirection: "column", gap: "20px" }}>
+            <h3 style={{ fontSize: "1.15rem", color: "var(--danger)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>⚠️ Plan ya existente</span>
+            </h3>
+            
+            <p style={{ fontSize: "0.9rem", color: "var(--text-secondary)", margin: 0, lineHeight: "1.4" }}>
+              Ya existe un plan de comisiones con el nombre <strong style={{ color: "var(--text-primary)" }}>"{newPlanName}"</strong>.
+            </p>
+            
+            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>
+              ¿Qué deseas hacer? Si eliges <strong>Duplicar</strong>, se le asignará automáticamente un sufijo (ej. "{getUniquePlanName(newPlanName)}").
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", borderTop: "1px solid var(--border-light)", paddingTop: "16px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowDuplicateConfirmModal(false)}
+                style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  setShowDuplicateConfirmModal(false);
+                  const uniqueName = getUniquePlanName(newPlanName);
+                  await executePlanCreation(uniqueName);
+                }}
+                style={{ padding: "8px 16px", fontSize: "0.85rem", backgroundColor: "var(--success)" }}
+              >
+                Duplicar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
