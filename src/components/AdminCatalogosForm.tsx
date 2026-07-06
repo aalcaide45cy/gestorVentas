@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface MarcaItem {
@@ -68,6 +68,46 @@ export default function AdminCatalogosForm({
   const [analyzingDb, setAnalyzingDb] = useState(false);
   const [cleaningDb, setCleaningDb] = useState(false);
   const [dbAnalysis, setDbAnalysis] = useState<any | null>(null);
+
+  // Visibilidad de botones CSV
+  const [mostrarBotonesCSV, setMostrarBotonesCSV] = useState(true);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/admin/ajustes");
+        const result = await res.json();
+        if (result.success && result.data) {
+          if (result.data.mostrar_botones_csv !== undefined) {
+            setMostrarBotonesCSV(result.data.mostrar_botones_csv === "true");
+          }
+        }
+      } catch (err) {
+        console.error("Error al cargar los ajustes:", err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleToggleCSVButtons = async (val: boolean) => {
+    setMostrarBotonesCSV(val);
+    try {
+      const res = await fetch("/api/admin/ajustes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clave: "mostrar_botones_csv", valor: String(val) })
+      });
+      const result = await res.json();
+      if (result.success) {
+        showNotification("Ajuste de visibilidad de botones CSV guardado con éxito", "success");
+      } else {
+        showNotification("Error al guardar el ajuste de CSV en la base de datos", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification("Error de conexión al guardar el ajuste de CSV", "error");
+    }
+  };
 
   // Cargar preferencias guardadas al montar
   const [prefLoaded, setPrefLoaded] = useState(false);
@@ -2291,6 +2331,42 @@ export default function AdminCatalogosForm({
               )}
             </div>
           )}
+
+          {/* DIVISION */}
+          <hr style={{ border: "none", borderTop: "1px solid var(--border-light)", margin: "8px 0" }} />
+
+          {/* AJUSTES DE INTERFAZ */}
+          <div>
+            <h3 style={{ fontSize: "1.15rem", marginBottom: "8px" }}>⚙️ Opciones de Interfaz y Seguridad</h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.5", marginBottom: "16px" }}>
+              Ajusta la visibilidad de elementos clave del sistema. Los cambios se guardan directamente en la base de datos.
+            </p>
+
+            <div className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", backgroundColor: "rgba(255, 255, 255, 0.01)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <input
+                  type="checkbox"
+                  id="toggleCSVButtonsCheckbox"
+                  checked={mostrarBotonesCSV}
+                  onChange={(e) => handleToggleCSVButtons(e.target.checked)}
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    cursor: "pointer",
+                    accentColor: "var(--primary)"
+                  }}
+                />
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  <label htmlFor="toggleCSVButtonsCheckbox" style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer" }}>
+                    Mostrar botones de Exportar todo (CSV) e Importar CSV
+                  </label>
+                  <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                    Si se desmarca, los botones de CSV en la pestaña de expedientes se ocultarán para todos los usuarios.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

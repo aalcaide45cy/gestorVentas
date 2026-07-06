@@ -112,6 +112,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   });
   const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mostrarBotonesCSV, setMostrarBotonesCSV] = useState<boolean>(true);
 
   // Estados para ordenación de cabeceras
   const [sortField, setSortField] = useState<string>("fecha_expediente");
@@ -274,8 +275,32 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         console.error(err);
       }
     };
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/admin/ajustes");
+        const result = await res.json();
+        if (result.success && result.data && result.data.mostrar_botones_csv !== undefined) {
+          setMostrarBotonesCSV(result.data.mostrar_botones_csv === "true");
+        }
+      } catch (err) {
+        console.error("Error al cargar los ajustes de CSV:", err);
+      }
+    };
     fetchPlanes();
+    fetchSettings();
   }, []);
+
+  // Sincronizar el mes y año de estadísticas con los del filtro cuando se filtra por fecha_comisionado
+  useEffect(() => {
+    if (filterFechaTipo === "fecha_comisionado") {
+      if (filterMes) {
+        setStatsMonth(parseInt(filterMes, 10));
+      }
+      if (filterAnio) {
+        setStatsYear(parseInt(filterAnio, 10));
+      }
+    }
+  }, [filterFechaTipo, filterMes, filterAnio]);
 
   useEffect(() => {
     if (planes.length === 0) {
@@ -2742,25 +2767,29 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             />
           </label>
 
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => handleExportCSV(false)}
-            style={{ padding: "8px 14px", fontSize: "0.85rem" }}
-          >
-            📤 Exportar Todo (CSV)
-          </button>
-          
-          <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-            📥 Importar CSV
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleImportCSV}
-              style={{ display: "none" }}
-              disabled={loading}
-            />
-          </label>
+          {mostrarBotonesCSV && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => handleExportCSV(false)}
+                style={{ padding: "8px 14px", fontSize: "0.85rem" }}
+              >
+                📤 Exportar Todo (CSV)
+              </button>
+              
+              <label className="btn btn-primary" style={{ padding: "8px 14px", fontSize: "0.85rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                📥 Importar CSV
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleImportCSV}
+                  style={{ display: "none" }}
+                  disabled={loading}
+                />
+              </label>
+            </>
+          )}
 
           {userRole === "administrador" && (
             <>

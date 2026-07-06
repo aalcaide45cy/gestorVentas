@@ -30,7 +30,8 @@ import {
   commissionLiquidationLines,
   commissionLiquidationLineItems,
   importacionesBloques,
-  importacionesRegistros
+  importacionesRegistros,
+  ajustes
 } from "@/db/schema";
 
 const tablesMap = [
@@ -61,7 +62,8 @@ const tablesMap = [
   { key: "commissionLiquidationLines", schema: commissionLiquidationLines, name: "commission_liquidation_lines" },
   { key: "commissionLiquidationLineItems", schema: commissionLiquidationLineItems, name: "commission_liquidation_line_items" },
   { key: "importacionesBloques", schema: importacionesBloques, name: "importaciones_bloques" },
-  { key: "importacionesRegistros", schema: importacionesRegistros, name: "importaciones_registros" }
+  { key: "importacionesRegistros", schema: importacionesRegistros, name: "importaciones_registros" },
+  { key: "ajustes", schema: ajustes, name: "ajustes" }
 ];
 
 const sequenceMap = [

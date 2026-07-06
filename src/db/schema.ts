@@ -614,3 +614,8 @@ export const importacionesRegistrosRelations = relations(importacionesRegistros,
   }),
 }));
 
+// TABLA: AJUSTES (Ajustes de la aplicación guardados en base de datos)
+export const ajustes = pgTable('ajustes', {
+  clave: varchar('clave', { length: 255 }).primaryKey(),
+  valor: text('valor').notNull(),
+});
