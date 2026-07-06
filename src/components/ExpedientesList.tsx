@@ -191,6 +191,68 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   const [statsYear, setStatsYear] = useState<number>(todayDate.getFullYear());
   const [statsMonth, setStatsMonth] = useState<number>(todayDate.getMonth() + 1);
 
+  const handleComisionadoPrevMonth = () => {
+    const realCurrentDate = new Date();
+    const realCurrentMonth = realCurrentDate.getMonth() + 1;
+    const realCurrentYear = realCurrentDate.getFullYear();
+
+    let currentMonth = filterMes ? parseInt(filterMes, 10) : realCurrentMonth;
+    let currentYear = filterAnio ? parseInt(filterAnio, 10) : realCurrentYear;
+
+    currentMonth -= 1;
+    if (currentMonth < 1) {
+      currentMonth = 12;
+      currentYear -= 1;
+    }
+
+    setFilterFechaTipo("fecha_comisionado");
+    setFilterMes(String(currentMonth).padStart(2, "0"));
+    setFilterAnio(String(currentYear));
+    setCurrentPage(1);
+  };
+
+  const handleComisionadoActualMonth = () => {
+    const realCurrentDate = new Date();
+    let targetMonth = realCurrentDate.getMonth() + 1 - 1; // Mes actual - 1
+    let targetYear = realCurrentDate.getFullYear();
+
+    if (targetMonth < 1) {
+      targetMonth = 12;
+      targetYear -= 1;
+    }
+
+    setFilterFechaTipo("fecha_comisionado");
+    setFilterMes(String(targetMonth).padStart(2, "0"));
+    setFilterAnio(String(targetYear));
+    setCurrentPage(1);
+  };
+
+  const handleComisionadoNextMonth = () => {
+    const realCurrentDate = new Date();
+    const realCurrentMonth = realCurrentDate.getMonth() + 1;
+    const realCurrentYear = realCurrentDate.getFullYear();
+
+    let currentMonth = filterMes ? parseInt(filterMes, 10) : realCurrentMonth;
+    let currentYear = filterAnio ? parseInt(filterAnio, 10) : realCurrentYear;
+
+    currentMonth += 1;
+    if (currentMonth > 12) {
+      currentMonth = 1;
+      currentYear += 1;
+    }
+
+    // Como no podrá viajar en el futuro, no debe pasar del mes actual real
+    if (currentYear > realCurrentYear || (currentYear === realCurrentYear && currentMonth > realCurrentMonth)) {
+      currentMonth = realCurrentMonth;
+      currentYear = realCurrentYear;
+    }
+
+    setFilterFechaTipo("fecha_comisionado");
+    setFilterMes(String(currentMonth).padStart(2, "0"));
+    setFilterAnio(String(currentYear));
+    setCurrentPage(1);
+  };
+
   const [planes, setPlanes] = useState<any[]>([]);
   const [activePlan, setActivePlan] = useState<any | null>(null);
 
@@ -1379,6 +1441,36 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       return e.fecha_expediente || e.fecha_afectacion || effectiveMat || "";
     };
 
+    const isBeforeOrWithinPlan = (dateStr: string | null | undefined) => {
+      if (!dateStr) return false;
+      if (!activePlan) {
+        const parts = dateStr.split("-");
+        if (parts.length < 2) return false;
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y < statsYear) return true;
+        if (y === statsYear && m <= statsMonth) return true;
+        return false;
+      }
+      const d = dateStr.substring(0, 10);
+      return d <= activePlan.fecha_fin;
+    };
+
+    const isAfterPlan = (dateStr: string | null | undefined) => {
+      if (!dateStr) return true;
+      if (!activePlan) {
+        const parts = dateStr.split("-");
+        if (parts.length < 2) return false;
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (y > statsYear) return true;
+        if (y === statsYear && m > statsMonth) return true;
+        return false;
+      }
+      const d = dateStr.substring(0, 10);
+      return d > activePlan.fecha_fin;
+    };
+
     // 1. Filtrar expedientes que pertenezcan a este período (usando las fechas del plan si está activo)
     const periodExpedientes = expedientes.filter((e) => {
       const actDate = getActivityDate(e);
@@ -1979,8 +2071,12 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         }
 
         matriculadosList.push(exp);
-      } else if (isRelatedThisMonth || entraRci) {
-        pendientesList.push(exp);
+      } else {
+        const fuePedidoOFinanciado = isBeforeOrWithinPlan(actDate) || isBeforeOrWithinPlan(exp.fecha_rci);
+        const noMatriculadoAun = isAfterPlan(getEffectiveMatDate(exp));
+        if (fuePedidoOFinanciado && noMatriculadoAun) {
+          pendientesList.push(exp);
+        }
       }
 
       if (isVN && isFinancedType && entraRci) {
@@ -2127,7 +2223,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
         e.fecha_afectacion?.split("-")[0],
         e.fecha_matriculacion?.split("-")[0],
         e.fecha_entrega?.split("-")[0],
-        e.fecha_rci?.split("-")[0]
+        e.fecha_rci?.split("-")[0],
+        e.fecha_cobrado?.split("-")[0]
       ].filter((year): year is string => !!year))
     )
   ).sort((a, b) => Number(b) - Number(a));
@@ -2203,6 +2300,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       else if (filterFechaTipo === "fecha_matriculacion") targetDateStr = exp.fecha_matriculacion;
       else if (filterFechaTipo === "fecha_entrega") targetDateStr = exp.fecha_entrega;
       else if (filterFechaTipo === "fecha_rci") targetDateStr = exp.fecha_rci;
+      else if (filterFechaTipo === "fecha_comisionado") targetDateStr = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
 
       if (!targetDateStr) return false;
 
@@ -2735,6 +2833,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               <option value="fecha_matriculacion">Fecha Matriculación</option>
               <option value="fecha_entrega">Fecha Entrega</option>
               <option value="fecha_rci">Fecha RCI</option>
+              <option value="fecha_comisionado">Fecha Comisionado</option>
             </select>
           </div>
 
@@ -2873,6 +2972,50 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
                 <option key={est} value={est}>{est}</option>
               ))}
             </select>
+          </div>
+        </div>
+        <div style={{
+          marginTop: "16px",
+          padding: "12px 16px",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          borderRadius: "8px",
+          background: "rgba(255, 255, 255, 0.02)",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          width: "fit-content"
+        }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Comisionado:
+          </span>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleComisionadoPrevMonth}
+              style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+              title="Mes Anterior (-1)"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleComisionadoActualMonth}
+              style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+              title="Mes Actual -1"
+            >
+              Actual
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleComisionadoNextMonth}
+              style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+              title="Mes Siguiente (+1)"
+            >
+              →
+            </button>
           </div>
         </div>
       </div>
