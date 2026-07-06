@@ -3232,8 +3232,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   );
                                 }
 
-                                const rateObj = brandInterventionRates.find(ir => ir.id_marca === brand.id) || { tasa_intervencion: 70 };
+                                const rateObj = brandInterventionRates.find(ir => ir.id_marca === brand.id) || { tasa_intervencion: 70, tipo_tasa: "porcentaje" };
                                 const targetIntervention = rateObj.tasa_intervencion;
+                                const isUnits = rateObj.tipo_tasa === "unidades";
+                                const suffix = isUnits ? " uds" : "%";
 
                                 // Models already used in this brand's rates (for dropdown filtering)
                                 const usedModelIds = new Set(sortedModelIds);
@@ -3390,7 +3392,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                           </div>
                                         </td>
                                         <td style={{ color: "var(--success)", fontWeight: 600, verticalAlign: "middle" }}>
-                                          Tasa ≥ {targetIntervention}%
+                                          Tasa ≥ {targetIntervention}{suffix}
                                         </td>
                                         {["rate_x_minus_4", "rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2", "rate_x_plus_3"].map((col) => (
                                           <td key={col} style={{ borderBottom: "none" }}>
@@ -3430,7 +3432,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                       {/* Fila 2: Tasa < Target */}
                                       <tr style={{ borderBottom: "1px solid var(--border-light)" }}>
                                         <td style={{ color: "var(--danger)", fontWeight: 600, verticalAlign: "middle", borderBottom: "1px solid var(--border-light)" }}>
-                                          Tasa {"<"} {targetIntervention}%
+                                          Tasa {"<"} {targetIntervention}{suffix}
                                         </td>
                                         {["rate_x_minus_4", "rate_x_minus_3", "rate_x_minus_2", "rate_x_minus_1", "rate_x", "rate_x_plus_1", "rate_x_plus_2", "rate_x_plus_3"].map((col) => (
                                           <td key={col} style={{ borderBottom: "1px solid var(--border-light)" }}>
