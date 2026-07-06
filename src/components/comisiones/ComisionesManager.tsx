@@ -1136,9 +1136,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   };
 
   // Guardar Plan
-  const handleSavePlan = async () => {
+  const handleSavePlan = async (overrideBonusRules?: any[] | React.MouseEvent) => {
     if (!selectedPlanId) return;
     setSaving(true);
+    const finalBonusRules = Array.isArray(overrideBonusRules) ? overrideBonusRules : bonusRules;
     try {
       const res = await fetch("/api/comisiones/planes", {
         method: "PUT",
@@ -1163,7 +1164,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
             importe_preference: financePref
           },
           rules,
-          bonusRules,
+          bonusRules: finalBonusRules,
           usedRates,
           financeRates,
           preferenceRules,
@@ -1546,6 +1547,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
     };
     setBonusRules(updated);
     setEditingBonusIdx(null);
+    handleSavePlan(updated);
   };
 
   // --- CRUD local de preference rules ---
