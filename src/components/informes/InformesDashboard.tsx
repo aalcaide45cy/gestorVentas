@@ -52,6 +52,10 @@ interface Expediente {
   fecha_rci: string | null;
   fecha_cobrado: string | null;
   cobrado_otra_fecha: boolean | null;
+  id_tipo_de_venta: number | null;
+  id_estado_vehiculo: number | null;
+  valor_objetivo?: number | null;
+  min_coches_multiplicador?: number | null;
   comision_coche_real: string | number | null;
   comision_financiacion_real: string | number | null;
   
@@ -192,18 +196,21 @@ export default function InformesDashboard({
         const isCreditoVenta = saleTypeName.includes("crédito") || saleTypeName.includes("credito") || saleTypeName.includes("financiado");
         const isPreferenceVenta = saleTypeName.includes("preference") || saleTypeName.includes("box");
 
-        // Buscar regla de financiación aplicable para obtener puntos de objetivo
-        let baseVal = 1.0;
-        if (entraRci) {
-          if (isPreferenceVenta) {
-            const rule = plan.financeRules?.find((r: any) => r.tipo_regla === "preference" && r.activo);
-            if (rule) baseVal = Number(rule.valor_objetivo || 1.0);
-          } else if (isCreditoVenta) {
-            const rule = plan.financeRules?.find((r: any) => r.tipo_regla === "credito" && r.activo);
-            if (rule) baseVal = Number(rule.valor_objetivo || 1.0);
+        // Buscar regla de financiación aplicable para obtener puntos de objetivo (se lee de brandInterventionRates o exp.valor_objetivo)
+        let originalVal = 1.0;
+        if (exp.valor_objetivo !== null && exp.valor_objetivo !== undefined) {
+          originalVal = Number(exp.valor_objetivo);
+        } else {
+          const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+          if (brandId) {
+            const brandIntervention = plan.brandInterventionRates?.find((r: any) => r.id_marca === brandId);
+            if (brandIntervention && brandIntervention.valor_objetivo_defecto !== undefined && brandIntervention.valor_objetivo_defecto !== null) {
+              originalVal = Number(brandIntervention.valor_objetivo_defecto);
+            }
           }
         }
 
+        const baseVal = originalVal === 0 ? 1.0 : originalVal;
         let objValorExpediente = baseVal;
         let afectoObjetivo = isActivityThisMonth || isMatriculadoThisMonth;
 
@@ -344,14 +351,45 @@ export default function InformesDashboard({
         const hasFinanOverride = exp.comision_financiacion_real !== null && exp.comision_financiacion_real !== undefined;
         if (hasFinanOverride) {
           baseFinan = Number(exp.comision_financiacion_real);
+          basePref = 0;
         } else {
-          if (isPreferenceVenta) {
-            const rule = plan.financeRules?.find((r: any) => r.tipo_regla === "preference" && r.activo);
-            if (rule) basePref = Number(rule.importe_comision || 0);
-          } else if (isCreditoVenta) {
-            const rule = plan.financeRules?.find((r: any) => r.tipo_regla === "credito" && r.activo);
-            if (rule) baseFinan = Number(rule.importe_comision || 0);
+          const isFinancedType = isCreditoVenta || isPreferenceVenta;
+          if (isFinancedType && exp.id_tipo_de_venta) {
+            let matchedFinanceType = "";
+            if (saleTypeName.includes("preference")) matchedFinanceType = "Preference";
+            else if (saleTypeName.includes("crédito") || saleTypeName.includes("credito") || saleTypeName.includes("financiado")) matchedFinanceType = "Crédito";
+            else if (saleTypeName.includes("renting")) matchedFinanceType = "Renting";
+            else if (saleTypeName.includes("contado")) matchedFinanceType = "Contado";
+
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            if (matchedFinanceType && brandId) {
+              const finRate = plan.financeRates?.find(
+                (r: any) => r.id_marca === brandId && r.tipo_financiacion === matchedFinanceType
+              );
+              if (finRate) {
+                baseFinan = finRate.importe;
+              }
+            }
           }
+
+          // Reglas Preference / BOX3
+          plan.preferenceRules?.forEach((rule: any) => {
+            if (!rule.activa) return;
+            const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+            const filterMarcaMatches = !rule.id_marca || brandId === rule.id_marca;
+            const filterModeloMatches = !rule.id_modelo || exp.id_modelo === rule.id_modelo;
+
+            let finMatches = true;
+            if (rule.tipo_financiacion) {
+              const ruleFin = rule.tipo_financiacion.toLowerCase();
+              const expFin = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+              finMatches = expFin.includes(ruleFin) || ruleFin.includes(expFin);
+            }
+
+            if (filterMarcaMatches && filterModeloMatches && finMatches) {
+              basePref += rule.importe;
+            }
+          });
         }
       }
 

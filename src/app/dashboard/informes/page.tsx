@@ -45,6 +45,9 @@ export default async function InformesPage() {
       bonusRules: true,
       financeRules: true,
       brandInterventionRates: true,
+      usedRates: true,
+      financeRates: true,
+      preferenceRules: true,
     }
   });
 
