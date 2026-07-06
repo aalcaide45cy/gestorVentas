@@ -240,8 +240,8 @@ export async function POST(req: NextRequest) {
               importe: b.importe,
               afecta_objetivo: b.afecta_objetivo,
               valor_objetivo: b.valor_objetivo,
-              fecha_inicio: b.fecha_inicio,
-              fecha_fin: b.fecha_fin,
+              fecha_inicio: fecha_inicio,
+              fecha_fin: fecha_fin,
               activo: b.activo,
               tipo_vehiculo: b.tipo_vehiculo,
             }))
