@@ -48,6 +48,7 @@ export default async function InformesPage() {
       usedRates: true,
       financeRates: true,
       preferenceRules: true,
+      voPatterns: true,
     }
   });
 

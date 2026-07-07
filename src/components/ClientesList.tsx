@@ -1090,14 +1090,14 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           zIndex: 9999,
           backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{ padding: "32px", maxWidth: "450px", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="glass-panel" style={{ padding: "32px", maxWidth: "450px", display: "flex", flexDirection: "column", gap: "24px", background: "var(--bg-card)" }}>
             <h3 style={{ margin: 0, color: "var(--danger)" }}>⚠️ Confirmar Eliminación</h3>
             {confirmDeleteCliente.expedientes && confirmDeleteCliente.expedientes.length > 0 ? (
               <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
@@ -1139,14 +1139,14 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           zIndex: 9999,
           backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{ padding: "32px", maxWidth: "450px", display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="glass-panel" style={{ padding: "32px", maxWidth: "450px", display: "flex", flexDirection: "column", gap: "24px", background: "var(--bg-card)" }}>
             <h3 style={{ margin: 0, color: "var(--danger)" }}>⚠️ Confirmar Eliminación Masiva</h3>
             {totalBulkExpedientes > 0 ? (
               <p style={{ margin: 0, color: "var(--text-secondary)", lineHeight: "1.6" }}>
@@ -1188,7 +1188,7 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1203,7 +1203,8 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
             flexDirection: "column",
             gap: "24px",
             maxHeight: "90vh",
-            overflowY: "auto"
+            overflowY: "auto",
+            background: "var(--bg-card)"
           }}>
             <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)" }}>
               {modalOpen === "edit" ? "Editar Cliente" : "Registrar Nuevo Cliente"}
@@ -1304,7 +1305,7 @@ export default function ClientesList({ clientesIniciales, tiendas, userRole, tie
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

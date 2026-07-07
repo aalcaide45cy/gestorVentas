@@ -21,6 +21,8 @@ interface EditarExpedienteFormProps {
   tiposVenta: DropdownItem[];
   estadosVehiculo: DropdownItem[];
   tiendas: TiendaDropdownItem[];
+  userRole?: string;
+  usuarios?: DropdownItem[];
 }
 
 export default function EditarExpedienteForm({
@@ -29,7 +31,9 @@ export default function EditarExpedienteForm({
   modelosPorMarca,
   tiposVenta,
   estadosVehiculo,
-  tiendas
+  tiendas,
+  userRole = "vendedor",
+  usuarios = []
 }: EditarExpedienteFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -251,6 +255,7 @@ export default function EditarExpedienteForm({
   );
   const [comisionBreakdown, setComisionBreakdown] = useState<any | null>(null);
   const [calculandoComision, setCalculandoComision] = useState(false);
+  const [vendedorSeleccionado, setVendedorSeleccionado] = useState(expediente.id_usuario ? String(expediente.id_usuario) : "");
 
   const [fechaExpediente, setFechaExpediente] = useState(expediente.fecha_expediente || "");
   const [fechaAfectacion, setFechaAfectacion] = useState(expediente.fecha_afectacion || "");
@@ -458,6 +463,7 @@ export default function EditarExpedienteForm({
           id_expediente: expediente.id_expediente,
           id_cliente: clienteAsignado ? clienteAsignado.id : null,
           expediente: {
+            id_usuario: vendedorSeleccionado ? Number(vendedorSeleccionado) : null,
             id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
             id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
             id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
@@ -560,7 +566,7 @@ export default function EditarExpedienteForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id_expediente: expediente.id_expediente,
-            id_usuario: expediente.id_usuario,
+            id_usuario: vendedorSeleccionado ? Number(vendedorSeleccionado) : null,
             id_modelo: modeloSeleccionado ? Number(modeloSeleccionado) : null,
             id_tipo_de_venta: tipoVentaSeleccionado ? Number(tipoVentaSeleccionado) : null,
             id_estado_vehiculo: estadoVehiculoSeleccionado ? Number(estadoVehiculoSeleccionado) : null,
@@ -609,7 +615,8 @@ export default function EditarExpedienteForm({
     minCochesMultiplicador,
     clienteAsignado,
     matricula,
-    vin
+    vin,
+    vendedorSeleccionado
   ]);
 
   const isVNSelected = () => {
@@ -1217,6 +1224,18 @@ export default function EditarExpedienteForm({
                 ))}
               </select>
             </div>
+
+            {userRole === "administrador" && (
+              <div className="form-group">
+                <label className="form-label">Vendedor (Administrador)</label>
+                <select className="form-select" value={vendedorSeleccionado} onChange={e => setVendedorSeleccionado(e.target.value)}>
+                  <option value="">Selecciona Vendedor</option>
+                  {usuarios.map(u => (
+                    <option key={u.id} value={u.id}>{u.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginTop: "16px" }}>
@@ -1744,7 +1763,7 @@ export default function EditarExpedienteForm({
         left: 0,
         width: "100vw",
         height: "100vh",
-        background: "rgba(0,0,0,0.6)",
+        background: "var(--bg-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -1758,7 +1777,8 @@ export default function EditarExpedienteForm({
           display: "flex",
           flexDirection: "column",
           gap: "24px",
-          textAlign: "center"
+          textAlign: "center",
+          background: "var(--bg-card)"
         }}>
           <div>
             <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>

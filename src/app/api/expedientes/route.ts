@@ -362,6 +362,9 @@ export async function PUT(req: NextRequest) {
 
     // Actualizar expediente
     await db.update(expedientes).set({
+      id_usuario: (localUser.rol === "administrador" && expedienteData.id_usuario !== undefined)
+        ? (expedienteData.id_usuario ? Number(expedienteData.id_usuario) : null)
+        : undefined,
       id_modelo: expedienteData.id_modelo !== undefined ? expedienteData.id_modelo : undefined,
       id_tipo_de_venta: expedienteData.id_tipo_de_venta !== undefined ? expedienteData.id_tipo_de_venta : undefined,
       id_estado_vehiculo: expedienteData.id_estado_vehiculo !== undefined ? expedienteData.id_estado_vehiculo : undefined,

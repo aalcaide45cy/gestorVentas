@@ -104,7 +104,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [bonusRules, setBonusRules] = useState<any[]>([]);
   const [newBonusName, setNewBonusName] = useState("");
   const [newBonusDesc, setNewBonusDesc] = useState("");
-  const [newBonusType, setNewBonusType] = useState("pedido");
+  const [newBonusType, setNewBonusType] = useState("afectacion");
   const [newBonusMarca, setNewBonusMarca] = useState<string>("");
   const [newBonusModelo, setNewBonusModelo] = useState<string>("");
   const [newBonusImporte, setNewBonusImporte] = useState("150");
@@ -770,7 +770,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
   const [editingBonusIdx, setEditingBonusIdx] = useState<number | null>(null);
   const [editingBonusName, setEditingBonusName] = useState("");
   const [editingBonusDesc, setEditingBonusDesc] = useState("");
-  const [editingBonusType, setEditingBonusType] = useState("pedido");
+  const [editingBonusType, setEditingBonusType] = useState("afectacion");
   const [editingBonusMarca, setEditingBonusMarca] = useState("");
   const [editingBonusModelo, setEditingBonusModelo] = useState("");
   const [editingBonusTypeVehiculo, setEditingBonusTypeVehiculo] = useState("cualquiera");
@@ -4181,14 +4181,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         />
                       </div>
 
-                      <div className="form-group">
+                       <div className="form-group">
                         <label className="form-label">Trigger</label>
                         <select
                           className="form-select"
                           value={newBonusType}
                           onChange={(e) => setNewBonusType(e.target.value)}
                         >
-                          <option value="pedido">Pedido</option>
                           <option value="afectacion">Afectación</option>
                           <option value="matriculacion">Matriculación</option>
                         </select>
@@ -4347,7 +4346,6 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                   onChange={e => setEditingBonusType(e.target.value)} 
                                   style={{ padding: "4px 8px", fontSize: "0.8rem", width: "100%", marginBottom: "4px" }}
                                 >
-                                  <option value="pedido">Pedido</option>
                                   <option value="afectacion">Afectación</option>
                                   <option value="matriculacion">Matriculación</option>
                                 </select>
@@ -5251,12 +5249,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {showEditExpedienteModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
         }}>
           <div className="glass-panel" style={{
             width: "100%", maxWidth: "550px", maxHeight: "90vh", overflowY: "auto",
-            padding: "32px", display: "flex", flexDirection: "column", gap: "20px"
+            padding: "32px", display: "flex", flexDirection: "column", gap: "20px",
+            background: "var(--bg-card)"
           }}>
             <div>
               <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
@@ -5462,12 +5461,13 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {showConfirmUnsavedModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)"
         }}>
           <div className="glass-panel" style={{
             width: "100%", maxWidth: "450px", padding: "30px",
-            display: "flex", flexDirection: "column", gap: "20px"
+            display: "flex", flexDirection: "column", gap: "20px",
+            background: "var(--bg-card)"
           }}>
             <div>
               <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
@@ -5539,10 +5539,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {selectedLineDetails && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px", background: "var(--bg-card)" }}>
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
               Desglose de Conceptos: Expediente #EXP-{String(selectedLineDetails.id_expediente).padStart(4, "0")}
             </h3>
@@ -5572,10 +5572,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {showCreateModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
         }}>
-          <form onSubmit={handleCreatePlan} className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          <form onSubmit={handleCreatePlan} className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px", background: "var(--bg-card)" }}>
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
               {cloneFromId ? "Clonar Plan de Comisión" : "Crear Plan de Comisión"}
             </h3>
@@ -5697,10 +5697,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {showDuplicateConfirmModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "420px", padding: "28px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "420px", padding: "28px", display: "flex", flexDirection: "column", gap: "20px", background: "var(--bg-card)" }}>
             <h3 style={{ fontSize: "1.15rem", color: "var(--danger)", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
               <span>⚠️ Plan ya existente</span>
             </h3>
@@ -5743,10 +5743,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {bulkModalOpen && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 999, backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "450px", padding: "32px", display: "flex", flexDirection: "column", gap: "20px", background: "var(--bg-card)" }}>
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
               Aplicar Cupo a Expedientes en Lote
             </h3>
@@ -5831,10 +5831,10 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
       {editingExp && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-          background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center",
+          background: "var(--bg-overlay)", display: "flex", alignItems: "center",
           justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)"
         }}>
-          <div className="glass-panel" style={{ width: "100%", maxWidth: "600px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", maxHeight: "90vh", overflowY: "auto" }}>
+          <div className="glass-panel" style={{ width: "100%", maxWidth: "600px", padding: "32px", display: "flex", flexDirection: "column", gap: "24px", maxHeight: "90vh", overflowY: "auto", background: "var(--bg-card)" }}>
             <div>
               <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
                 ✏️ Editar Expediente de Comisión: {editingExp.matricula || "S/M"}

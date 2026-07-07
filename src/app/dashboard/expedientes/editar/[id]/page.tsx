@@ -16,6 +16,8 @@ export default async function EditarExpedientePage({ params }: PageProps) {
     redirect("/dashboard");
   }
 
+  const userRole = user.rol || undefined;
+
   const resolvedParams = await params;
   const idExpediente = Number(resolvedParams.id);
   if (isNaN(idExpediente)) {
@@ -85,6 +87,13 @@ export default async function EditarExpedientePage({ params }: PageProps) {
     ciudad: t.ciudad
   }));
 
+  const dbUsuarios = await db.query.usuarios.findMany();
+
+  const usuariosMapeados = dbUsuarios.map(u => ({
+    id: u.id_usuario,
+    nombre: u.nombre || `ID: ${u.id_usuario}`
+  }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       <div>
@@ -101,6 +110,8 @@ export default async function EditarExpedientePage({ params }: PageProps) {
         tiposVenta={tiposVentaMapeados}
         estadosVehiculo={estadosVehiculoMapeados}
         tiendas={tiendasMapeadas}
+        userRole={userRole}
+        usuarios={usuariosMapeados}
       />
     </div>
   );

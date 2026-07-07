@@ -93,9 +93,18 @@ interface ExpedientesListProps {
   userRole: string;
   tiendas?: Tienda[];
   tiendaPredeterminadaId?: number | null;
+  currentUserId?: number | null;
+  currentUserName?: string | null;
 }
 
-export default function ExpedientesList({ expedientesIniciales, userRole, tiendas = [], tiendaPredeterminadaId = null }: ExpedientesListProps) {
+export default function ExpedientesList({
+  expedientesIniciales,
+  userRole,
+  tiendas = [],
+  tiendaPredeterminadaId = null,
+  currentUserId = null,
+  currentUserName = null
+}: ExpedientesListProps) {
   const router = useRouter();
   const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciales);
 
@@ -176,7 +185,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
   const [filterModelo, setFilterModelo] = useState("");
   const [filterTipoVenta, setFilterTipoVenta] = useState("");
   const [filterEstadoVehiculo, setFilterEstadoVehiculo] = useState("");
-  const [filterVendedor, setFilterVendedor] = useState("");
+  const [filterVendedor, setFilterVendedor] = useState<string>(() => currentUserName || "");
   const [filterFExp, setFilterFExp] = useState("");
   const [filterFAfect, setFilterFAfect] = useState("");
   const [filterFRci, setFilterFRci] = useState("");
@@ -1504,11 +1513,19 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
 
     // 1. Filtrar expedientes que pertenezcan a este período (usando las fechas del plan si está activo)
     const periodExpedientes = expedientes.filter((e) => {
+      // Si hay filtro de comercial, solo incluimos sus expedientes
+      if (filterVendedor && e.usuario?.nombre !== filterVendedor) return false;
+
       const actDate = getActivityDate(e);
       const isRelatedThisMonth = isWithinPlan(actDate);
       const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(e));
       const isRciThisMonth = isWithinPlan(e.fecha_rci);
-      return isRelatedThisMonth || isMatriculadoThisMonth || isRciThisMonth;
+
+      const fuePedidoOFinanciado = isBeforeOrWithinPlan(actDate) || isBeforeOrWithinPlan(e.fecha_rci);
+      const noMatriculadoAun = isAfterPlan(getEffectiveMatDate(e));
+      const isPendingPipeline = fuePedidoOFinanciado && noMatriculadoAun;
+
+      return isRelatedThisMonth || isMatriculadoThisMonth || isRciThisMonth || isPendingPipeline;
     });
 
     // 2. Agrupar por vendedor
@@ -1548,7 +1565,13 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
       const qualVendedorExps = vendedorExps.filter((exp) => {
         const isMatriculadoThisMonth = isWithinPlan(getEffectiveMatDate(exp));
         const isRciThisMonth = isWithinPlan(exp.fecha_rci);
-        return isMatriculadoThisMonth || isRciThisMonth;
+
+        const actDate = getActivityDate(exp);
+        const fuePedidoOFinanciado = isBeforeOrWithinPlan(actDate) || isBeforeOrWithinPlan(exp.fecha_rci);
+        const noMatriculadoAun = isAfterPlan(getEffectiveMatDate(exp));
+        const isPendingPipeline = fuePedidoOFinanciado && noMatriculadoAun;
+
+        return isMatriculadoThisMonth || isRciThisMonth || isPendingPipeline;
       });
 
       // Calcular cupos para el vendedor actual
@@ -3838,7 +3861,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3857,7 +3880,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
               padding: "32px",
               display: "flex",
               flexDirection: "column",
-              gap: "20px"
+              gap: "20px",
+              background: "var(--bg-card)"
             }}
           >
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
@@ -3916,7 +3940,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3929,7 +3953,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             padding: "32px",
             display: "flex",
             flexDirection: "column",
-            gap: "20px"
+            gap: "20px",
+            background: "var(--bg-card)"
           }}>
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
               Asignar Cliente al Expediente
@@ -4149,7 +4174,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -4163,7 +4188,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             display: "flex",
             flexDirection: "column",
             gap: "20px",
-            borderLeft: "4px solid var(--danger)"
+            borderLeft: "4px solid var(--danger)",
+            background: "var(--bg-card)"
           }}>
             <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
               Eliminar fecha de {deleteDateModal.displayName}
@@ -4210,7 +4236,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -4224,7 +4250,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             display: "flex",
             flexDirection: "column",
             gap: "24px",
-            borderLeft: "4px solid var(--danger)"
+            borderLeft: "4px solid var(--danger)",
+            background: "var(--bg-card)"
           }}>
             <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
               Confirmar Eliminación
@@ -4271,7 +4298,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -4285,7 +4312,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             display: "flex",
             flexDirection: "column",
             gap: "24px",
-            borderLeft: "4px solid var(--danger)"
+            borderLeft: "4px solid var(--danger)",
+            background: "var(--bg-card)"
           }}>
             <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>
               Confirmar Borrado Masivo
@@ -4331,7 +4359,7 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
           left: 0,
           width: "100vw",
           height: "100vh",
-          background: "rgba(0,0,0,0.6)",
+          background: "var(--bg-overlay)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -4346,7 +4374,8 @@ export default function ExpedientesList({ expedientesIniciales, userRole, tienda
             padding: "32px",
             display: "flex",
             flexDirection: "column",
-            gap: "20px"
+            gap: "20px",
+            background: "var(--bg-card)"
           }}>
             <div>
               <h3 style={{ fontSize: "1.25rem", color: "var(--text-primary)", margin: 0 }}>

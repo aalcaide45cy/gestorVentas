@@ -74,6 +74,8 @@ export default async function ExpedientesPage() {
         userRole={userRole} 
         tiendas={dbTiendas} 
         tiendaPredeterminadaId={user.tienda_predeterminada_id}
+        currentUserId={user.id_usuario}
+        currentUserName={user.nombre}
       />
     </div>
   );

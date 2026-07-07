@@ -14,6 +14,8 @@
   /* Colores de Fondo y Superficie (Oscuro por defecto) */
   --bg-app: hsl(230, 25%, 8%);
   --bg-surface: hsl(230, 25%, 12%);
+  --bg-card: hsl(230, 25%, 12%);
+  --bg-overlay: rgba(0, 0, 0, 0.7);
   --bg-surface-glass: rgba(13, 16, 27, 0.65);
   --bg-surface-hover: hsl(230, 25%, 16%);
   --bg-surface-tint: rgba(255, 255, 255, 0.02);
@@ -58,7 +60,9 @@
 html[data-theme='light'] {
   --bg-app: hsl(220, 30%, 96%);
   --bg-surface: hsl(0, 0%, 100%);
-  --bg-surface-glass: rgba(255, 255, 255, 0.75);
+  --bg-card: hsl(0, 0%, 100%);
+  --bg-overlay: rgba(15, 23, 42, 0.35);
+  --bg-surface-glass: rgba(255, 255, 255, 0.85);
   --bg-surface-hover: hsl(220, 20%, 93%);
   --bg-surface-tint: rgba(0, 0, 0, 0.02);
   --bg-input: rgba(0, 0, 0, 0.03);
