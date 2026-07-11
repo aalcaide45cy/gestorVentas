@@ -247,6 +247,7 @@ export default async function DashboardPage() {
               initialExpedientes={dbExpedientesRecientes} 
               tiendas={dbTiendas} 
               tiendaPredeterminadaId={user.tienda_predeterminada_id} 
+              vendedores={vendedoresMapeados}
             />
           </div>
 

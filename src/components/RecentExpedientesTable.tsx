@@ -63,19 +63,34 @@ interface Tienda {
   nombre: string;
 }
 
+interface Vendedor {
+  id_usuario: number;
+  nombre: string;
+}
+
 interface RecentExpedientesTableProps {
   initialExpedientes: Expediente[];
   tiendas?: Tienda[];
   tiendaPredeterminadaId?: number | null;
+  vendedores?: Vendedor[];
 }
 
-export default function RecentExpedientesTable({ initialExpedientes, tiendas = [], tiendaPredeterminadaId = null }: RecentExpedientesTableProps) {
+export default function RecentExpedientesTable({ 
+  initialExpedientes, 
+  tiendas = [], 
+  tiendaPredeterminadaId = null,
+  vendedores = []
+}: RecentExpedientesTableProps) {
   const router = useRouter();
   const [expedientesList, setExpedientesList] = useState<Expediente[]>(initialExpedientes);
 
   useEffect(() => {
     setExpedientesList(initialExpedientes);
   }, [initialExpedientes]);
+
+  // Estados de eliminación de expediente
+  const [confirmDeleteExpediente, setConfirmDeleteExpediente] = useState<Expediente | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [editDateModal, setEditDateModal] = useState<{
     expediente: Expediente;
@@ -110,6 +125,8 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
   const [newClientTiendaId, setNewClientTiendaId] = useState("");
   const [creatingClient, setCreatingClient] = useState(false);
   const [createClientError, setCreateClientError] = useState<string | null>(null);
+  // Estado para el vendedor seleccionado en el modal de asignar cliente
+  const [selectedVendedorId, setSelectedVendedorId] = useState<number | null>(null);
 
   const handleSearchClientsForAssign = async (val: string) => {
     setClientSearchQuery(val);
@@ -142,7 +159,9 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id_expediente: assigningClientExpId,
-          expediente: {},
+          expediente: {
+            id_usuario: selectedVendedorId
+          },
           id_cliente: selectedClient.id
         })
       });
@@ -154,15 +173,18 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
 
       setExpedientesList(prev => prev.map(exp => {
         if (exp.id_expediente === assigningClientExpId) {
+          const newVendedorObj = vendedores.find(v => v.id_usuario === selectedVendedorId);
           return {
             ...exp,
             id_cliente: selectedClient.id,
+            id_usuario: selectedVendedorId,
+            usuario: newVendedorObj ? { ...exp.usuario, id_usuario: selectedVendedorId, nombre: newVendedorObj.nombre } : exp.usuario,
             cliente: {
               id: selectedClient.id,
               dni: selectedClient.dni,
               nombre: selectedClient.nombre
             }
-          };
+          } as any;
         }
         return exp;
       }));
@@ -171,11 +193,40 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
       setAssigningClientExpId(null);
       setClientSearchQuery("");
       setClientSearchResults([]);
+      setSelectedVendedorId(null);
       router.refresh();
     } catch (e: any) {
       showNotification(e.message || "Error al asignar el cliente.", "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteExpediente = async () => {
+    if (!confirmDeleteExpediente) return;
+    setDeleting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await fetch(`/api/expedientes?id=${confirmDeleteExpediente.id_expediente}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Error al eliminar el expediente");
+      }
+
+      setExpedientesList(prev => prev.filter(e => e.id_expediente !== confirmDeleteExpediente.id_expediente));
+      showNotification(`Expediente eliminado con éxito.`, "success");
+      setConfirmDeleteExpediente(null);
+      router.refresh();
+    } catch (err: any) {
+      showNotification(err.message || "Error al eliminar el expediente.", "error");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -476,6 +527,7 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
                           setAssigningClientExpId(exp.id_expediente);
                           setClientSearchQuery("");
                           setClientSearchResults([]);
+                          setSelectedVendedorId(exp.id_usuario || null);
                         }}
                         style={{
                           background: "none",
@@ -545,27 +597,55 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
                 {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.09)")}
                 {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.03)")}
                 <td>
-                  <Link
-                    href={`/dashboard/expedientes/editar/${exp.id_expediente}`}
-                    style={{
-                      color: "var(--text-primary)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      padding: "6px 12px",
-                      borderRadius: "var(--radius-sm)",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      border: "1px solid var(--border-light)",
-                      cursor: "pointer",
-                      fontSize: "0.8rem",
-                      textDecoration: "none",
-                      fontWeight: 600,
-                      transition: "all 0.2s ease"
-                    }}
-                    className="glass-panel-interactive"
-                  >
-                    ✏️ Editar
-                  </Link>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Link
+                      href={`/dashboard/expedientes/editar/${exp.id_expediente}`}
+                      style={{
+                        color: "var(--text-primary)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "6px 12px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid var(--border-light)",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        textDecoration: "none",
+                        fontWeight: 600,
+                        transition: "all 0.2s ease"
+                      }}
+                      className="glass-panel-interactive"
+                    >
+                      ✏️ Editar
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteExpediente(exp)}
+                      style={{
+                        color: "var(--danger)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "6px 12px",
+                        borderRadius: "var(--radius-sm)",
+                        background: "rgba(239, 68, 68, 0.05)",
+                        border: "1px solid rgba(239, 68, 68, 0.15)",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        fontWeight: 600,
+                        transition: "all 0.2s ease"
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.15)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.05)";
+                      }}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -774,6 +854,22 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
 
             {assignClientModalTab === "buscar" ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                {vendedores.length > 0 && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Vendedor del Expediente</label>
+                    <select
+                      className="form-select"
+                      value={selectedVendedorId || ""}
+                      onChange={e => setSelectedVendedorId(e.target.value ? Number(e.target.value) : null)}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      <option value="">Seleccionar vendedor...</option>
+                      {vendedores.map(v => (
+                        <option key={v.id_usuario} value={v.id_usuario}>{v.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="form-group" style={{ marginBottom: 0, position: "relative" }}>
                   <label className="form-label">🔍 Buscar Cliente (Nombre o DNI)</label>
                   <input
@@ -899,6 +995,22 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
                     </select>
                   </div>
                 )}
+                {vendedores.length > 0 && (
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Vendedor del Expediente</label>
+                    <select
+                      className="form-select"
+                      value={selectedVendedorId || ""}
+                      onChange={e => setSelectedVendedorId(e.target.value ? Number(e.target.value) : null)}
+                      style={{ padding: "6px 10px" }}
+                    >
+                      <option value="">Seleccionar vendedor...</option>
+                      {vendedores.map(v => (
+                        <option key={v.id_usuario} value={v.id_usuario}>{v.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 
@@ -917,6 +1029,7 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
                   setNewClientTiendaId("");
                   setAssignClientModalTab("buscar");
                   setCreateClientError(null);
+                  setSelectedVendedorId(null);
                 }}
                 disabled={loading || creatingClient}
               >
@@ -932,6 +1045,63 @@ export default function RecentExpedientesTable({ initialExpedientes, tiendas = [
                   {creatingClient ? "Creando..." : "Crear y Asignar"}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Eliminación de Expediente */}
+      {confirmDeleteExpediente && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            width: "100%",
+            maxWidth: "400px",
+            padding: "32px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px"
+          }}>
+            <h3 style={{ fontSize: "1.2rem", color: "var(--text-primary)", margin: 0 }}>
+              ¿Eliminar Expediente?
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0, lineHeight: "1.5" }}>
+              ¿Estás seguro de que deseas eliminar permanentemente el expediente <strong>#EXP-{String(confirmDeleteExpediente.id_expediente).padStart(4, "0")}</strong>?
+              Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmDeleteExpediente(null)}
+                disabled={deleting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleDeleteExpediente}
+                disabled={deleting}
+                style={{
+                  background: "var(--danger)",
+                  borderColor: "var(--danger)",
+                  color: "#ffffff"
+                }}
+              >
+                {deleting ? "Eliminando..." : "Eliminar"}
+              </button>
             </div>
           </div>
         </div>
