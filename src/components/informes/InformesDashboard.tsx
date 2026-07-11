@@ -204,6 +204,7 @@ export default function InformesDashboard({
       tramo: string;
       objetivoPuntos: number;
       matriculacionesMes: number;
+      details?: { concept: string; amount: number }[];
     }> = {};
 
     // Agrupar expedientes por plan
@@ -215,7 +216,8 @@ export default function InformesDashboard({
       if (!plan) {
         results[exp.id_expediente] = {
           baseVN: 0, baseVO: 0, financiacion: 0, preference: 0, bonus: 0, penalizaciones: 0, total: 0,
-          cumpleMinimo: false, tramo: "N/A", objetivoPuntos: 0, matriculacionesMes: 0
+          cumpleMinimo: false, tramo: "N/A", objetivoPuntos: 0, matriculacionesMes: 0,
+          details: []
         };
         return;
       }
@@ -501,14 +503,21 @@ export default function InformesDashboard({
           let reglasBonus = 0;
           let reglasPenalizacion = 0;
 
+          const detailsList: { concept: string; amount: number }[] = [];
+
           const hasCocheOverride = exp.comision_coche_real !== null && exp.comision_coche_real !== undefined;
           const hasFinanOverride = exp.comision_financiacion_real !== null && exp.comision_financiacion_real !== undefined;
 
           // 1. Comisión base VN/VO (por matriculación)
           if (isMatriculadoThisMonth) {
             if (hasCocheOverride) {
-              if (isVN) baseVN = Number(exp.comision_coche_real);
-              else baseVO = Number(exp.comision_coche_real);
+              if (isVN) {
+                baseVN = Number(exp.comision_coche_real);
+                detailsList.push({ concept: "Comisión Base VN (Manual)", amount: baseVN });
+              } else {
+                baseVO = Number(exp.comision_coche_real);
+                detailsList.push({ concept: "Comisión Base VO (Manual)", amount: baseVO });
+              }
             } else if (isVN) {
               if (!isVOVendedor) {
                 const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
@@ -551,6 +560,7 @@ export default function InformesDashboard({
                   else if (tramo === "X+2") rateImporte = modelRate.rate_x_plus_2;
                   else if (tramo === "X+3") rateImporte = modelRate.rate_x_plus_3;
                   baseVN = rateImporte;
+                  detailsList.push({ concept: `Comisión Base VN (Tramo ${tramo})`, amount: baseVN });
                 }
               }
             } else {
@@ -569,6 +579,7 @@ export default function InformesDashboard({
                     if (totalUnitsOfType >= usedRate.min_aplicar) {
                       const isFirst = currentIdx === 0;
                       baseVO = isFirst ? usedRate.importe_primera : usedRate.importe_resto;
+                      detailsList.push({ concept: `Comisión Base VO (${tipoUsado})`, amount: baseVO });
                     }
                   }
                 } else {
@@ -577,6 +588,7 @@ export default function InformesDashboard({
                     || matchedPatternTiers[matchedPatternTiers.length - 1]
                     || { valor_objetivo: 1, importe: 150 };
                   baseVO = tier.importe;
+                  detailsList.push({ concept: `Comisión Base VO (Escala VO Unidad #${sellerVoUnitCounterPay})`, amount: baseVO });
                 }
               }
             }
@@ -586,6 +598,7 @@ export default function InformesDashboard({
           if (entraRci) {
             if (hasFinanOverride) {
               baseFinan = Number(exp.comision_financiacion_real);
+              detailsList.push({ concept: "Financiación RCI (Manual)", amount: baseFinan });
             } else {
               const isFinancedType = isCreditoVenta || isPreferenceVenta;
               if (isFinancedType && exp.id_tipo_de_venta) {
@@ -602,6 +615,7 @@ export default function InformesDashboard({
                   );
                   if (finRate) {
                     baseFinan = finRate.importe;
+                    detailsList.push({ concept: `Financiación RCI (${matchedFinanceType})`, amount: baseFinan });
                   }
                 }
               }
@@ -621,6 +635,7 @@ export default function InformesDashboard({
 
                 if (filterMarcaMatches && filterModeloMatches && finMatches) {
                   basePref += rule.importe;
+                  detailsList.push({ concept: `Regla Preference: ${rule.nombre || "Adicional"}`, amount: rule.importe });
                 }
               });
             }
@@ -645,8 +660,10 @@ export default function InformesDashboard({
             if (filterMarcaMatches && filterModeloMatches) {
               if (rule.importe < 0) {
                 reglasPenalizacion += Math.abs(rule.importe);
+                detailsList.push({ concept: `Regla: ${rule.nombre || "Penalización"}`, amount: rule.importe });
               } else {
                 reglasBonus += rule.importe;
+                detailsList.push({ concept: `Regla: ${rule.nombre || "Bonus"}`, amount: rule.importe });
               }
             }
           });
@@ -672,8 +689,10 @@ export default function InformesDashboard({
             if (filterMarcaMatches && filterModeloMatches) {
               if (bonus.es_penalizacion) {
                 reglasPenalizacion += Math.abs(bonus.importe);
+                detailsList.push({ concept: `Campaña: ${bonus.nombre || "Penalización"}`, amount: -Math.abs(bonus.importe) });
               } else {
                 reglasBonus += bonus.importe;
+                detailsList.push({ concept: `Campaña: ${bonus.nombre || "Bonus"}`, amount: bonus.importe });
               }
             }
           });
@@ -692,7 +711,10 @@ export default function InformesDashboard({
             cumpleMinimo,
             tramo,
             objetivoPuntos,
-            matriculacionesMes
+            matriculacionesMes,
+            details: cumpleMinimo 
+              ? detailsList 
+              : detailsList.map(item => ({ concept: `${item.concept} (Anulado por mín. matriculaciones)`, amount: 0 }))
           };
         });
       });
@@ -746,6 +768,7 @@ export default function InformesDashboard({
       vn: number;
       vo: number;
       total: number;
+      cartera: number;
       financiadoVN: number;
       financiadoVO: number;
       totalFinanciado: number;
@@ -765,7 +788,7 @@ export default function InformesDashboard({
       if (!stats[seller.id_usuario]) {
         stats[seller.id_usuario] = {
           vendedor: seller.nombre || `ID: ${seller.id_usuario}`,
-          vn: 0, vo: 0, total: 0,
+          vn: 0, vo: 0, total: 0, cartera: 0,
           financiadoVN: 0, financiadoVO: 0, totalFinanciado: 0,
           baseVNComm: 0, baseVOComm: 0, finanComm: 0, prefComm: 0, bonusComm: 0, penalComm: 0, totalComm: 0
         };
@@ -778,15 +801,22 @@ export default function InformesDashboard({
       const saleTypeName = exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
       const isFinanciado = saleTypeName.includes("crédito") || saleTypeName.includes("credito") || saleTypeName.includes("financiado") || saleTypeName.includes("preference") || saleTypeName.includes("box");
 
-      if (isVN) {
-        row.vn++;
-        if (isFinanciado) row.financiadoVN++;
+      const matDate = getEffectiveMatDate(exp);
+      const isMatriculado = !!(matDate && matDate >= fechaInicio && matDate <= fechaFin);
+
+      if (isMatriculado) {
+        if (isVN) {
+          row.vn++;
+          if (isFinanciado) row.financiadoVN++;
+        } else {
+          row.vo++;
+          if (isFinanciado) row.financiadoVO++;
+        }
+        row.total++;
+        if (isFinanciado) row.totalFinanciado++;
       } else {
-        row.vo++;
-        if (isFinanciado) row.financiadoVO++;
+        row.cartera++;
       }
-      row.total++;
-      if (isFinanciado) row.totalFinanciado++;
 
       // Agregar importes de comisión
       const comm = calculatedCommissions[exp.id_expediente] || { baseVN: 0, baseVO: 0, financiacion: 0, preference: 0, bonus: 0, penalizaciones: 0, total: 0 };
@@ -800,7 +830,7 @@ export default function InformesDashboard({
     });
 
     return Object.values(stats).sort((a, b) => b.total - a.total);
-  }, [filteredExpedientes, calculatedCommissions]);
+  }, [filteredExpedientes, calculatedCommissions, fechaInicio, fechaFin]);
 
   // 6. Estadísticas por Marca
   const brandStats = useMemo(() => {
@@ -979,9 +1009,116 @@ export default function InformesDashboard({
   }, [filteredExpedientes, calculatedCommissions]);
 
   const comisionPromedio = useMemo(() => {
-    if (filteredExpedientes.length === 0) return 0;
-    return Math.round(totalComisiones / filteredExpedientes.length);
-  }, [filteredExpedientes, totalComisiones]);
+    if (statsPorMatriculados === 0) return 0;
+    return Math.round(totalComisiones / statsPorMatriculados);
+  }, [statsPorMatriculados, totalComisiones]);
+
+  const getExpedienteCommissionTooltip = (expId: number) => {
+    const comm = calculatedCommissions[expId];
+    if (!comm) return "Comisión: 0 €";
+    if (!comm.details || comm.details.length === 0) return "Comisión: 0 €";
+    
+    const lines = comm.details.map((item: any) => `• ${item.concept}: ${item.amount.toLocaleString()} €`);
+    if (!comm.cumpleMinimo) {
+      return `Mínimo de matriculaciones no alcanzado (${comm.matriculacionesMes} reales).\nComisiones base y bonus anuladas a 0 €.\n\nConceptos originales:\n` + lines.join("\n");
+    }
+    return `Desglose de Comisión:\n` + lines.join("\n") + `\n\nTotal Neto: ${comm.total.toLocaleString()} €`;
+  };
+
+  const getVendedorCommissionTooltip = (vendedorName: string, category: "bonus" | "penal" | "total") => {
+    const sellerExps = filteredExpedientes.filter(e => e.usuario?.nombre === vendedorName);
+    
+    let totalVN = 0;
+    let totalVO = 0;
+    let totalFinan = 0;
+    let totalPref = 0;
+    let totalBonus = 0;
+    let totalPenal = 0;
+    let totalNet = 0;
+    
+    const bonusBreakdowns: Record<string, number> = {};
+    const penalBreakdowns: Record<string, number> = {};
+
+    sellerExps.forEach(exp => {
+      const comm = calculatedCommissions[exp.id_expediente];
+      if (!comm) return;
+      totalVN += comm.baseVN;
+      totalVO += comm.baseVO;
+      totalFinan += comm.financiacion;
+      totalPref += comm.preference;
+      totalBonus += comm.bonus;
+      totalPenal += comm.penalizaciones;
+      totalNet += comm.total;
+
+      if (comm.details) {
+        comm.details.forEach((item: any) => {
+          if (item.amount > 0) {
+            bonusBreakdowns[item.concept] = (bonusBreakdowns[item.concept] || 0) + item.amount;
+          } else if (item.amount < 0) {
+            penalBreakdowns[item.concept] = (penalBreakdowns[item.concept] || 0) + Math.abs(item.amount);
+          }
+        });
+      }
+    });
+
+    if (category === "bonus") {
+      if (Object.keys(bonusBreakdowns).length === 0) return "Sin bonus especiales registrados en el periodo.";
+      return `Desglose de Bonus Especiales:\n` + Object.entries(bonusBreakdowns)
+        .map(([concept, val]) => `• ${concept}: ${val.toLocaleString()} €`)
+        .join("\n");
+    }
+
+    if (category === "penal") {
+      if (Object.keys(penalBreakdowns).length === 0) return "Sin penalizaciones registradas en el periodo.";
+      return `Desglose de Penalizaciones:\n` + Object.entries(penalBreakdowns)
+        .map(([concept, val]) => `• ${concept}: -${val.toLocaleString()} €`)
+        .join("\n");
+    }
+
+    // "total"
+    const lines = [
+      `Resumen de Liquidación de ${vendedorName}:`,
+      `• Comisiones Base VN: ${totalVN.toLocaleString()} €`,
+      `• Comisiones Base VO: ${totalVO.toLocaleString()} €`,
+      `• Financiación RCI: ${totalFinan.toLocaleString()} €`,
+      `• Preference / Box: ${totalPref.toLocaleString()} €`
+    ];
+    if (Object.keys(bonusBreakdowns).length > 0) {
+      lines.push(`• Bonus Especiales: ${totalBonus.toLocaleString()} €`);
+    }
+    if (Object.keys(penalBreakdowns).length > 0) {
+      lines.push(`• Penalizaciones: -${totalPenal.toLocaleString()} €`);
+    }
+    lines.push(`\nTotal Comisión Neta: ${totalNet.toLocaleString()} €`);
+    return lines.join("\n");
+  };
+
+  const getGlobalComisionesTooltip = () => {
+    let totalBaseVN = 0;
+    let totalBaseVO = 0;
+    let totalFinan = 0;
+    let totalPref = 0;
+    let totalBonus = 0;
+    let totalPenal = 0;
+    
+    Object.values(calculatedCommissions).forEach((comm: any) => {
+      totalBaseVN += comm.baseVN;
+      totalBaseVO += comm.baseVO;
+      totalFinan += comm.financiacion;
+      totalPref += comm.preference;
+      totalBonus += comm.bonus;
+      totalPenal += comm.penalizaciones;
+    });
+
+    return `Desglose de Comisión Neta Global:\n` +
+      `• Base VN total: ${totalBaseVN.toLocaleString()} €\n` +
+      `• Base VO total: ${totalBaseVO.toLocaleString()} €\n` +
+      `• Financiación RCI total: ${totalFinan.toLocaleString()} €\n` +
+      `• Preference / Box total: ${totalPref.toLocaleString()} €\n` +
+      `• Bonus Especiales total: ${totalBonus.toLocaleString()} €\n` +
+      `• Penalizaciones total: -${totalPenal.toLocaleString()} €\n\n` +
+      `Total Neto del Periodo: ${totalComisiones.toLocaleString()} €`;
+  };
 
   const getSellersExpedientes = (vendedorName: string, type: "VN" | "VO" | "all" | "financed" | "base" | "finanComm" | "bonus" | "penal") => {
     return filteredExpedientes.filter(exp => {
@@ -1067,6 +1204,20 @@ export default function InformesDashboard({
     });
     return list;
   }, [filteredExpedientes, sortField, sortDirection, calculatedCommissions, marcas]);
+
+  const matriculadosList = useMemo(() => {
+    return sortedDetailedExpedientes.filter(exp => {
+      const matDate = getEffectiveMatDate(exp);
+      return !!(matDate && matDate >= fechaInicio && matDate <= fechaFin);
+    });
+  }, [sortedDetailedExpedientes, fechaInicio, fechaFin]);
+
+  const carteraList = useMemo(() => {
+    return sortedDetailedExpedientes.filter(exp => {
+      const matDate = getEffectiveMatDate(exp);
+      return !matDate || matDate > fechaFin;
+    });
+  }, [sortedDetailedExpedientes, fechaFin]);
 
   const handleSortField = (field: string) => {
     if (sortField === field) {
@@ -1510,7 +1661,7 @@ export default function InformesDashboard({
           }}
           className="glass-panel-interactive" 
           style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "10px", borderLeft: "4px solid var(--success)", cursor: "pointer" }}
-          title="Click para ver detalle"
+          title={getGlobalComisionesTooltip()}
         >
           <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Comisión Neta Generada</span>
           <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
@@ -1609,9 +1760,10 @@ export default function InformesDashboard({
             <thead>
               <tr style={{ borderBottom: "2px solid var(--border-light)", textAlign: "left" }}>
                 <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600 }}>Comercial</th>
-                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Ventas VN</th>
-                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Ventas VO</th>
-                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Total Ventas</th>
+                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Matriculados VN</th>
+                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Matriculados VO</th>
+                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Total Matriculados</th>
+                <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Pedidos en Cartera</th>
                 <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>RCI Financiado</th>
                 <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>Ratio RCI VN</th>
                 <th style={{ padding: "12px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "right" }}>Base VN/VO (€)</th>
@@ -1625,21 +1777,22 @@ export default function InformesDashboard({
               {sellerStats.map(s => (
                 <tr key={s.vendedor} style={{ borderBottom: "1px solid var(--border-light)", fontSize: "0.85rem" }}>
                   <td onClick={() => setDetailModal({ title: `Expedientes de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "all"), conceptInfo: `Todos los expedientes asociados a ${s.vendedor} en este periodo.` })} style={{ padding: "12px", fontWeight: 600, color: "var(--text-primary)", cursor: "pointer", textDecoration: "underline" }} title="Click para ver desglosado">{s.vendedor}</td>
-                  <td onClick={() => setDetailModal({ title: `Ventas VN de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "VN"), conceptInfo: `Expedientes VN de ${s.vendedor} en este periodo.` })} style={{ padding: "12px", textAlign: "center", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.vn}</td>
-                  <td onClick={() => setDetailModal({ title: `Ventas VO de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "VO"), conceptInfo: `Expedientes VO de ${s.vendedor} en este periodo.` })} style={{ padding: "12px", textAlign: "center", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.vo}</td>
-                  <td onClick={() => setDetailModal({ title: `Ventas Totales de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "all"), conceptInfo: `Total expedientes de ${s.vendedor} en este periodo.` })} style={{ padding: "12px", textAlign: "center", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.total}</td>
+                  <td onClick={() => setDetailModal({ title: `Matriculados VN de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "VN").filter(e => { const matDate = getEffectiveMatDate(e); return !!(matDate && matDate >= fechaInicio && matDate <= fechaFin); }), conceptInfo: `Expedientes VN matriculados de ${s.vendedor} en este periodo.` })} style={{ padding: "12px", textAlign: "center", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.vn}</td>
+                  <td onClick={() => setDetailModal({ title: `Matriculados VO de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "VO").filter(e => { const matDate = getEffectiveMatDate(e); return !!(matDate && matDate >= fechaInicio && matDate <= fechaFin); }), conceptInfo: `Expedientes VO matriculados de ${s.vendedor} en este periodo.` })} style={{ padding: "12px", textAlign: "center", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.vo}</td>
+                  <td onClick={() => setDetailModal({ title: `Matriculados Totales de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "all").filter(e => { const matDate = getEffectiveMatDate(e); return !!(matDate && matDate >= fechaInicio && matDate <= fechaFin); }), conceptInfo: `Total expedientes matriculados de ${s.vendedor} en este periodo.` })} style={{ padding: "12px", textAlign: "center", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.total}</td>
+                  <td onClick={() => setDetailModal({ title: `Pedidos en Cartera de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "all").filter(e => { const matDate = getEffectiveMatDate(e); return !matDate || matDate > fechaFin; }), conceptInfo: `Pedidos creados o afectados en este periodo pero pendientes de matriculación.` })} style={{ padding: "12px", textAlign: "center", cursor: "pointer", textDecoration: "underline", color: "var(--accent)" }} title="Ver pedidos en cartera">{s.cartera}</td>
                   <td onClick={() => setDetailModal({ title: `Financiados RCI de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "financed"), conceptInfo: `Expedientes con financiación RCI de ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "center", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.totalFinanciado}</td>
                   <td style={{ padding: "12px", textAlign: "center" }}>{s.vn > 0 ? `${Math.round((s.financiadoVN / s.vn) * 100)}%` : "0%"}</td>
-                  <td onClick={() => setDetailModal({ title: `Base VN/VO de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "base"), conceptInfo: `Comisiones base VN/VO abonadas a ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{(s.baseVNComm + s.baseVOComm).toLocaleString()} €</td>
-                  <td onClick={() => setDetailModal({ title: `Incentivos Financiación de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "finanComm"), conceptInfo: `Comisiones ligadas a financiación y Preference de ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{(s.finanComm + s.prefComm).toLocaleString()} €</td>
-                  <td onClick={() => setDetailModal({ title: `Bonus de Campaña de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "bonus"), conceptInfo: `Bonus extra acumulados por reglas o planes de campaña de ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", color: "var(--success)", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.bonusComm > 0 ? `+${s.bonusComm.toLocaleString()}` : "0"} €</td>
-                  <td onClick={() => setDetailModal({ title: `Penalizaciones de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "penal"), conceptInfo: `Descuentos o penalizaciones aplicadas a ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", color: "var(--danger)", cursor: "pointer", textDecoration: "underline" }} title="Ver detalle">{s.penalComm > 0 ? `-${s.penalComm.toLocaleString()}` : "0"} €</td>
-                  <td onClick={() => setDetailModal({ title: `Liquidación Total de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "all"), conceptInfo: `Comisión neta final a percibir por ${s.vendedor} (VN+VO+RCI+Bonus-Penalizaciones).` })} style={{ padding: "12px", textAlign: "right", fontWeight: 700, color: "var(--text-primary)", cursor: "pointer", textDecoration: "underline" }} title="Ver desglose completo">{s.totalComm.toLocaleString()} €</td>
+                  <td onClick={() => setDetailModal({ title: `Base VN/VO de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "base"), conceptInfo: `Comisiones base VN/VO abonadas a ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", cursor: "pointer", textDecoration: "underline" }} title={`Base VN: ${s.baseVNComm.toLocaleString()} €\nBase VO: ${s.baseVOComm.toLocaleString()} €`}>{(s.baseVNComm + s.baseVOComm).toLocaleString()} €</td>
+                  <td onClick={() => setDetailModal({ title: `Incentivos Financiación de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "finanComm"), conceptInfo: `Comisiones ligadas a financiación y Preference de ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", cursor: "pointer", textDecoration: "underline" }} title={`Financiación RCI: ${s.finanComm.toLocaleString()} €\nPreference / Box: ${s.prefComm.toLocaleString()} €`}>{(s.finanComm + s.prefComm).toLocaleString()} €</td>
+                  <td onClick={() => setDetailModal({ title: `Bonus de Campaña de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "bonus"), conceptInfo: `Bonus extra acumulados por reglas o planes de campaña de ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", color: "var(--success)", cursor: "pointer", textDecoration: "underline" }} title={getVendedorCommissionTooltip(s.vendedor, "bonus")}>{s.bonusComm > 0 ? `+${s.bonusComm.toLocaleString()}` : "0"} €</td>
+                  <td onClick={() => setDetailModal({ title: `Penalizaciones de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "penal"), conceptInfo: `Descuentos o penalizaciones aplicadas a ${s.vendedor}.` })} style={{ padding: "12px", textAlign: "right", color: "var(--danger)", cursor: "pointer", textDecoration: "underline" }} title={getVendedorCommissionTooltip(s.vendedor, "penal")}>{s.penalComm > 0 ? `-${s.penalComm.toLocaleString()}` : "0"} €</td>
+                  <td onClick={() => setDetailModal({ title: `Liquidación Total de: ${s.vendedor}`, expedientes: getSellersExpedientes(s.vendedor, "all"), conceptInfo: `Comisión neta final a percibir por ${s.vendedor} (VN+VO+RCI+Bonus-Penalizaciones).` })} style={{ padding: "12px", textAlign: "right", fontWeight: 700, color: "var(--text-primary)", cursor: "pointer", textDecoration: "underline" }} title={getVendedorCommissionTooltip(s.vendedor, "total")}>{s.totalComm.toLocaleString()} €</td>
                 </tr>
               ))}
               {sellerStats.length === 0 && (
                 <tr>
-                  <td colSpan={11} style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)" }}>
+                  <td colSpan={12} style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)" }}>
                     No hay registros de ventas para los filtros seleccionados.
                   </td>
                 </tr>
@@ -1649,15 +1802,17 @@ export default function InformesDashboard({
         </div>
       </div>
 
-      {/* 6. Listado Detallado de Operaciones */}
+      {/* 6. Listado Detallado de Operaciones - Dos Cajas Separadas */}
+      
+      {/* Caja 1: Matriculados */}
       <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
-          <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>📋 Listado Detallado de Ventas</h3>
+          <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>📋 Vehículos Matriculados en el Periodo</h3>
           <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-            Mostrando <strong>{sortedDetailedExpedientes.length}</strong> expedientes ({sortedDetailedExpedientes.filter(e => {
+            Mostrando <strong>{matriculadosList.length}</strong> matriculados ({matriculadosList.filter(e => {
               const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
               return name === "nuevo" || name === "demo";
-            }).length} VN y {sortedDetailedExpedientes.filter(e => {
+            }).length} VN y {matriculadosList.filter(e => {
               const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
               return name !== "nuevo" && name !== "demo";
             }).length} VO)
@@ -1694,7 +1849,7 @@ export default function InformesDashboard({
               </tr>
             </thead>
             <tbody>
-              {sortedDetailedExpedientes.map(exp => {
+              {matriculadosList.map(exp => {
                 const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
                 const vnvo = (stateName === "nuevo" || stateName === "demo") ? "VN" : "VO";
                 const comm = calculatedCommissions[exp.id_expediente]?.total || 0;
@@ -1714,14 +1869,14 @@ export default function InformesDashboard({
                     </td>
                     <td style={{ padding: "10px" }}>{exp.tipoDeVenta?.nombre_tipo_venta || ""}</td>
                     <td style={{ padding: "10px" }}>{getEffectiveMatDate(exp) || ""}</td>
-                    <td style={{ padding: "10px", textAlign: "right", fontWeight: 600 }}>{comm.toLocaleString()} €</td>
+                    <td style={{ padding: "10px", textAlign: "right", fontWeight: 600, cursor: "help" }} title={getExpedienteCommissionTooltip(exp.id_expediente)}>{comm.toLocaleString()} €</td>
                   </tr>
                 );
               })}
-              {sortedDetailedExpedientes.length === 0 && (
+              {matriculadosList.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)" }}>
-                    Ningún expediente coincide con los filtros aplicados.
+                    Ningún vehículo matriculado en este periodo.
                   </td>
                 </tr>
               )}
@@ -1730,10 +1885,102 @@ export default function InformesDashboard({
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
           <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
-            Mostrando <strong>{sortedDetailedExpedientes.length}</strong> expedientes ({sortedDetailedExpedientes.filter(e => {
+            Mostrando <strong>{matriculadosList.length}</strong> matriculados ({matriculadosList.filter(e => {
               const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
               return name === "nuevo" || name === "demo";
-            }).length} VN y {sortedDetailedExpedientes.filter(e => {
+            }).length} VN y {matriculadosList.filter(e => {
+              const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+              return name !== "nuevo" && name !== "demo";
+            }).length} VO)
+          </span>
+        </div>
+      </div>
+
+      {/* Caja 2: Pedidos en Cartera */}
+      <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", marginTop: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <h3 style={{ fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>💼 Pedidos en Cartera (Pendientes de Matriculación)</h3>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+            Mostrando <strong>{carteraList.length}</strong> pedidos en cartera ({carteraList.filter(e => {
+              const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+              return name === "nuevo" || name === "demo";
+            }).length} VN y {carteraList.filter(e => {
+              const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+              return name !== "nuevo" && name !== "demo";
+            }).length} VO)
+          </span>
+        </div>
+        <div style={{ overflowX: "auto" }}>
+          <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "2px solid var(--border-light)", textAlign: "left" }}>
+                <th onClick={() => handleSortField("vendedor")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  Vendedor {sortField === "vendedor" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("cliente")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  Cliente {sortField === "cliente" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("marca")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  Marca {sortField === "marca" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("modelo")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  Modelo {sortField === "modelo" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("vnvo")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  VN/VO {sortField === "vnvo" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("metodoPago")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  Método Pago {sortField === "metodoPago" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("matriculacion")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer", userSelect: "none" }}>
+                  Matriculación {sortField === "matriculacion" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+                <th onClick={() => handleSortField("comision")} style={{ padding: "10px", color: "var(--text-muted)", fontSize: "0.8rem", fontWeight: 600, textAlign: "right", cursor: "pointer", userSelect: "none" }}>
+                  Comisión {sortField === "comision" ? (sortDirection === "asc" ? "▲" : "▼") : ""}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {carteraList.map(exp => {
+                const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+                const vnvo = (stateName === "nuevo" || stateName === "demo") ? "VN" : "VO";
+                const comm = calculatedCommissions[exp.id_expediente]?.total || 0;
+                const brandId = exp.modelo?.marca_id || exp.modelo?.marca?.id_marca;
+                const brandName = marcas.find(m => m.id_marca === brandId)?.nombre || "";
+
+                return (
+                  <tr key={exp.id_expediente} style={{ borderBottom: "1px solid var(--border-light)", fontSize: "0.85rem" }}>
+                    <td style={{ padding: "10px" }}>{exp.usuario?.nombre || ""}</td>
+                    <td style={{ padding: "10px" }}>{exp.cliente?.nombre || ""}</td>
+                    <td style={{ padding: "10px" }}>{brandName}</td>
+                    <td style={{ padding: "10px" }}>{exp.modelo?.nombre_modelo || ""}</td>
+                    <td style={{ padding: "10px" }}>
+                      <span className={`badge ${vnvo === "VN" ? "badge-tienda" : "badge-vendedor"}`} style={{ fontSize: "0.7rem", padding: "3px 6px" }}>
+                        {vnvo}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px" }}>{exp.tipoDeVenta?.nombre_tipo_venta || ""}</td>
+                    <td style={{ padding: "10px" }}>{getEffectiveMatDate(exp) || ""}</td>
+                    <td style={{ padding: "10px", textAlign: "right", fontWeight: 600, cursor: "help" }} title={getExpedienteCommissionTooltip(exp.id_expediente)}>{comm.toLocaleString()} €</td>
+                  </tr>
+                );
+              })}
+              {carteraList.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ padding: "20px", textAlign: "center", color: "var(--text-muted)" }}>
+                    Ningún pedido en cartera pendiente en este periodo.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "4px" }}>
+          <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+            Mostrando <strong>{carteraList.length}</strong> pedidos en cartera ({carteraList.filter(e => {
+              const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+              return name === "nuevo" || name === "demo";
+            }).length} VN y {carteraList.filter(e => {
               const name = e.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
               return name !== "nuevo" && name !== "demo";
             }).length} VO)
