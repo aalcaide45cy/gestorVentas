@@ -1134,7 +1134,9 @@ export default function ExpedientesList({
 
     if (fieldName === "fecha_matriculacion") {
       updatePayload.matricula = inputMatricula || null;
-      if (!expediente.fecha_rci) {
+      const salesTypeNameLower = expediente.tipoDeVenta?.nombre_tipo_venta?.toLowerCase() || "";
+      const isContado = salesTypeNameLower.includes("contado");
+      if (!isContado && !expediente.fecha_rci) {
         updatePayload.fecha_rci = inputDate || null;
       }
     }
@@ -2279,11 +2281,12 @@ export default function ExpedientesList({
   ).sort();
 
   const uniqueVendedores = Array.from(
-    new Set(
-      expedientes
+    new Set([
+      ...(currentUserName ? [currentUserName] : []),
+      ...expedientes
         .map(e => e.usuario?.nombre)
         .filter((name): name is string => !!name)
-    )
+    ])
   ).sort();
 
   const uniqueTiposVenta = Array.from(
