@@ -127,7 +127,9 @@ export async function POST(req: NextRequest) {
       const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
       const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
-      return matriculacionIn || rciIn;
+      const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
+      const pedidoIn = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
+      return matriculacionIn || rciIn || afectacionIn || pedidoIn;
     });
 
     // 5. Agrupar expedientes por vendedor (id_usuario) para calcular tramos individuales
