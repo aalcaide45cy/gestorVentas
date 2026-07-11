@@ -406,7 +406,7 @@ export default function InformesDashboard({
           plan.bonusRules?.forEach((bonus: any) => {
             if (!bonus.activo || !bonus.afecta_objetivo) return;
             const eventMatches = 
-              (bonus.tipo_evento === "pedido" && entraPedido) ||
+              (bonus.tipo_evento === "pedido" && (entraPedido || entraAfectacion)) ||
               (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
               (bonus.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
               ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && isCreditoVenta) ||
@@ -632,7 +632,7 @@ export default function InformesDashboard({
           plan.bonusRules?.forEach((bonus: any) => {
             if (!bonus.activo || bonus.afecta_objetivo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
             const eventMatches = 
-              (bonus.tipo_evento === "pedido" && entraPedido) ||
+              (bonus.tipo_evento === "pedido" && (entraPedido || entraAfectacion)) ||
               (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
               (bonus.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
               ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && isCreditoVenta) ||

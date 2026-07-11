@@ -2,7 +2,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 interface TipoVenta {
@@ -24,16 +24,46 @@ interface Marca {
   modelos: Modelo[];
 }
 
+interface Vendedor {
+  id_usuario: number;
+  nombre: string;
+}
+
 interface QuickExpedienteCreatorProps {
   marcas: Marca[];
   tiposVenta: TipoVenta[];
+  vendedores: Vendedor[];
+  currentUserId: number;
 }
 
-export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpedienteCreatorProps) {
+export default function QuickExpedienteCreator({ 
+  marcas, 
+  tiposVenta, 
+  vendedores, 
+  currentUserId 
+}: QuickExpedienteCreatorProps) {
   const router = useRouter();
   const [loadingModelId, setLoadingModelId] = useState<number | "VO" | null>(null);
   const [loadingTipoVentaId, setLoadingTipoVentaId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Estados del selector de vendedor
+  const [selectedVendedorId, setSelectedVendedorId] = useState<number>(currentUserId);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".vendor-dropdown-container")) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("click", handleOutsideClick);
+    return () => document.removeEventListener("click", handleOutsideClick);
+  }, [dropdownOpen]);
 
   const handleQuickCreate = async (modeloId: number | null, modeloNombre: string, tipoVentaId: number, tipoVentaNombre: string, estadoNombre?: string) => {
     setLoadingModelId(modeloId ?? "VO");
@@ -51,6 +81,7 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
             id_modelo: modeloId,
             id_tipo_de_venta: tipoVentaId,
             estado_nombre: estadoNombre,
+            id_usuario: selectedVendedorId,
           },
         }),
       });
@@ -88,11 +119,168 @@ export default function QuickExpedienteCreator({ marcas, tiposVenta }: QuickExpe
 
   return (
     <div className="glass-panel" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div>
-        <h3 style={{ fontSize: "1.2rem", marginBottom: "4px" }}>Acceso Rápido a Modelos</h3>
-        <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
-          Crea expedientes de venta de forma instantánea pulsando en el método de pago bajo cada modelo.
-        </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+        <div>
+          <h3 style={{ fontSize: "1.2rem", marginBottom: "4px" }}>Acceso Rápido a Modelos</h3>
+          <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem", margin: 0 }}>
+            Crea expedientes de venta de forma instantánea pulsando en el método de pago bajo cada modelo.
+          </p>
+        </div>
+
+        {/* Desplegable de comercial con buscador */}
+        <div className="vendor-dropdown-container" style={{ display: "flex", alignItems: "center", gap: "8px", position: "relative" }}>
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              type="button"
+              className="glass-panel-interactive"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 16px",
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid var(--border-light)",
+                borderRadius: "var(--radius-md)",
+                color: "var(--text-primary)",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+                minWidth: "220px",
+                justifyContent: "space-between",
+                textAlign: "left"
+              }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                👤 {vendedores.find(v => v.id_usuario === selectedVendedorId)?.nombre || "Seleccionar comercial"}
+              </span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: dropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {dropdownOpen && (
+              <div 
+                className="glass-panel"
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  zIndex: 2000,
+                  width: "280px",
+                  maxHeight: "300px",
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-md)",
+                  boxShadow: "var(--shadow-lg)",
+                  padding: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  animation: "fadeIn 0.2s ease"
+                }}
+              >
+                <input
+                  type="text"
+                  placeholder="Buscar comercial..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    background: "rgba(255, 255, 255, 0.02)",
+                    border: "1px solid var(--border-light)",
+                    borderRadius: "4px",
+                    color: "var(--text-primary)",
+                    fontSize: "0.8rem",
+                    outline: "none"
+                  }}
+                  autoFocus
+                />
+                
+                <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: "2px", maxHeight: "200px" }}>
+                  {vendedores
+                    .filter(v => v.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map(v => (
+                      <button
+                        key={v.id_usuario}
+                        type="button"
+                        onClick={() => {
+                          setSelectedVendedorId(v.id_usuario);
+                          setDropdownOpen(false);
+                          setSearchTerm("");
+                        }}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          background: v.id_usuario === selectedVendedorId ? "rgba(59, 130, 246, 0.15)" : "transparent",
+                          border: "none",
+                          borderRadius: "4px",
+                          color: v.id_usuario === selectedVendedorId ? "var(--primary)" : "var(--text-primary)",
+                          fontSize: "0.8rem",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          fontWeight: v.id_usuario === selectedVendedorId ? 600 : 400
+                        }}
+                        onMouseEnter={(e) => {
+                          if (v.id_usuario !== selectedVendedorId) {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (v.id_usuario !== selectedVendedorId) {
+                            e.currentTarget.style.background = "transparent";
+                          }
+                        }}
+                      >
+                        {v.nombre}
+                      </button>
+                    ))}
+                  {vendedores.filter(v => v.nombre.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                    <div style={{ padding: "8px", fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center" }}>
+                      No se encontraron resultados
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedVendedorId(currentUserId);
+              setSearchTerm("");
+            }}
+            className="glass-panel-interactive"
+            title="Restaurar a mi usuario"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              background: "rgba(255, 255, 255, 0.05)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-md)",
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--text-primary)";
+              e.currentTarget.style.borderColor = "var(--primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--text-secondary)";
+              e.currentTarget.style.borderColor = "var(--border-light)";
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {feedback && (

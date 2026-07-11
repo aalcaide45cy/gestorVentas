@@ -1514,7 +1514,11 @@ export default function ExpedientesList({
     // 1. Filtrar expedientes que pertenezcan a este período (usando las fechas del plan si está activo)
     const periodExpedientes = expedientes.filter((e) => {
       // Si hay filtro de comercial, solo incluimos sus expedientes
-      if (filterVendedor && e.usuario?.nombre !== filterVendedor) return false;
+      if (filterVendedor) {
+        const sellerName = e.usuario?.nombre?.toLowerCase().trim() || "";
+        const filterName = filterVendedor.toLowerCase().trim();
+        if (sellerName !== filterName) return false;
+      }
 
       const actDate = getActivityDate(e);
       const isRelatedThisMonth = isWithinPlan(actDate);
@@ -1702,7 +1706,7 @@ export default function ExpedientesList({
           activePlan.bonusRules?.forEach((bonus: any) => {
             if (!bonus.activo || !bonus.afecta_objetivo) return;
             const eventMatches = 
-              (bonus.tipo_evento === "pedido" && entraPedido) ||
+              (bonus.tipo_evento === "pedido" && (entraPedido || entraAfectacion)) ||
               (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
               (bonus.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
               ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
@@ -2044,7 +2048,7 @@ export default function ExpedientesList({
           activePlan.bonusRules?.forEach((bonus: any) => {
             if (!bonus.activo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
             const eventMatches = 
-              (bonus.tipo_evento === "pedido" && entraPedido) ||
+              (bonus.tipo_evento === "pedido" && (entraPedido || entraAfectacion)) ||
               (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
               (bonus.tipo_evento === "matriculacion" && isMatriculadoThisMonth) ||
               ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
@@ -2367,7 +2371,11 @@ export default function ExpedientesList({
     }
     if (filterTipoVenta && !exp.tipoDeVenta?.nombre_tipo_venta?.toLowerCase().includes(filterTipoVenta.toLowerCase())) return false;
     if (filterEstadoVehiculo && !exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase().includes(filterEstadoVehiculo.toLowerCase())) return false;
-    if (filterVendedor && !exp.usuario?.nombre?.toLowerCase().includes(filterVendedor.toLowerCase())) return false;
+    if (filterVendedor) {
+      const sellerName = exp.usuario?.nombre?.toLowerCase().trim() || "";
+      const filterName = filterVendedor.toLowerCase().trim();
+      if (sellerName !== filterName) return false;
+    }
     if (filterFExp && !formatDate(exp.fecha_expediente).toLowerCase().includes(filterFExp.toLowerCase())) return false;
     if (filterFAfect && !formatDate(exp.fecha_afectacion).toLowerCase().includes(filterFAfect.toLowerCase())) return false;
     if (filterFRci && !formatDate(exp.fecha_rci).toLowerCase().includes(filterFRci.toLowerCase())) return false;

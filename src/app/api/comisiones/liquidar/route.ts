@@ -451,7 +451,7 @@ export async function POST(req: NextRequest) {
           if (!bonus.activo) return;
 
           const eventMatches = 
-            (bonus.tipo_evento === "pedido" && entraPedido) ||
+            (bonus.tipo_evento === "pedido" && (entraPedido || entraAfectacion)) ||
             (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
             (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
             ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
@@ -464,8 +464,20 @@ export async function POST(req: NextRequest) {
           if (bonus.tipo_vehiculo === "usado" && isVN) return;
 
           // Filtro de fechas
-          if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
-          if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
+          let eventDate = exp.fecha_expediente;
+          if (bonus.tipo_evento === "pedido" && entraAfectacion && exp.fecha_afectacion) {
+            eventDate = exp.fecha_afectacion;
+          } else if (bonus.tipo_evento === "afectacion") {
+            eventDate = exp.fecha_afectacion;
+          } else if (bonus.tipo_evento === "matriculacion") {
+            eventDate = exp.fecha_matriculacion || (exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : null);
+          } else if (bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion" || bonus.tipo_evento === "preference") {
+            eventDate = exp.fecha_rci;
+          }
+
+          const refEventDate = eventDate || exp.fecha_expediente;
+          if (bonus.fecha_inicio && refEventDate && refEventDate < bonus.fecha_inicio) return;
+          if (bonus.fecha_fin && refEventDate && refEventDate > bonus.fecha_fin) return;
 
           const filterMarcaMatches = !bonus.id_marca || exp.modelo?.marca_id === bonus.id_marca;
           const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;
@@ -771,7 +783,7 @@ export async function POST(req: NextRequest) {
           if (!bonus.activo || (!bonus.es_penalizacion && bonus.importe <= 0)) return;
 
           const eventMatches = 
-            (bonus.tipo_evento === "pedido" && entraPedido) ||
+            (bonus.tipo_evento === "pedido" && (entraPedido || entraAfectacion)) ||
             (bonus.tipo_evento === "afectacion" && entraAfectacion) ||
             (bonus.tipo_evento === "matriculacion" && entraMatriculacion) ||
             ((bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion") && entraRci && exp.id_tipo_de_venta && isCreditoVenta) ||
@@ -784,8 +796,20 @@ export async function POST(req: NextRequest) {
           if (bonus.tipo_vehiculo === "usado" && isVN) return;
 
           // Filtro de fechas
-          if (bonus.fecha_inicio && exp.fecha_expediente && exp.fecha_expediente < bonus.fecha_inicio) return;
-          if (bonus.fecha_fin && exp.fecha_expediente && exp.fecha_expediente > bonus.fecha_fin) return;
+          let eventDate = exp.fecha_expediente;
+          if (bonus.tipo_evento === "pedido" && entraAfectacion && exp.fecha_afectacion) {
+            eventDate = exp.fecha_afectacion;
+          } else if (bonus.tipo_evento === "afectacion") {
+            eventDate = exp.fecha_afectacion;
+          } else if (bonus.tipo_evento === "matriculacion") {
+            eventDate = exp.fecha_matriculacion || (exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : null);
+          } else if (bonus.tipo_evento === "credito" || bonus.tipo_evento === "financiacion" || bonus.tipo_evento === "preference") {
+            eventDate = exp.fecha_rci;
+          }
+
+          const refEventDate = eventDate || exp.fecha_expediente;
+          if (bonus.fecha_inicio && refEventDate && refEventDate < bonus.fecha_inicio) return;
+          if (bonus.fecha_fin && refEventDate && refEventDate > bonus.fecha_fin) return;
 
           const filterMarcaMatches = !bonus.id_marca || exp.modelo?.marca_id === bonus.id_marca;
           const filterModeloMatches = !bonus.id_modelo || exp.id_modelo === bonus.id_modelo;

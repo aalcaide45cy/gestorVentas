@@ -86,6 +86,17 @@ export default async function DashboardPage() {
     }
   });
 
+  const dbUsuarios = await db.query.usuarios.findMany({
+    orderBy: (u, { asc }) => [asc(u.nombre)]
+  });
+
+  const vendedoresMapeados = dbUsuarios
+    .filter(u => u.rol !== "invitado")
+    .map(u => ({
+      id_usuario: u.id_usuario,
+      nombre: u.nombre || `ID: ${u.id_usuario}`
+    }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
       {/* CABECERA / BIENVENIDA */}
@@ -239,7 +250,12 @@ export default async function DashboardPage() {
             />
           </div>
 
-          <QuickExpedienteCreator marcas={dbMarcasAccesoRapido} tiposVenta={dbTiposVenta} />
+          <QuickExpedienteCreator 
+            marcas={dbMarcasAccesoRapido} 
+            tiposVenta={dbTiposVenta} 
+            vendedores={vendedoresMapeados}
+            currentUserId={user.id_usuario}
+          />
         </>
       )}
     </div>

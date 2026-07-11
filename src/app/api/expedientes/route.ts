@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
 
     // Crear el expediente
     const [nuevoExpediente] = await db.insert(expedientes).values({
-      id_usuario: localUser.id_usuario,
+      id_usuario: expedienteData.id_usuario || localUser.id_usuario,
       id_cliente: clienteId,
       id_modelo: expedienteData.id_modelo || null,
       id_tienda: tiendaId || null,
