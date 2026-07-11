@@ -825,8 +825,8 @@ export default function EditarExpedienteForm({
 
       setSuccess(true);
       setTimeout(() => {
-        router.push("/dashboard/expedientes");
-      }, 2000);
+        setSuccess(false);
+      }, 3000);
     } catch (err: any) {
       setError(err.message || "Ocurrió un error inesperado.");
     } finally {
@@ -834,21 +834,31 @@ export default function EditarExpedienteForm({
     }
   };
 
-  if (success) {
-    return (
-      <div className="glass-panel" style={{ padding: "40px", textAlign: "center", borderLeft: "4px solid var(--success)" }}>
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: "16px" }}>
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-          <polyline points="22 4 12 14.01 9 11.01" />
-        </svg>
-        <h2 style={{ fontSize: "1.5rem", marginBottom: "8px" }}>¡Expediente Guardado!</h2>
-        <p style={{ color: "var(--text-secondary)" }}>El expediente se ha actualizado con éxito. Redirigiendo...</p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {success && (
+        <div style={{
+          position: "fixed",
+          top: "24px",
+          right: "24px",
+          background: "rgba(16, 185, 129, 0.15)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(16, 185, 129, 0.3)",
+          color: "var(--success)",
+          padding: "16px 24px",
+          borderRadius: "var(--radius-md)",
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          gap: "12px"
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span style={{ fontWeight: 600 }}>¡Expediente guardado correctamente!</span>
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
         <button
           type="button"
