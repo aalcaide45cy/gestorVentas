@@ -269,6 +269,58 @@ export default function ExpedientesList({
     setCurrentPage(1);
   };
 
+  const handleAfectacionPrevMonth = () => {
+    const realCurrentDate = new Date();
+    const realCurrentMonth = realCurrentDate.getMonth() + 1;
+    const realCurrentYear = realCurrentDate.getFullYear();
+
+    let currentMonth = filterMes ? parseInt(filterMes, 10) : realCurrentMonth;
+    let currentYear = filterAnio ? parseInt(filterAnio, 10) : realCurrentYear;
+
+    currentMonth -= 1;
+    if (currentMonth < 1) {
+      currentMonth = 12;
+      currentYear -= 1;
+    }
+
+    setFilterFechaTipo("fecha_afectacion");
+    setFilterMes(String(currentMonth).padStart(2, "0"));
+    setFilterAnio(String(currentYear));
+    setCurrentPage(1);
+  };
+
+  const handleAfectacionActualMonth = () => {
+    const realCurrentDate = new Date();
+    const realCurrentMonth = realCurrentDate.getMonth() + 1;
+    const realCurrentYear = realCurrentDate.getFullYear();
+
+    setFilterFechaTipo("fecha_afectacion");
+    setFilterMes(String(realCurrentMonth).padStart(2, "0"));
+    setFilterAnio(String(realCurrentYear));
+    setCurrentPage(1);
+  };
+
+  const handleAfectacionNextMonth = () => {
+    const realCurrentDate = new Date();
+    const realCurrentMonth = realCurrentDate.getMonth() + 1;
+    const realCurrentYear = realCurrentDate.getFullYear();
+
+    let currentMonth = filterMes ? parseInt(filterMes, 10) : realCurrentMonth;
+    let currentYear = filterAnio ? parseInt(filterAnio, 10) : realCurrentYear;
+
+    currentMonth += 1;
+    if (currentMonth > 12) {
+      currentMonth = 1;
+      currentYear += 1;
+    }
+
+    setFilterFechaTipo("fecha_afectacion");
+    setFilterMes(String(currentMonth).padStart(2, "0"));
+    setFilterAnio(String(currentYear));
+    setCurrentPage(1);
+  };
+
+
   const [planes, setPlanes] = useState<any[]>([]);
   const [activePlan, setActivePlan] = useState<any | null>(null);
 
@@ -3103,46 +3155,99 @@ export default function ExpedientesList({
         </div>
         <div style={{
           marginTop: "16px",
-          padding: "12px 16px",
-          border: "1px solid rgba(255, 255, 255, 0.08)",
-          borderRadius: "8px",
-          background: "rgba(255, 255, 255, 0.02)",
           display: "flex",
           alignItems: "center",
-          gap: "12px",
-          width: "fit-content"
+          gap: "16px",
+          flexWrap: "wrap"
         }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Comisionado:
-          </span>
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleComisionadoPrevMonth}
-              style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
-              title="Mes Anterior (-1)"
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleComisionadoActualMonth}
-              style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
-              title="Mes Actual -1"
-            >
-              Actual
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleComisionadoNextMonth}
-              style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
-              title="Mes Siguiente (+1)"
-            >
-              →
-            </button>
+          {/* CAJA COMISIONADO */}
+          <div style={{
+            padding: "10px 14px",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "8px",
+            background: "rgba(255, 255, 255, 0.02)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            width: "fit-content"
+          }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Comisionado:
+            </span>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleComisionadoPrevMonth}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+                title="Mes Anterior (-1)"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleComisionadoActualMonth}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+                title="Mes Actual -1"
+              >
+                Actual
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleComisionadoNextMonth}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+                title="Mes Siguiente (+1)"
+              >
+                →
+              </button>
+            </div>
+          </div>
+
+          {/* CAJA AFECTACIÓN */}
+          <div style={{
+            padding: "10px 14px",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "8px",
+            background: "rgba(255, 255, 255, 0.02)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            width: "fit-content"
+          }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary-light, #60a5fa)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Afectación:
+            </span>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleAfectacionPrevMonth}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+                title="Mes Anterior (-1)"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleAfectacionActualMonth}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+                title="Mes Actual Real"
+              >
+                Actual
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleAfectacionNextMonth}
+                style={{ padding: "6px 12px", fontSize: "0.85rem", fontWeight: 600 }}
+                title="Mes Siguiente (+1)"
+              >
+                →
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -3153,7 +3258,7 @@ export default function ExpedientesList({
         <PaginationBar />
 
         <div className="table-container">
-          <table className="table-premium">
+          <table className="table-premium table-compact">
             <thead>
               <tr>
                 {bulkSelectionUnlocked && (
@@ -3234,9 +3339,41 @@ export default function ExpedientesList({
                       />
                     </td>
                   )}
-                  <td style={{ fontWeight: "bold", color: "var(--text-primary)" }}>
+                  <td style={{ color: "var(--text-primary)" }}>
                     {exp.cliente?.nombre ? (
-                      exp.cliente.nombre
+                      <div>
+                        <div style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                          {exp.cliente.nombre}
+                        </div>
+                        {((exp.cliente.telefonos && exp.cliente.telefonos.length > 0) || (exp.cliente.emails && exp.cliente.emails.length > 0)) && (
+                          <div style={{ fontSize: "0.75rem", fontWeight: 400, color: "var(--text-secondary)", marginTop: "2px", display: "flex", flexDirection: "column", gap: "1px" }}>
+                            {exp.cliente.telefonos && exp.cliente.telefonos.length > 0 && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}>
+                                <span style={{ fontSize: "0.7rem", opacity: 0.8 }}>📞</span>
+                                <a
+                                  href={`tel:${exp.cliente.telefonos[0].telefono}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ color: "inherit", textDecoration: "none" }}
+                                >
+                                  {exp.cliente.telefonos[0].telefono}
+                                </a>
+                              </div>
+                            )}
+                            {exp.cliente.emails && exp.cliente.emails.length > 0 && (
+                              <div style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "190px" }} title={exp.cliente.emails[0].email}>
+                                <span style={{ fontSize: "0.7rem", opacity: 0.8 }}>✉️</span>
+                                <a
+                                  href={`mailto:${exp.cliente.emails[0].email}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ color: "inherit", textDecoration: "none" }}
+                                >
+                                  {exp.cliente.emails[0].email}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
