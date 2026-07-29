@@ -357,6 +357,7 @@ export const commissionVoPatterns = pgTable('commission_vo_patterns', {
   id_vo_pattern: serial('id_vo_pattern').primaryKey(),
   id_plan: integer('id_plan').references(() => commissionPlans.id_plan, { onDelete: 'cascade' }).notNull(),
   nombre: text('nombre').notNull(),
+  aplica_a_vn: boolean('aplica_a_vn').default(false).notNull(),
   activo: boolean('activo').default(true).notNull(),
   tiers: text('tiers').notNull().default('[]'), // JSON string: [{ unidad: 1, importe: 150, valor_objetivo: 1 }]
 });

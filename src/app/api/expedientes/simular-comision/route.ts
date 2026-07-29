@@ -186,15 +186,17 @@ export async function POST(req: NextRequest) {
     const isVOVendedor = sellerUser.tipo_vendedor === "VO";
     const patronName = sellerUser.patron_vo || "Estándar VO";
 
+    const matchedPattern = plan.voPatterns?.find((vp: any) => vp.nombre === patronName && vp.activo)
+      || plan.voPatterns?.find((vp: any) => vp.activo && vp.aplica_a_vn);
+
     let matchedPatternTiers: any[] = [];
-    if (isVOVendedor) {
-      const dbPattern = plan.voPatterns?.find((vp: any) => vp.nombre === patronName && vp.activo);
-      if (dbPattern) {
-        try {
-          matchedPatternTiers = typeof dbPattern.tiers === "string" ? JSON.parse(dbPattern.tiers) : (dbPattern.tiers || []);
-        } catch (e) {
-          matchedPatternTiers = [];
-        }
+    const appliesVoPattern = isVOVendedor || (matchedPattern && matchedPattern.aplica_a_vn);
+
+    if (matchedPattern && appliesVoPattern) {
+      try {
+        matchedPatternTiers = typeof matchedPattern.tiers === "string" ? JSON.parse(matchedPattern.tiers) : (matchedPattern.tiers || []);
+      } catch (e) {
+        matchedPatternTiers = [];
       }
     }
 
@@ -382,7 +384,7 @@ export async function POST(req: NextRequest) {
             });
           }
         } else if (tipoUsado) {
-          if (!isVOVendedor) {
+          if (!appliesVoPattern) {
             const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
             if (usedRate) {
               itemsDetalle.push({
@@ -601,7 +603,7 @@ export async function POST(req: NextRequest) {
           });
         }
       } else if (tipoUsado) {
-        if (!isVOVendedor) {
+        if (!appliesVoPattern) {
           const usedRate = plan.usedRates.find(r => r.tipo_usado === tipoUsado && r.activo);
           if (usedRate) {
             const totalUnitsOfType = matriculatedUsedCounts[tipoUsado] || 0;
@@ -635,7 +637,7 @@ export async function POST(req: NextRequest) {
 
           comisionUsado = tier.importe;
           finalItems.push({
-            concepto: `Comisión VO Progresiva (Unidad #${voUnitCounterPay}) - Patrón: ${patronName}`,
+            concepto: `Comisión VO Progresiva (Unidad #${voUnitCounterPay}) - Patrón: ${matchedPattern?.nombre || patronName}`,
             importe: tier.importe,
             afecta_objetivo: false,
             valor_objetivo: 0

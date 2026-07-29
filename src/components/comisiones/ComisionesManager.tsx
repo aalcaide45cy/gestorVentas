@@ -3593,6 +3593,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                         onClick={() => {
                           const newPattern = {
                             nombre: `Patrón VO ${voPatterns.length + 1}`,
+                            aplica_a_vn: false,
                             activo: true,
                             tiers: [
                               { unidad: 1, importe: 150, valor_objetivo: 1 },
@@ -3658,7 +3659,7 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                       return (
                         <div key={pIdx} className="glass-panel" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", background: "rgba(255, 255, 255, 0.02)" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "200px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1, minWidth: "200px" }}>
                               <span style={{ fontSize: "1.1rem" }}>📋</span>
                               <input
                                 type="text"
@@ -3666,8 +3667,22 @@ export default function ComisionesManager({ initialPlanes, marcas, modelos, isAd
                                 value={pat.nombre}
                                 onChange={(e) => updatePatternName(e.target.value)}
                                 disabled={!isAdmin}
-                                style={{ fontWeight: 600, fontSize: "1rem", border: "none", background: "transparent", borderBottom: "1px dashed var(--border-light)", padding: "2px 6px", width: "250px" }}
+                                style={{ fontWeight: 600, fontSize: "1rem", border: "none", background: "transparent", borderBottom: "1px dashed var(--border-light)", padding: "2px 6px", width: "220px" }}
                               />
+                              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", cursor: isAdmin ? "pointer" : "default", color: pat.aplica_a_vn ? "var(--primary-light, #60a5fa)" : "var(--text-secondary)", background: "rgba(255, 255, 255, 0.03)", padding: "4px 12px", borderRadius: "6px", border: pat.aplica_a_vn ? "1px solid rgba(96, 165, 250, 0.4)" : "1px solid var(--border-light)" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={!!pat.aplica_a_vn}
+                                  onChange={(e) => {
+                                    const updated = [...voPatterns];
+                                    updated[pIdx] = { ...updated[pIdx], aplica_a_vn: e.target.checked };
+                                    setVoPatterns(updated);
+                                  }}
+                                  disabled={!isAdmin}
+                                  style={{ width: "16px", height: "16px", cursor: isAdmin ? "pointer" : "default" }}
+                                />
+                                <span>Afecta / Aplica a Vendedores de VN al vender VO</span>
+                              </label>
                             </div>
                             {isAdmin && (
                               <button

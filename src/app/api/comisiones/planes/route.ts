@@ -318,6 +318,7 @@ export async function POST(req: NextRequest) {
             sourceVoPatterns.map(v => ({
               id_plan: newId,
               nombre: v.nombre,
+              aplica_a_vn: v.aplica_a_vn,
               activo: v.activo,
               tiers: v.tiers,
             }))
@@ -660,6 +661,7 @@ export async function PUT(req: NextRequest) {
           activeVoPatterns.map((v: any) => ({
             id_plan: Number(id_plan),
             nombre: v.nombre,
+            aplica_a_vn: !!v.aplica_a_vn,
             activo: v.activo !== undefined ? !!v.activo : true,
             tiers: typeof v.tiers === 'string' ? v.tiers : JSON.stringify(v.tiers || []),
           }))

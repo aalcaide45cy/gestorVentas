@@ -355,7 +355,7 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 <td>
                   <div style={{ fontWeight: "bold", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
                     {usr.nombre}
-                    {usr.rol === "vendedor" && (
+                    {(usr.tipo_vendedor === "VO" || usr.rol === "vendedor") && (
                       <span className="badge badge-tienda" style={{ fontSize: "0.65rem", padding: "2px 6px" }}>
                         {usr.tipo_vendedor === "VO" ? `VO (${usr.patron_vo})` : "VN"}
                       </span>
@@ -516,29 +516,25 @@ export default function AdminUsuariosList({ usuariosIniciales, currentUserId }: 
                 </select>
               </div>
 
-              {rol === "vendedor" && (
-                <>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Tipo de Vendedor *</label>
-                    <select className="form-select" value={tipoVendedor} onChange={e => setTipoVendedor(e.target.value)} required>
-                      <option value="VN">Vehículo Nuevo (VN)</option>
-                      <option value="VO">Vehículo de Ocasión (VO)</option>
-                    </select>
-                  </div>
-                  {tipoVendedor === "VO" && (
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Patrón de Comisionamiento VO *</label>
-                      <input
-                        type="text"
-                        className="form-input"
-                        placeholder="Ej. Estándar VO"
-                        value={patronVo || ""}
-                        onChange={e => setPatronVo(e.target.value)}
-                        required
-                      />
-                    </div>
-                  )}
-                </>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Tipo de Vendedor *</label>
+                <select className="form-select" value={tipoVendedor} onChange={e => setTipoVendedor(e.target.value)} required>
+                  <option value="VN">Vehículo Nuevo (VN)</option>
+                  <option value="VO">Vehículo de Ocasión (VO)</option>
+                </select>
+              </div>
+              {tipoVendedor === "VO" && (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Patrón de Comisionamiento VO *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Ej. Estándar VO"
+                    value={patronVo || ""}
+                    onChange={e => setPatronVo(e.target.value)}
+                    required
+                  />
+                </div>
               )}
 
                {modalOpen === "edit" && rol !== "administrador" && (
