@@ -122,9 +122,13 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // 4. Filtrar expedientes que cualifiquen por fechas de Matriculación o RCI
+    // 4. Filtrar expedientes que cualifiquen por fechas de Matriculación (o Facturación en VO) o RCI
     const qualExpedientes = allExpedientes.filter((exp) => {
-      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+      const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+      const isVN = stateName === "nuevo" || stateName === "demo";
+      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado 
+        ? exp.fecha_cobrado 
+        : (isVN ? exp.fecha_matriculacion : (exp.fecha_facturacion || exp.fecha_matriculacion));
       const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
       const afectacionIn = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
@@ -172,8 +176,10 @@ export async function POST(req: NextRequest) {
 
       // Ordenar expedientes cronológicamente para aplicar progresiones de forma secuencial y consistente
       vendedorExps.sort((a, b) => {
-        const dateA = a.fecha_matriculacion || a.fecha_afectacion || a.fecha_expediente || "";
-        const dateB = b.fecha_matriculacion || b.fecha_afectacion || b.fecha_expediente || "";
+        const isVNa = (a.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "") === "nuevo" || (a.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "") === "demo";
+        const isVNb = (b.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "") === "nuevo" || (b.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "") === "demo";
+        const dateA = (a.cobrado_otra_fecha && a.fecha_cobrado ? a.fecha_cobrado : (isVNa ? a.fecha_matriculacion : (a.fecha_facturacion || a.fecha_matriculacion))) || a.fecha_afectacion || a.fecha_expediente || "";
+        const dateB = (b.cobrado_otra_fecha && b.fecha_cobrado ? b.fecha_cobrado : (isVNb ? b.fecha_matriculacion : (b.fecha_facturacion || b.fecha_matriculacion))) || b.fecha_afectacion || b.fecha_expediente || "";
         return dateA.localeCompare(dateB);
       });
 
@@ -275,7 +281,11 @@ export async function POST(req: NextRequest) {
       const expsClasificados = vendedorExps.map((exp) => {
         const entraPedido = exp.fecha_expediente && exp.fecha_expediente >= startDate && exp.fecha_expediente <= endDate;
         const entraAfectacion = exp.fecha_afectacion && exp.fecha_afectacion >= startDate && exp.fecha_afectacion <= endDate;
-        const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+        const isVN = stateName === "nuevo" || stateName === "demo";
+        const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado 
+          ? exp.fecha_cobrado 
+          : (isVN ? exp.fecha_matriculacion : (exp.fecha_facturacion || exp.fecha_matriculacion));
         const entraMatriculacion = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
         const entraRci = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
 
@@ -289,9 +299,6 @@ export async function POST(req: NextRequest) {
         if (entraMatriculacion) {
           matriculacionesRealesVendedor++;
         }
-
-        const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
-        const isVN = stateName === "nuevo" || stateName === "demo";
 
         let tipoUsado: "VO" | "KM0" | "BB" | "Usado" | null = null;
         if (!isVN) {
@@ -856,7 +863,9 @@ export async function POST(req: NextRequest) {
         
         totalLiquidacionGlobal += totalGeneradoFinal;
 
-        const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+        const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado 
+          ? exp.fecha_cobrado 
+          : (isVN ? exp.fecha_matriculacion : (exp.fecha_facturacion || exp.fecha_matriculacion));
         const referenceDateStr = effectiveMatDate || exp.fecha_afectacion || exp.fecha_expediente || startDate;
         const refDate = new Date(referenceDateStr);
         const mesGeneracion = refDate.toLocaleString("es-ES", { month: "long", year: "numeric" });

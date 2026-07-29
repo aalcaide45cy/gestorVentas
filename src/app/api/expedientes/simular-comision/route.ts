@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
       fecha_matriculacion, 
       fecha_entrega, 
       fecha_rci, 
+      fecha_facturacion,
       matricula, 
       vin, 
       valor_objetivo,
@@ -62,9 +63,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Vendedor no encontrado" }, { status: 404 });
     }
 
-    // Determinar fecha de cálculo (incluyendo fecha_rci en la prioridad y fecha_cobrado si aplica)
-    const effectiveMatDateSim = cobrado_otra_fecha && fecha_cobrado ? fecha_cobrado : fecha_matriculacion;
-    const targetDate = effectiveMatDateSim || fecha_rci || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
+    // Determinar fecha de cálculo (incluyendo fecha_rci en la prioridad y fecha_cobrado o fecha_facturacion si aplica)
+    const effectiveMatDateSim = cobrado_otra_fecha && fecha_cobrado 
+      ? fecha_cobrado 
+      : (sellerUser.tipo_vendedor === "VO" ? (fecha_facturacion || fecha_matriculacion) : fecha_matriculacion);
+    const targetDate = effectiveMatDateSim || fecha_facturacion || fecha_rci || fecha_afectacion || fecha_expediente || new Date().toISOString().split("T")[0];
 
     // 2. Obtener el plan de comisiones aplicable para esa fecha
     const plan = await db.query.commissionPlans.findFirst({
@@ -151,6 +154,7 @@ export async function POST(req: NextRequest) {
       fecha_matriculacion: fecha_matriculacion || null,
       fecha_entrega: fecha_entrega || null,
       fecha_rci: fecha_rci || null,
+      fecha_facturacion: fecha_facturacion || null,
       matricula: matricula || null,
       vin: vin || null,
       valor_objetivo: valor_objetivo !== undefined ? (valor_objetivo !== null ? Number(valor_objetivo) : null) : null,
@@ -169,7 +173,11 @@ export async function POST(req: NextRequest) {
 
     // 5. Filtrar que entren en el período (incluyendo RCI)
     const qualExpedientes = allExpedientes.filter((exp) => {
-      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
+      const stateName = exp.estadoVehiculo?.nombre_estado_vehiculo?.toLowerCase() || "";
+      const isVN = stateName === "nuevo" || stateName === "demo";
+      const effectiveMatDate = exp.cobrado_otra_fecha && exp.fecha_cobrado 
+        ? exp.fecha_cobrado 
+        : (isVN ? exp.fecha_matriculacion : (exp.fecha_facturacion || exp.fecha_matriculacion));
       const matriculacionIn = effectiveMatDate && effectiveMatDate >= startDate && effectiveMatDate <= endDate;
       const rciIn = exp.fecha_rci && exp.fecha_rci >= startDate && exp.fecha_rci <= endDate;
       return matriculacionIn || rciIn;

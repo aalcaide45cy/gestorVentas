@@ -204,6 +204,7 @@ export default function NuevoExpedienteForm({
   const [fechaAfectacion, setFechaAfectacion] = useState("");
   const [fechaRci, setFechaRci] = useState("");
   const [fechaMatriculacion, setFechaMatriculacion] = useState("");
+  const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [matricula, setMatricula] = useState("");
   const [vin, setVin] = useState("");
@@ -261,6 +262,7 @@ export default function NuevoExpedienteForm({
     if (fechaAfectacion !== "") return true;
     if (fechaRci !== "") return true;
     if (fechaMatriculacion !== "") return true;
+    if (fechaFacturacion !== "") return true;
     if (fechaEntrega !== "") return true;
 
     return false;
@@ -346,6 +348,7 @@ export default function NuevoExpedienteForm({
             fecha_afectacion: fechaAfectacion || null,
             fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
+            fecha_facturacion: fechaFacturacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
             vin: vin || null
@@ -715,6 +718,10 @@ export default function NuevoExpedienteForm({
             <div className="form-group">
               <label className="form-label">Fecha Matriculación</label>
               <input type="date" className="form-input" value={fechaMatriculacion} onChange={e => setFechaMatriculacion(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fecha Facturación (VO)</label>
+              <input type="date" className="form-input" value={fechaFacturacion} onChange={e => setFechaFacturacion(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Fecha Entrega</label>

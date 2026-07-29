@@ -60,6 +60,7 @@ interface Expediente {
   fecha_matriculacion: string | null;
   fecha_entrega: string | null;
   fecha_rci: string | null;
+  fecha_facturacion?: string | null;
   matricula: string | null;
   id_tipo_de_venta: number | null;
   id_estado_vehiculo: number | null;
@@ -132,6 +133,36 @@ export default function ExpedientesList({
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkSelectionUnlocked, setBulkSelectionUnlocked] = useState(false);
   const [deleteUnlocked, setDeleteUnlocked] = useState(false);
+
+  // Estados para Visibilidad de Columnas
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("exp-visible-columns");
+        if (saved) {
+          return JSON.parse(saved);
+        }
+      } catch (e) {}
+    }
+    return {
+      cliente: true,
+      telefono: true,
+      email: true,
+      marca: true,
+      modelo: true,
+      tipo_venta: true,
+      estado: true,
+      vendedor: true,
+      fecha_expediente: true,
+      fecha_afectacion: true,
+      fecha_rci: true,
+      fecha_matriculacion: true,
+      fecha_facturacion: true,
+      fecha_entrega: true,
+      cobro: true,
+    };
+  });
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
 
   // Estados para Importación Excel
   const [importingExcel, setImportingExcel] = useState(false);
@@ -400,13 +431,13 @@ export default function ExpedientesList({
   // Modales y estados para fechas inline
   const [editDateModal, setEditDateModal] = useState<{
     expediente: Expediente;
-    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci";
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion";
     displayName: string;
   } | null>(null);
 
   const [deleteDateModal, setDeleteDateModal] = useState<{
     expediente: Expediente;
-    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci";
+    fieldName: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion";
     displayName: string;
   } | null>(null);
 
@@ -1164,7 +1195,7 @@ export default function ExpedientesList({
 
   const handleOpenEditDate = (
     exp: Expediente,
-    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion",
     displayName: string
   ) => {
     const today = new Date().toISOString().split("T")[0];
@@ -1226,7 +1257,7 @@ export default function ExpedientesList({
 
   const handleOpenDeleteDate = (
     exp: Expediente,
-    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion",
     displayName: string
   ) => {
     setDeleteDateModal({ expediente: exp, fieldName: field, displayName });
@@ -1376,7 +1407,7 @@ export default function ExpedientesList({
   // Renderizador inline de fecha con botones
   const renderDateField = (
     exp: Expediente,
-    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci",
+    field: "fecha_afectacion" | "fecha_matriculacion" | "fecha_entrega" | "fecha_rci" | "fecha_facturacion",
     displayName: string,
     backgroundColor?: string
   ) => {
@@ -2445,6 +2476,7 @@ export default function ExpedientesList({
       else if (filterFechaTipo === "fecha_matriculacion") targetDateStr = exp.fecha_matriculacion;
       else if (filterFechaTipo === "fecha_entrega") targetDateStr = exp.fecha_entrega;
       else if (filterFechaTipo === "fecha_rci") targetDateStr = exp.fecha_rci;
+      else if (filterFechaTipo === "fecha_facturacion") targetDateStr = exp.fecha_facturacion || null;
       else if (filterFechaTipo === "fecha_comisionado") targetDateStr = exp.cobrado_otra_fecha && exp.fecha_cobrado ? exp.fecha_cobrado : exp.fecha_matriculacion;
 
       if (!targetDateStr) return false;
@@ -2538,6 +2570,10 @@ export default function ExpedientesList({
       case "fecha_entrega":
         valA = a.fecha_entrega || "";
         valB = b.fecha_entrega || "";
+        break;
+      case "fecha_facturacion":
+        valA = a.fecha_facturacion || "";
+        valB = b.fecha_facturacion || "";
         break;
       default:
         valA = a.fecha_expediente || "";
@@ -2816,6 +2852,119 @@ export default function ExpedientesList({
           >
             {deleteUnlocked ? "🔓 Eliminación Activa" : "🔒 Eliminación Inactiva"}
           </button>
+
+          {/* BOTÓN VISIBILIDAD DE COLUMNAS */}
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setShowColumnSelector(!showColumnSelector)}
+              style={{
+                padding: "8px 14px",
+                fontSize: "0.85rem",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                backgroundColor: showColumnSelector ? "var(--primary)" : "rgba(255,255,255,0.05)",
+                color: showColumnSelector ? "white" : "var(--text-primary)",
+                border: "1px solid var(--border-light)",
+                borderRadius: "var(--radius-sm)",
+                fontWeight: 600
+              }}
+              title="Ocultar o mostrar columnas de la tabla"
+            >
+              ⚙️ Columnas
+            </button>
+
+            {showColumnSelector && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  zIndex: 999,
+                  minWidth: "220px",
+                  background: "#1e1e2d",
+                  border: "1px solid var(--border-light)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "14px",
+                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.5)",
+                  backdropFilter: "blur(12px)"
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", paddingBottom: "6px", borderBottom: "1px solid var(--border-light)" }}>
+                  <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--text-primary)" }}>Visibilidad Columnas</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowColumnSelector(false)}
+                    style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: "0.9rem" }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "280px", overflowY: "auto" }}>
+                  {[
+                    { key: "cliente", label: "Cliente" },
+                    { key: "telefono", label: "Teléfono" },
+                    { key: "email", label: "Email" },
+                    { key: "marca", label: "Marca" },
+                    { key: "modelo", label: "Modelo" },
+                    { key: "tipo_venta", label: "T. Venta" },
+                    { key: "estado", label: "Estado" },
+                    { key: "vendedor", label: "Vendedor" },
+                    { key: "fecha_expediente", label: "F. Exp." },
+                    { key: "fecha_afectacion", label: "F. Afect" },
+                    { key: "fecha_rci", label: "F. RCI" },
+                    { key: "fecha_matriculacion", label: "F. Mat" },
+                    { key: "fecha_facturacion", label: "F. FAC." },
+                    { key: "fecha_entrega", label: "F. Entrega" },
+                    ...(showCobroStatus ? [{ key: "cobro", label: "Cobro" }] : [])
+                  ].map(col => (
+                    <label key={col.key} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.82rem", cursor: "pointer", color: "var(--text-primary)", userSelect: "none" }}>
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns[col.key] !== false}
+                        onChange={e => {
+                          const next = { ...visibleColumns, [col.key]: e.target.checked };
+                          setVisibleColumns(next);
+                          localStorage.setItem("exp-visible-columns", JSON.stringify(next));
+                        }}
+                        style={{ width: "15px", height: "15px", accentColor: "var(--primary)", cursor: "pointer" }}
+                      />
+                      {col.label}
+                    </label>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid var(--border-light)" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allTrue: any = {};
+                      ["cliente", "telefono", "email", "marca", "modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega", "cobro"].forEach(k => allTrue[k] = true);
+                      setVisibleColumns(allTrue);
+                      localStorage.setItem("exp-visible-columns", JSON.stringify(allTrue));
+                    }}
+                    style={{ background: "none", border: "none", color: "var(--primary)", fontSize: "0.75rem", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    Mostrar Todas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const minCols: any = {};
+                      ["cliente", "telefono", "email", "marca", "modelo", "tipo_venta", "estado", "vendedor", "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega", "cobro"].forEach(k => minCols[k] = k === "cliente" || k === "vendedor");
+                      setVisibleColumns(minCols);
+                      localStorage.setItem("exp-visible-columns", JSON.stringify(minCols));
+                    }}
+                    style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: "0.75rem", cursor: "pointer" }}
+                  >
+                    Mínimas
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {bulkSelectionUnlocked && selectedIds.length > 0 && (
             <>
@@ -3266,237 +3415,319 @@ export default function ExpedientesList({
         <PaginationBar />
 
         <div className="table-container">
-          <table className="table-premium table-compact">
-            <thead>
-              <tr>
-                {bulkSelectionUnlocked && (
-                  <th style={{ width: "40px", textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={filteredExpedientes.length > 0 && selectedIds.length === filteredExpedientes.length}
-                      onChange={e => handleSelectAll(e.target.checked)}
-                      style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                    />
-                  </th>
-                )}
-                <th onClick={() => handleSort("cliente")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Cliente{renderSortIndicator("cliente")}
-                </th>
-                <th onClick={() => handleSort("telefono")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Teléfono{renderSortIndicator("telefono")}
-                </th>
-                <th onClick={() => handleSort("email")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Email{renderSortIndicator("email")}
-                </th>
-                <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Marca{renderSortIndicator("marca")}
-                </th>
-                <th onClick={() => handleSort("modelo")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Modelo{renderSortIndicator("modelo")}
-                </th>
-                <th onClick={() => handleSort("tipo_venta")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  T. Venta{renderSortIndicator("tipo_venta")}
-                </th>
-                <th onClick={() => handleSort("estado")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Estado{renderSortIndicator("estado")}
-                </th>
-                <th onClick={() => handleSort("vendedor")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  Vendedor{renderSortIndicator("vendedor")}
-                </th>
-                <th onClick={() => handleSort("fecha_expediente")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  F. Exp.{renderSortIndicator("fecha_expediente")}
-                </th>
-                <th onClick={() => handleSort("fecha_afectacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  F. Afect{renderSortIndicator("fecha_afectacion")}
-                </th>
-                <th onClick={() => handleSort("fecha_rci")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  F. RCI{renderSortIndicator("fecha_rci")}
-                </th>
-                <th onClick={() => handleSort("fecha_matriculacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  F. Mat{renderSortIndicator("fecha_matriculacion")}
-                </th>
-                <th onClick={() => handleSort("fecha_entrega")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                  F. Entrega{renderSortIndicator("fecha_entrega")}
-                </th>
-                {showCobroStatus && (
-                  <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.06)", userSelect: "none", whiteSpace: "nowrap" }}>
-                    Cobro
-                  </th>
-                )}
-                <th style={{ whiteSpace: "nowrap" }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedExpedientes.map((exp) => (
-                <tr 
-                  key={exp.id_expediente} 
-                  onClick={(e) => {
-                    if (!bulkSelectionUnlocked) return;
-                    const target = e.target as HTMLElement;
-                    const isInteractive = target.closest("button, a, input, select, textarea, [role='button']");
-                    if (isInteractive) return;
-                    const isSelected = selectedIds.includes(exp.id_expediente);
-                    handleSelectOne(exp.id_expediente, !isSelected);
-                  }}
-                  style={{ 
-                    background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined,
-                    cursor: bulkSelectionUnlocked ? "pointer" : "default"
-                  }}
-                >
-                  {bulkSelectionUnlocked && (
-                    <td style={{ textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(exp.id_expediente)}
-                        onChange={e => handleSelectOne(exp.id_expediente, e.target.checked)}
-                        style={{ width: "16px", height: "16px", cursor: "pointer" }}
-                      />
-                    </td>
-                  )}
-                  <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
-                    {exp.cliente?.nombre ? (
-                      exp.cliente.nombre
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
-                        <button
-                          type="button"
-                          title="Asignar Cliente"
-                          onClick={() => {
-                            setAssigningClientExpId(exp.id_expediente);
-                            setClientSearchQuery("");
-                            setClientSearchResults([]);
-                          }}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: "2px 6px",
-                            fontSize: "0.85rem",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "var(--primary)",
-                            borderRadius: "4px",
-                            transition: "all 0.2s"
-                          }}
-                          className="glass-panel-interactive"
-                        >
-                          🔍
-                        </button>
-                      </div>
+          {(() => {
+            const activeVisibleKeys = [
+              "cliente", "telefono", "email", "marca", "modelo", "tipo_venta", "estado", "vendedor", 
+              "fecha_expediente", "fecha_afectacion", "fecha_rci", "fecha_matriculacion", "fecha_facturacion", "fecha_entrega"
+            ];
+            if (showCobroStatus) activeVisibleKeys.push("cobro");
+            const visibleColumnCount = activeVisibleKeys.filter(k => visibleColumns[k] !== false).length;
+            const totalTableColSpan = visibleColumnCount + (bulkSelectionUnlocked ? 1 : 0) + 1;
+
+            return (
+              <table className="table-premium table-compact">
+                <thead>
+                  <tr>
+                    {bulkSelectionUnlocked && (
+                      <th style={{ width: "40px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={filteredExpedientes.length > 0 && selectedIds.length === filteredExpedientes.length}
+                          onChange={e => handleSelectAll(e.target.checked)}
+                          style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                        />
+                      </th>
                     )}
-                  </td>
-                  <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
-                    {exp.cliente?.telefonos && exp.cliente.telefonos.length > 0 ? (
-                      exp.cliente.telefonos[0].telefono
-                    ) : (
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                    {visibleColumns.cliente !== false && (
+                      <th onClick={() => handleSort("cliente")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Cliente{renderSortIndicator("cliente")}
+                      </th>
                     )}
-                  </td>
-                  <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
-                    {exp.cliente?.emails && exp.cliente.emails.length > 0 ? (
-                      exp.cliente.emails[0].email
-                    ) : (
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                    {visibleColumns.telefono !== false && (
+                      <th onClick={() => handleSort("telefono")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Teléfono{renderSortIndicator("telefono")}
+                      </th>
                     )}
-                  </td>
-                  <td>
-                    {exp.modelo?.marca?.nombre || (
-                      <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>
+                    {visibleColumns.email !== false && (
+                      <th onClick={() => handleSort("email")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Email{renderSortIndicator("email")}
+                      </th>
                     )}
-                  </td>
-                  <td>
-                    {exp.modelo ? (
-                      <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                        {exp.modelo.nombre_modelo}
-                      </div>
-                    ) : (
-                      <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
+                    {visibleColumns.marca !== false && (
+                      <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Marca{renderSortIndicator("marca")}
+                      </th>
                     )}
-                    {exp.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</div>}
-                  </td>
-                  <td>
-                    {exp.tipoDeVenta ? (
-                      <span className="badge" style={{
-                        fontSize: "0.7rem",
-                        padding: "3px 8px",
-                        backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
-                        color: "#fff"
-                      }}>
-                        {exp.tipoDeVenta.nombre_tipo_venta}
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                    {visibleColumns.modelo !== false && (
+                      <th onClick={() => handleSort("modelo")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Modelo{renderSortIndicator("modelo")}
+                      </th>
                     )}
-                  </td>
-                  <td>
-                    {exp.estadoVehiculo ? (
-                      <span className={`badge badge-${exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
-                        {exp.estadoVehiculo.nombre_estado_vehiculo}
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                    {visibleColumns.tipo_venta !== false && (
+                      <th onClick={() => handleSort("tipo_venta")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        T. Venta{renderSortIndicator("tipo_venta")}
+                      </th>
                     )}
-                  </td>
-                  <td>
-                    <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
-                  </td>
-                   <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
-                    <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
-                  </td>
-                  {renderDateField(exp, "fecha_afectacion", "Afectación", "rgba(128, 128, 128, 0.09)")}
-                  {renderDateField(exp, "fecha_rci", "RCI", "rgba(128, 128, 128, 0.03)")}
-                  {renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.09)")}
-                  {renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.03)")}
-                  {showCobroStatus && (
-                    <td style={{ textAlign: "center" }}>
-                      {exp.comision_cobrada ? (
-                        <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
-                          💰 Cobrado
-                        </span>
-                      ) : (
-                        <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
-                          🕒 Pendiente
-                        </span>
+                    {visibleColumns.estado !== false && (
+                      <th onClick={() => handleSort("estado")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Estado{renderSortIndicator("estado")}
+                      </th>
+                    )}
+                    {visibleColumns.vendedor !== false && (
+                      <th onClick={() => handleSort("vendedor")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Vendedor{renderSortIndicator("vendedor")}
+                      </th>
+                    )}
+                    {visibleColumns.fecha_expediente !== false && (
+                      <th onClick={() => handleSort("fecha_expediente")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        F. Exp.{renderSortIndicator("fecha_expediente")}
+                      </th>
+                    )}
+                    {visibleColumns.fecha_afectacion !== false && (
+                      <th onClick={() => handleSort("fecha_afectacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        F. Afect{renderSortIndicator("fecha_afectacion")}
+                      </th>
+                    )}
+                    {visibleColumns.fecha_rci !== false && (
+                      <th onClick={() => handleSort("fecha_rci")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        F. RCI{renderSortIndicator("fecha_rci")}
+                      </th>
+                    )}
+                    {visibleColumns.fecha_matriculacion !== false && (
+                      <th onClick={() => handleSort("fecha_matriculacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        F. Mat{renderSortIndicator("fecha_matriculacion")}
+                      </th>
+                    )}
+                    {visibleColumns.fecha_facturacion !== false && (
+                      <th onClick={() => handleSort("fecha_facturacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        F. FAC.{renderSortIndicator("fecha_facturacion")}
+                      </th>
+                    )}
+                    {visibleColumns.fecha_entrega !== false && (
+                      <th onClick={() => handleSort("fecha_entrega")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        F. Entrega{renderSortIndicator("fecha_entrega")}
+                      </th>
+                    )}
+                    {showCobroStatus && visibleColumns.cobro !== false && (
+                      <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.06)", userSelect: "none", whiteSpace: "nowrap" }}>
+                        Cobro
+                      </th>
+                    )}
+                    <th style={{ whiteSpace: "nowrap", textAlign: "center" }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedExpedientes.map((exp) => (
+                    <tr 
+                      key={exp.id_expediente} 
+                      onClick={(e) => {
+                        if (!bulkSelectionUnlocked) return;
+                        const target = e.target as HTMLElement;
+                        const isInteractive = target.closest("button, a, input, select, textarea, [role='button']");
+                        if (isInteractive) return;
+                        const isSelected = selectedIds.includes(exp.id_expediente);
+                        handleSelectOne(exp.id_expediente, !isSelected);
+                      }}
+                      style={{ 
+                        background: selectedIds.includes(exp.id_expediente) ? "rgba(var(--primary-rgb), 0.04)" : undefined,
+                        cursor: bulkSelectionUnlocked ? "pointer" : "default"
+                      }}
+                    >
+                      {bulkSelectionUnlocked && (
+                        <td style={{ textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(exp.id_expediente)}
+                            onChange={e => handleSelectOne(exp.id_expediente, e.target.checked)}
+                            style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                          />
+                        </td>
                       )}
-                    </td>
-                  )}
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center" }}>
-                      <Link href={`/dashboard/expedientes/editar/${exp.id_expediente}`} className="btn btn-secondary" style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
-                        ✏️ Editar
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (deleteUnlocked) setConfirmDeleteExpediente(exp);
-                        }}
-                        style={{
-                          padding: "6px 12px",
-                          fontSize: "0.8rem",
-                          color: deleteUnlocked ? "var(--danger)" : "var(--text-muted)",
-                          background: deleteUnlocked ? "rgba(239, 68, 68, 0.05)" : "rgba(255, 255, 255, 0.02)",
-                          border: deleteUnlocked ? "1px solid rgba(239, 68, 68, 0.15)" : "1px solid var(--border-light)",
-                          borderRadius: "var(--radius-sm)",
-                          cursor: deleteUnlocked ? "pointer" : "not-allowed",
-                          marginLeft: "8px",
-                          fontWeight: 600,
-                          transition: "all 0.2s ease",
-                          opacity: deleteUnlocked ? 1 : 0.5
-                        }}
-                        disabled={!deleteUnlocked}
-                        className={deleteUnlocked ? "glass-panel-interactive" : ""}
-                      >
-                        🗑️ Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {paginatedExpedientes.length === 0 && (
-                <tr>
-                  <td colSpan={bulkSelectionUnlocked ? (showCobroStatus ? 14 : 13) : (showCobroStatus ? 13 : 12)} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
+                      {visibleColumns.cliente !== false && (
+                        <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
+                          {exp.cliente?.nombre ? (
+                            exp.cliente.nombre
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
+                              <button
+                                type="button"
+                                title="Asignar Cliente"
+                                onClick={() => {
+                                  setAssigningClientExpId(exp.id_expediente);
+                                  setClientSearchQuery("");
+                                  setClientSearchResults([]);
+                                }}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  padding: "2px 6px",
+                                  fontSize: "0.85rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: "var(--primary)",
+                                  borderRadius: "4px",
+                                  transition: "all 0.2s"
+                                }}
+                                className="glass-panel-interactive"
+                              >
+                                🔍
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.telefono !== false && (
+                        <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
+                          {exp.cliente?.telefonos && exp.cliente.telefonos.length > 0 ? (
+                            exp.cliente.telefonos[0].telefono
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.email !== false && (
+                        <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
+                          {exp.cliente?.emails && exp.cliente.emails.length > 0 ? (
+                            exp.cliente.emails[0].email
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.marca !== false && (
+                        <td>
+                          {exp.modelo?.marca?.nombre || (
+                            <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin marca)</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.modelo !== false && (
+                        <td>
+                          {exp.modelo ? (
+                            <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
+                              {exp.modelo.nombre_modelo}
+                            </div>
+                          ) : (
+                            <span style={{ fontStyle: "italic", color: "var(--text-muted)" }}>VO (Sin modelo)</span>
+                          )}
+                          {exp.vin && <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>VIN: {exp.vin}</div>}
+                        </td>
+                      )}
+                      {visibleColumns.tipo_venta !== false && (
+                        <td>
+                          {exp.tipoDeVenta ? (
+                            <span className="badge" style={{
+                              fontSize: "0.7rem",
+                              padding: "3px 8px",
+                              backgroundColor: exp.tipoDeVenta.color || "#3b82f6",
+                              color: "#fff"
+                            }}>
+                              {exp.tipoDeVenta.nombre_tipo_venta}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.estado !== false && (
+                        <td>
+                          {exp.estadoVehiculo ? (
+                            <span className={`badge badge-${exp.estadoVehiculo.nombre_estado_vehiculo?.toLowerCase() === 'nuevo' ? 'tienda' : 'vendedor'}`} style={{ fontSize: "0.7rem", padding: "3px 8px" }}>
+                              {exp.estadoVehiculo.nombre_estado_vehiculo}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                          )}
+                        </td>
+                      )}
+                      {visibleColumns.vendedor !== false && (
+                        <td>
+                          <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>{exp.usuario?.nombre || "N/D"}</div>
+                        </td>
+                      )}
+                      {visibleColumns.fecha_expediente !== false && (
+                        <td style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)" }}>
+                          <span style={{ fontSize: "0.85rem" }}>{formatDate(exp.fecha_expediente)}</span>
+                        </td>
+                      )}
+                      {visibleColumns.fecha_afectacion !== false && renderDateField(exp, "fecha_afectacion", "Afectación", "rgba(128, 128, 128, 0.09)")}
+                      {visibleColumns.fecha_rci !== false && renderDateField(exp, "fecha_rci", "RCI", "rgba(128, 128, 128, 0.03)")}
+                      {visibleColumns.fecha_matriculacion !== false && renderDateField(exp, "fecha_matriculacion", "Matriculación", "rgba(128, 128, 128, 0.09)")}
+                      {visibleColumns.fecha_facturacion !== false && renderDateField(exp, "fecha_facturacion", "Facturación", "rgba(128, 128, 128, 0.03)")}
+                      {visibleColumns.fecha_entrega !== false && renderDateField(exp, "fecha_entrega", "Entrega", "rgba(128, 128, 128, 0.09)")}
+                      {showCobroStatus && visibleColumns.cobro !== false && (
+                        <td style={{ textAlign: "center" }}>
+                          {exp.comision_cobrada ? (
+                            <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "var(--success)", border: "1px solid rgba(16, 185, 129, 0.3)" }}>
+                              💰 Cobrado
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ fontSize: "0.75rem", backgroundColor: "rgba(245, 158, 11, 0.12)", color: "var(--warning)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+                              🕒 Pendiente
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                          <Link 
+                            href={`/dashboard/expedientes/editar/${exp.id_expediente}`} 
+                            title="Editar expediente"
+                            style={{
+                              width: "28px",
+                              height: "28px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "#f59e0b",
+                              color: "#000",
+                              borderRadius: "var(--radius-sm)",
+                              fontSize: "0.85rem",
+                              textDecoration: "none",
+                              border: "none",
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                              cursor: "pointer",
+                              transition: "transform 0.15s ease, opacity 0.15s ease"
+                            }}
+                          >
+                            ✏️
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (deleteUnlocked) setConfirmDeleteExpediente(exp);
+                            }}
+                            title={deleteUnlocked ? "Eliminar expediente" : "Desbloquea la eliminación primero"}
+                            style={{
+                              width: "28px",
+                              height: "28px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: deleteUnlocked ? "#ef4444" : "rgba(239, 68, 68, 0.2)",
+                              color: "#ffffff",
+                              border: "none",
+                              borderRadius: "var(--radius-sm)",
+                              fontSize: "0.85rem",
+                              cursor: deleteUnlocked ? "pointer" : "not-allowed",
+                              opacity: deleteUnlocked ? 1 : 0.4,
+                              boxShadow: deleteUnlocked ? "0 1px 3px rgba(0,0,0,0.2)" : "none",
+                              transition: "transform 0.15s ease, opacity 0.15s ease"
+                            }}
+                            disabled={!deleteUnlocked}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {paginatedExpedientes.length === 0 && (
+                    <tr>
+                      <td colSpan={totalTableColSpan} style={{ textAlign: "center", color: "var(--text-muted)", padding: "40px" }}>
                     {expedientes.length === 0
                       ? "No hay expedientes registrados en el sistema."
                       : "No se encontraron expedientes con los filtros aplicados."
@@ -3506,6 +3737,8 @@ export default function ExpedientesList({
               )}
             </tbody>
           </table>
+            );
+          })()}
         </div>
 
         {/* PAGINACIÓN INFERIOR */}

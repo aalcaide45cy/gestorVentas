@@ -261,6 +261,7 @@ export default function EditarExpedienteForm({
   const [fechaAfectacion, setFechaAfectacion] = useState(expediente.fecha_afectacion || "");
   const [fechaRci, setFechaRci] = useState(expediente.fecha_rci || "");
   const [fechaMatriculacion, setFechaMatriculacion] = useState(expediente.fecha_matriculacion || "");
+  const [fechaFacturacion, setFechaFacturacion] = useState(expediente.fecha_facturacion || "");
   const [fechaEntrega, setFechaEntrega] = useState(expediente.fecha_entrega || "");
   const [matricula, setMatricula] = useState(expediente.matricula || "");
   const [vin, setVin] = useState(expediente.vin || "");
@@ -372,6 +373,7 @@ export default function EditarExpedienteForm({
     if (fechaAfectacion !== (expediente.fecha_afectacion || "")) return true;
     if (fechaRci !== (expediente.fecha_rci || "")) return true;
     if (fechaMatriculacion !== (expediente.fecha_matriculacion || "")) return true;
+    if (fechaFacturacion !== (expediente.fecha_facturacion || "")) return true;
     if (fechaEntrega !== (expediente.fecha_entrega || "")) return true;
     if (cobradoOtraFecha !== (expediente.cobrado_otra_fecha || false)) return true;
     if (fechaCobrado !== (expediente.fecha_cobrado || "")) return true;
@@ -472,6 +474,7 @@ export default function EditarExpedienteForm({
             fecha_afectacion: fechaAfectacion || null,
             fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
+            fecha_facturacion: fechaFacturacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
@@ -574,6 +577,7 @@ export default function EditarExpedienteForm({
             fecha_afectacion: fechaAfectacion || null,
             fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
+            fecha_facturacion: fechaFacturacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
@@ -705,6 +709,7 @@ export default function EditarExpedienteForm({
             fecha_afectacion: fechaAfectacion || null,
             fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
+            fecha_facturacion: fechaFacturacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
@@ -807,6 +812,7 @@ export default function EditarExpedienteForm({
             fecha_afectacion: fechaAfectacion || null,
             fecha_rci: fechaRci || null,
             fecha_matriculacion: fechaMatriculacion || null,
+            fecha_facturacion: fechaFacturacion || null,
             fecha_entrega: fechaEntrega || null,
             matricula: matricula || null,
             vin: vin || null,
@@ -1272,6 +1278,10 @@ export default function EditarExpedienteForm({
             <div className="form-group">
               <label className="form-label">Fecha Matriculación</label>
               <input type="date" className="form-input" value={fechaMatriculacion} onChange={e => setFechaMatriculacion(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Fecha Facturación (VO)</label>
+              <input type="date" className="form-input" value={fechaFacturacion} onChange={e => setFechaFacturacion(e.target.value)} />
             </div>
 
             <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: "12px", background: "rgba(255, 255, 255, 0.02)", padding: "16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>

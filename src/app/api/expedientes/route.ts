@@ -229,6 +229,7 @@ export async function POST(req: NextRequest) {
       fecha_matriculacion: expedienteData.fecha_matriculacion || null,
       fecha_entrega: expedienteData.fecha_entrega || null,
       fecha_rci: expedienteData.fecha_rci || null,
+      fecha_facturacion: expedienteData.fecha_facturacion || null,
       matricula: expedienteData.matricula || null,
       vin: expedienteData.vin || null,
       id_tipo_de_venta: expedienteData.id_tipo_de_venta || null,
@@ -296,6 +297,9 @@ export async function PUT(req: NextRequest) {
       }
       if (expedienteData.fecha_entrega !== undefined && expedienteData.fecha_entrega !== "") {
         updateData.fecha_entrega = expedienteData.fecha_entrega === "" ? null : expedienteData.fecha_entrega;
+      }
+      if (expedienteData.fecha_facturacion !== undefined && expedienteData.fecha_facturacion !== "") {
+        updateData.fecha_facturacion = expedienteData.fecha_facturacion === "" ? null : expedienteData.fecha_facturacion;
       }
 
       if (Object.keys(updateData).length === 0) {
@@ -374,6 +378,7 @@ export async function PUT(req: NextRequest) {
       fecha_matriculacion: expedienteData.fecha_matriculacion !== undefined ? expedienteData.fecha_matriculacion : undefined,
       fecha_entrega: expedienteData.fecha_entrega !== undefined ? expedienteData.fecha_entrega : undefined,
       fecha_rci: expedienteData.fecha_rci !== undefined ? expedienteData.fecha_rci : undefined,
+      fecha_facturacion: expedienteData.fecha_facturacion !== undefined ? (expedienteData.fecha_facturacion === "" ? null : expedienteData.fecha_facturacion) : undefined,
       matricula: expedienteData.matricula !== undefined ? expedienteData.matricula : undefined,
       vin: expedienteData.vin !== undefined ? expedienteData.vin : undefined,
       id_cliente: id_cliente !== undefined ? id_cliente : undefined,
