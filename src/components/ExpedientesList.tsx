@@ -3274,6 +3274,12 @@ export default function ExpedientesList({
                 <th onClick={() => handleSort("cliente")} style={{ cursor: "pointer", userSelect: "none" }}>
                   Cliente{renderSortIndicator("cliente")}
                 </th>
+                <th style={{ userSelect: "none" }}>
+                  Teléfono
+                </th>
+                <th style={{ userSelect: "none" }}>
+                  Email
+                </th>
                 <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
                   Marca{renderSortIndicator("marca")}
                 </th>
@@ -3339,41 +3345,9 @@ export default function ExpedientesList({
                       />
                     </td>
                   )}
-                  <td style={{ color: "var(--text-primary)" }}>
+                  <td style={{ fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
                     {exp.cliente?.nombre ? (
-                      <div>
-                        <div style={{ fontWeight: 600, whiteSpace: "nowrap" }}>
-                          {exp.cliente.nombre}
-                        </div>
-                        {((exp.cliente.telefonos && exp.cliente.telefonos.length > 0) || (exp.cliente.emails && exp.cliente.emails.length > 0)) && (
-                          <div style={{ fontSize: "0.75rem", fontWeight: 400, color: "var(--text-secondary)", marginTop: "2px", display: "flex", flexDirection: "column", gap: "1px" }}>
-                            {exp.cliente.telefonos && exp.cliente.telefonos.length > 0 && (
-                              <div style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}>
-                                <span style={{ fontSize: "0.7rem", opacity: 0.8 }}>📞</span>
-                                <a
-                                  href={`tel:${exp.cliente.telefonos[0].telefono}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{ color: "inherit", textDecoration: "none" }}
-                                >
-                                  {exp.cliente.telefonos[0].telefono}
-                                </a>
-                              </div>
-                            )}
-                            {exp.cliente.emails && exp.cliente.emails.length > 0 && (
-                              <div style={{ display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "190px" }} title={exp.cliente.emails[0].email}>
-                                <span style={{ fontSize: "0.7rem", opacity: 0.8 }}>✉️</span>
-                                <a
-                                  href={`mailto:${exp.cliente.emails[0].email}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{ color: "inherit", textDecoration: "none" }}
-                                >
-                                  {exp.cliente.emails[0].email}
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      exp.cliente.nombre
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Sin Cliente</span>
@@ -3403,6 +3377,20 @@ export default function ExpedientesList({
                           🔍
                         </button>
                       </div>
+                    )}
+                  </td>
+                  <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
+                    {exp.cliente?.telefonos && exp.cliente.telefonos.length > 0 ? (
+                      exp.cliente.telefonos[0].telefono
+                    ) : (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
+                    )}
+                  </td>
+                  <td style={{ userSelect: "text", whiteSpace: "nowrap" }}>
+                    {exp.cliente?.emails && exp.cliente.emails.length > 0 ? (
+                      exp.cliente.emails[0].email
+                    ) : (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>N/D</span>
                     )}
                   </td>
                   <td>
