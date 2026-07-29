@@ -2478,8 +2478,8 @@ export default function ExpedientesList({
   };
 
   const renderSortIndicator = (field: string) => {
-    if (sortField !== field) return " ↕";
-    return sortOrder === "asc" ? " ▲" : " ▼";
+    const symbol = sortField !== field ? "↕" : (sortOrder === "asc" ? "▲" : "▼");
+    return <span style={{ marginLeft: "4px", fontSize: "0.75rem", display: "inline-block", opacity: sortField === field ? 1 : 0.6 }}>{symbol}</span>;
   };
 
   const sortedExpedientes = [...filteredExpedientes].sort((a, b) => {
@@ -2490,6 +2490,14 @@ export default function ExpedientesList({
       case "cliente":
         valA = a.cliente?.nombre || "";
         valB = b.cliente?.nombre || "";
+        break;
+      case "telefono":
+        valA = a.cliente?.telefonos?.[0]?.telefono || "";
+        valB = b.cliente?.telefonos?.[0]?.telefono || "";
+        break;
+      case "email":
+        valA = a.cliente?.emails?.[0]?.email || "";
+        valB = b.cliente?.emails?.[0]?.email || "";
         break;
       case "marca":
         valA = a.modelo?.marca?.nombre || "";
@@ -3271,51 +3279,51 @@ export default function ExpedientesList({
                     />
                   </th>
                 )}
-                <th onClick={() => handleSort("cliente")} style={{ cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("cliente")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   Cliente{renderSortIndicator("cliente")}
                 </th>
-                <th style={{ userSelect: "none" }}>
-                  Teléfono
+                <th onClick={() => handleSort("telefono")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                  Teléfono{renderSortIndicator("telefono")}
                 </th>
-                <th style={{ userSelect: "none" }}>
-                  Email
+                <th onClick={() => handleSort("email")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                  Email{renderSortIndicator("email")}
                 </th>
-                <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("marca")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   Marca{renderSortIndicator("marca")}
                 </th>
-                <th onClick={() => handleSort("modelo")} style={{ cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("modelo")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   Modelo{renderSortIndicator("modelo")}
                 </th>
-                <th onClick={() => handleSort("tipo_venta")} style={{ cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("tipo_venta")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   T. Venta{renderSortIndicator("tipo_venta")}
                 </th>
-                <th onClick={() => handleSort("estado")} style={{ cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("estado")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   Estado{renderSortIndicator("estado")}
                 </th>
-                <th onClick={() => handleSort("vendedor")} style={{ cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("vendedor")} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   Vendedor{renderSortIndicator("vendedor")}
                 </th>
-                <th onClick={() => handleSort("fecha_expediente")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("fecha_expediente")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   F. Exp.{renderSortIndicator("fecha_expediente")}
                 </th>
-                <th onClick={() => handleSort("fecha_afectacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("fecha_afectacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   F. Afect{renderSortIndicator("fecha_afectacion")}
                 </th>
-                <th onClick={() => handleSort("fecha_rci")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("fecha_rci")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   F. RCI{renderSortIndicator("fecha_rci")}
                 </th>
-                <th onClick={() => handleSort("fecha_matriculacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("fecha_matriculacion")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.09)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   F. Mat{renderSortIndicator("fecha_matriculacion")}
                 </th>
-                <th onClick={() => handleSort("fecha_entrega")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none" }}>
+                <th onClick={() => handleSort("fecha_entrega")} style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.03)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                   F. Entrega{renderSortIndicator("fecha_entrega")}
                 </th>
                 {showCobroStatus && (
-                  <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.06)", userSelect: "none" }}>
+                  <th style={{ textAlign: "center", backgroundColor: "rgba(128, 128, 128, 0.06)", userSelect: "none", whiteSpace: "nowrap" }}>
                     Cobro
                   </th>
                 )}
-                <th>Acciones</th>
+                <th style={{ whiteSpace: "nowrap" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
