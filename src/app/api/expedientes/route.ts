@@ -279,8 +279,7 @@ export async function PUT(req: NextRequest) {
       if (expedienteData.id_tipo_de_venta !== undefined && expedienteData.id_tipo_de_venta !== "") {
         updateData.id_tipo_de_venta = Number(expedienteData.id_tipo_de_venta);
       }
-      // Solamente el administrador puede modificar el vendedor (id_usuario)
-      if (localUser.rol === "administrador" && expedienteData.id_usuario !== undefined && expedienteData.id_usuario !== "") {
+      if (expedienteData.id_usuario !== undefined && expedienteData.id_usuario !== "") {
         updateData.id_usuario = Number(expedienteData.id_usuario);
       }
       if (expedienteData.fecha_expediente !== undefined && expedienteData.fecha_expediente !== "") {
@@ -366,7 +365,7 @@ export async function PUT(req: NextRequest) {
 
     // Actualizar expediente
     await db.update(expedientes).set({
-      id_usuario: (localUser.rol === "administrador" && expedienteData.id_usuario !== undefined)
+      id_usuario: expedienteData.id_usuario !== undefined
         ? (expedienteData.id_usuario ? Number(expedienteData.id_usuario) : null)
         : undefined,
       id_modelo: expedienteData.id_modelo !== undefined ? expedienteData.id_modelo : undefined,

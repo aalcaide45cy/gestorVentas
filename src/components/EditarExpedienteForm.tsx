@@ -342,6 +342,7 @@ export default function EditarExpedienteForm({
     if (nombre !== (expediente.cliente?.nombre || "")) return true;
     if (fechaNacimiento !== (expediente.cliente?.fecha_de_nacimiento || "")) return true;
     if (tiendaId !== (expediente.id_tienda ? String(expediente.id_tienda) : "")) return true;
+    if (vendedorSeleccionado !== (expediente.id_usuario ? String(expediente.id_usuario) : "")) return true;
 
     // Emails check
     const currentEmails = emails.filter(e => e.email.trim() !== "");
@@ -553,7 +554,7 @@ export default function EditarExpedienteForm({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleAnchorClick, true);
     };
-  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, minCochesMultiplicador, success, cobradoOtraFecha, fechaCobrado]);
+  }, [dni, nombre, fechaNacimiento, tiendaId, emails, telefonos, marcaSeleccionada, modeloSeleccionado, tipoVentaSeleccionado, estadoVehiculoSeleccionado, matricula, vin, fechaExpediente, fechaAfectacion, fechaRci, fechaMatriculacion, fechaEntrega, valorObjetivo, minCochesMultiplicador, success, cobradoOtraFecha, fechaCobrado, vendedorSeleccionado]);
 
   useEffect(() => {
     if (!modeloSeleccionado) {
@@ -1241,17 +1242,15 @@ export default function EditarExpedienteForm({
               </select>
             </div>
 
-            {userRole === "administrador" && (
-              <div className="form-group">
-                <label className="form-label">Vendedor (Administrador)</label>
-                <select className="form-select" value={vendedorSeleccionado} onChange={e => setVendedorSeleccionado(e.target.value)}>
-                  <option value="">Selecciona Vendedor</option>
-                  {usuarios.map(u => (
-                    <option key={u.id} value={u.id}>{u.nombre}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="form-group">
+              <label className="form-label">Vendedor Asignado</label>
+              <select className="form-select" value={vendedorSeleccionado} onChange={e => setVendedorSeleccionado(e.target.value)}>
+                <option value="">Selecciona Vendedor</option>
+                {usuarios.map(u => (
+                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "20px", marginTop: "16px" }}>
